@@ -1,0 +1,31 @@
+name = "gold-trading-bot"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[kv_namespaces]]
+binding = "BOT_STATE"
+id = "YOUR_KV_NAMESPACE_ID"
+
+[vars]
+BROKER_MODE = "oanda"
+SESSION_FILTER = "all"
+SCORE_THRESHOLD = "75"
+HIGH_CONVICTION = "88"
+LOT_PER_100_USD = "0.01"
+MIN_LOT = "0.01"
+MAX_LOT = "5"
+MAX_DAILY_LOSS = "0.03"
+DAILY_TARGET = "0.05"
+MIN_RR = "2"
+MAX_OPEN_TRADES = "2"
+RSI_PERIOD = "10"
+RSI_LONG_MAX = "38"
+RSI_SHORT_MIN = "40"
+ADX_MIN = "14"
+SL_ATR = "0.8"
+MAX_HOLD_BARS = "48"
+COOLDOWN_BARS = "16"

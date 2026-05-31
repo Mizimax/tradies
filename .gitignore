@@ -1,0 +1,14 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.env.*
+!.env.example
+
+# Backtest cache and generated outputs
+backtesting/results/xauusd_m15.csv
+backtesting/results/optimization_grid.csv
+
+# OS/editor noise
+.DS_Store
+*.log

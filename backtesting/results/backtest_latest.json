@@ -1,0 +1,83 @@
+{
+  "trades": 451,
+  "win_rate": 0.4745011086474501,
+  "profit_factor": 1.7295806374663656,
+  "avg_rr": 2.0,
+  "expectancy_r": 0.3803924213188179,
+  "max_drawdown_r": 22.883689538779876,
+  "avg_trades_day": 1.8949579831932772,
+  "pass": false,
+  "params": {
+    "ema_fast": 21,
+    "ema_mid": 50,
+    "ema_slow": 200,
+    "rsi_period": 14,
+    "rsi_long_max": 58,
+    "rsi_short_min": 42,
+    "adx_min": 18,
+    "atr_min": 1.0,
+    "atr_max": 35.0,
+    "sl_atr": 1.2,
+    "rr": 2.0,
+    "max_hold_bars": 96,
+    "cooldown_bars": 8,
+    "session_filter": "all"
+  },
+  "sample_trades": [
+    {
+      "entry_time": "2022-07-07T17:15:00Z",
+      "exit_time": "2022-07-08T15:30:00Z",
+      "direction": "SHORT",
+      "entry": 1746.09,
+      "sl": 1752.6024810718013,
+      "tp": 1733.065037856397,
+      "pnl": 2.0,
+      "rr": 2.0,
+      "planned_rr": 2.0
+    },
+    {
+      "entry_time": "2022-07-07T19:45:00Z",
+      "exit_time": "2022-07-08T17:45:00Z",
+      "direction": "SHORT",
+      "entry": 1742.48,
+      "sl": 1748.661925005788,
+      "tp": 1730.116149988424,
+      "pnl": -1.0,
+      "rr": -1.0,
+      "planned_rr": 2.0
+    },
+    {
+      "entry_time": "2022-07-08T09:30:00Z",
+      "exit_time": "2022-07-08T10:30:00Z",
+      "direction": "SHORT",
+      "entry": 1743.66,
+      "sl": 1748.0453989239406,
+      "tp": 1734.8892021521192,
+      "pnl": 2.0,
+      "rr": 2.0,
+      "planned_rr": 2.0
+    },
+    {
+      "entry_time": "2022-07-08T13:45:00Z",
+      "exit_time": "2022-07-08T17:30:00Z",
+      "direction": "SHORT",
+      "entry": 1742.25,
+      "sl": 1747.7144581077328,
+      "tp": 1731.3210837845345,
+      "pnl": -1.0,
+      "rr": -1.0,
+      "planned_rr": 2.0
+    },
+    {
+      "entry_time": "2022-07-08T16:30:00Z",
+      "exit_time": "2022-07-08T17:30:00Z",
+      "direction": "SHORT",
+      "entry": 1741.8,
+      "sl": 1748.0224644543327,
+      "tp": 1729.3550710913346,
+      "pnl": -1.0,
+      "rr": -1.0,
+      "planned_rr": 2.0
+    }
+  ]
+}

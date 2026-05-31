@@ -1,0 +1,83 @@
+{
+  "trades": 251,
+  "win_rate": 0.5816733067729084,
+  "profit_factor": 2.68369659123329,
+  "avg_rr": 2.0,
+  "expectancy_r": 0.6853384648801747,
+  "max_drawdown_r": 10.29527465711628,
+  "avg_trades_day": 1.3494623655913978,
+  "pass": true,
+  "params": {
+    "ema_fast": 21,
+    "ema_mid": 50,
+    "ema_slow": 200,
+    "rsi_period": 10,
+    "rsi_long_max": 38,
+    "rsi_short_min": 40,
+    "adx_min": 14,
+    "atr_min": 1.0,
+    "atr_max": 35.0,
+    "sl_atr": 0.8,
+    "rr": 2.0,
+    "max_hold_bars": 48,
+    "cooldown_bars": 16,
+    "session_filter": "all"
+  },
+  "sample_trades": [
+    {
+      "entry_time": "2022-07-07T17:15:00Z",
+      "exit_time": "2022-07-08T06:00:00Z",
+      "direction": "SHORT",
+      "entry": 1746.09,
+      "sl": 1750.4316540478676,
+      "tp": 1737.4066919042648,
+      "pnl": 1.0180451853760009,
+      "rr": 1.0180451853760009,
+      "planned_rr": 2.0
+    },
+    {
+      "entry_time": "2022-07-08T09:30:00Z",
+      "exit_time": "2022-07-08T10:30:00Z",
+      "direction": "SHORT",
+      "entry": 1743.66,
+      "sl": 1746.5835992826271,
+      "tp": 1737.812801434746,
+      "pnl": 2.0,
+      "rr": 2.0,
+      "planned_rr": 2.0
+    },
+    {
+      "entry_time": "2022-07-08T13:45:00Z",
+      "exit_time": "2022-07-08T15:30:00Z",
+      "direction": "SHORT",
+      "entry": 1742.25,
+      "sl": 1745.8929720718218,
+      "tp": 1734.9640558563563,
+      "pnl": 2.0,
+      "rr": 2.0,
+      "planned_rr": 2.0
+    },
+    {
+      "entry_time": "2022-07-08T22:15:00Z",
+      "exit_time": "2022-07-11T11:00:00Z",
+      "direction": "SHORT",
+      "entry": 1742.45,
+      "sl": 1746.582631953802,
+      "tp": 1734.1847360923962,
+      "pnl": 1.146968821077644,
+      "rr": 1.146968821077644,
+      "planned_rr": 2.0
+    },
+    {
+      "entry_time": "2022-07-12T10:30:00Z",
+      "exit_time": "2022-07-12T16:45:00Z",
+      "direction": "SHORT",
+      "entry": 1735.74,
+      "sl": 1739.5918886955067,
+      "tp": 1728.0362226089867,
+      "pnl": 2.0,
+      "rr": 2.0,
+      "planned_rr": 2.0
+    }
+  ]
+}

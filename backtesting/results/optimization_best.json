@@ -1,0 +1,25 @@
+{
+  "rsi_period": 10,
+  "rsi_long_max": 50,
+  "rsi_short_min": 45,
+  "adx_min": 14,
+  "sl_atr": 0.8,
+  "rr": 2.0,
+  "session_filter": "all",
+  "trades": 91,
+  "win_rate": 0.5934065934065934,
+  "profit_factor": 2.918918918918919,
+  "avg_rr": 2.0,
+  "avg_trades_day": 1.9361702127659575,
+  "pass": true,
+  "score": 6.996640859140859,
+  "params": {
+    "rsi_period": 10,
+    "rsi_long_max": 50,
+    "rsi_short_min": 45,
+    "adx_min": 14,
+    "sl_atr": 0.8,
+    "rr": 2.0,
+    "session_filter": "all"
+  }
+}
