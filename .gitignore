@@ -5,10 +5,16 @@ node_modules/
 .env.*
 !.env.example
 
-# Backtest cache and generated outputs
-backtesting/results/xauusd_m15.csv
-backtesting/results/optimization_grid.csv
+# Legacy backtest cache and generated outputs
+legacy/cloudflare-worker/backtesting/results/xauusd_m15.csv
+legacy/cloudflare-worker/backtesting/results/optimization_grid.csv
+
+# MT5 local/generated artifacts
+*.ex5
+*.opt
+*.log
+mt5/backtests/reports/
+mt5/files/
 
 # OS/editor noise
 .DS_Store
-*.log
