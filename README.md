@@ -30,6 +30,14 @@ mt5/Presets/GoldBot.optimized.set     -> MQL5/Presets/GoldBot.optimized.set
 
 Then open MetaEditor and compile `GoldBot.mq5`.
 
+For detailed macOS/Windows compile steps, see `MT5_COMPILE_GUIDE.md`.
+
+To create a ready-to-copy zip:
+
+```bash
+bash scripts/package-mt5.sh
+```
+
 ## Backtesting
 
 Use MT5 Strategy Tester as the source of truth:
