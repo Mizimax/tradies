@@ -3,7 +3,7 @@ import type { Env } from '../broker/types';
 export interface JournalEntry {
   id: string;
   time: string;
-  type: 'SIGNAL' | 'ORDER' | 'CLOSE' | 'SKIP' | 'ERROR';
+  type: 'SIGNAL' | 'ORDER' | 'CLOSE' | 'SKIP' | 'ERROR' | 'MANAGE' | 'RISK';
   payload: unknown;
 }
 
@@ -17,4 +17,13 @@ export async function appendJournal(env: Env, entry: JournalEntry): Promise<void
 export async function recentJournal(env: Env): Promise<JournalEntry[]> {
   const today = new Date().toISOString().slice(0, 10);
   return await env.BOT_STATE.get<JournalEntry[]>(`journal:${today}`, 'json') ?? [];
+}
+
+export async function getLastSignalTime(env: Env): Promise<number | null> {
+  const value = await env.BOT_STATE.get('signal:lastCreatedAt');
+  return value ? Number(value) : null;
+}
+
+export async function setLastSignalTime(env: Env, timestamp: number): Promise<void> {
+  await env.BOT_STATE.put('signal:lastCreatedAt', String(timestamp));
 }

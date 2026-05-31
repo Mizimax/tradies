@@ -1,4 +1,4 @@
-import type { Env } from '../broker/types';
+import type { AccountInfo, Env } from '../broker/types';
 
 export function envNumber(env: Env, key: keyof Env, fallback: number): number {
   const raw = env[key];
@@ -28,4 +28,28 @@ export function lotSummary(env: Env, equity: number, score: number) {
 
 export function dailyRiskAllowsTrading(dailyPnlPct: number, env: Env): boolean {
   return dailyPnlPct > -envNumber(env, 'MAX_DAILY_LOSS', 0.03) && dailyPnlPct < envNumber(env, 'DAILY_TARGET', 0.05);
+}
+
+export interface DailyRiskState {
+  date: string;
+  startEquity: number;
+  currentEquity: number;
+  pnlPct: number;
+  allowed: boolean;
+}
+
+export async function loadDailyRiskState(env: Env, account: AccountInfo, now = new Date()): Promise<DailyRiskState> {
+  const date = now.toISOString().slice(0, 10);
+  const key = `risk:${date}`;
+  const existing = await env.BOT_STATE.get<{ startEquity: number }>(key, 'json');
+  const startEquity = existing?.startEquity && existing.startEquity > 0 ? existing.startEquity : account.equity;
+  if (!existing) {
+    await env.BOT_STATE.put(key, JSON.stringify({ startEquity }), { expirationTtl: 60 * 60 * 48 });
+  }
+  const pnlPct = (account.equity - startEquity) / Math.max(startEquity, 1e-9);
+  return { date, startEquity, currentEquity: account.equity, pnlPct, allowed: dailyRiskAllowsTrading(pnlPct, env) };
+}
+
+export function maxOpenTradesAllows(openCount: number, env: Env): boolean {
+  return openCount < envNumber(env, 'MAX_OPEN_TRADES', 2);
 }

@@ -21,19 +21,19 @@ export function calcADX(candles: Candle[], period = 14): { adx: number[]; plusDI
   return { adx: calcRMA(dx, period), plusDI: plus, minusDI: minus };
 }
 
-export function checkADX(candles: Candle[]): IndicatorResult {
+export function checkADX(candles: Candle[], minADX = 20): IndicatorResult {
   if (candles.length < 35) return { name: 'adx', pass: false, direction: null, score: 0, reason: 'INSUFFICIENT_CANDLES' };
   const { adx, plusDI, minusDI } = calcADX(candles, 14);
   const latest = adx.at(-1)!;
   const prev = adx.at(-3) ?? latest;
   const bullDI = plusDI.at(-1)! > minusDI.at(-1)!;
   const bearDI = minusDI.at(-1)! > plusDI.at(-1)!;
-  const score = latest >= 25 ? 12.5 : latest >= 20 ? 8.0 : 0;
+  const score = latest >= Math.max(25, minADX) ? 12.5 : latest >= minADX ? 8.0 : 0;
   return {
     name: 'adx',
-    pass: latest >= 20,
+    pass: latest >= minADX,
     direction: bullDI ? 'LONG' : bearDI ? 'SHORT' : null,
     score,
-    values: { adx: latest, plusDI: plusDI.at(-1)!, minusDI: minusDI.at(-1)!, rising: latest > prev }
+    values: { adx: latest, minADX, plusDI: plusDI.at(-1)!, minusDI: minusDI.at(-1)!, rising: latest > prev }
   };
 }

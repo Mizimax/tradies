@@ -7,6 +7,12 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/status') return Response.json({ ok: true, service: 'gold-trading-bot', time: new Date().toISOString() });
     if (url.pathname === '/trades') return Response.json({ ok: true, journal: await recentJournal(env) });
+    if (url.pathname === '/kv-test') {
+      const key = 'health:kv-test';
+      const value = new Date().toISOString();
+      await env.BOT_STATE.put(key, value, { expirationTtl: 300 });
+      return Response.json({ ok: true, key, value, readBack: await env.BOT_STATE.get(key) });
+    }
     if (url.pathname === '/trigger') return runBot(env);
     return new Response('Not found', { status: 404 });
   },

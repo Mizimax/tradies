@@ -5,6 +5,7 @@ import { calcEMA } from '../indicators/math';
 import { buildEntryZone, type EntryZone } from '../execution/pullbackZone';
 import { runIndicatorGates, type IndicatorGateResults } from './indicatorGates';
 import { runSMCGates, type SMCGateResult } from './smcGates';
+import type { StrategyConfig } from '../utils/strategyConfig';
 
 export interface MasterValidation {
   totalScore: number;
@@ -19,9 +20,11 @@ export interface MasterValidation {
   reason?: string;
 }
 
-export function validate(data: MultiTFData, threshold = 75): MasterValidation {
+export function validate(data: MultiTFData, thresholdOrConfig: number | StrategyConfig = 75): MasterValidation {
+  const threshold = typeof thresholdOrConfig === 'number' ? thresholdOrConfig : thresholdOrConfig.scoreThreshold;
+  const config = typeof thresholdOrConfig === 'number' ? undefined : thresholdOrConfig;
   const smc = runSMCGates(data);
-  const emptyIndicators = runIndicatorGates(data);
+  const emptyIndicators = runIndicatorGates(data, config);
   if (!smc.allPass || !smc.direction) {
     return baseResult(smc.score, smc, emptyIndicators, 'SKIP', null, null, null, null, smc.reason);
   }
@@ -46,11 +49,13 @@ export function validate(data: MultiTFData, threshold = 75): MasterValidation {
   );
   if (!zone) return baseResult(totalScore, smc, indicators, 'SKIP', smc.direction, null, null, null, 'NO_ENTRY_ZONE_OVERLAP');
   const latest = data.m15Candles.at(-1)!.close;
-  const stopLoss = smc.direction === 'LONG' ? Math.min(zone.bottom, latest - atr * 1.5) : Math.max(zone.top, latest + atr * 1.5);
+  const slAtr = config?.slAtr ?? 1.5;
+  const minRR = config?.minRR ?? 2.0;
+  const stopLoss = smc.direction === 'LONG' ? Math.min(zone.bottom, latest - atr * slAtr) : Math.max(zone.top, latest + atr * slAtr);
   const risk = Math.abs(latest - stopLoss);
   const takeProfits: [number, number, number] = smc.direction === 'LONG'
-    ? [latest + risk * 1.5, latest + risk * 2.5, latest + risk * 4]
-    : [latest - risk * 1.5, latest - risk * 2.5, latest - risk * 4];
+    ? [latest + risk * minRR, latest + risk * Math.max(minRR + 0.5, 2.5), latest + risk * Math.max(minRR * 2, 4)]
+    : [latest - risk * minRR, latest - risk * Math.max(minRR + 0.5, 2.5), latest - risk * Math.max(minRR * 2, 4)];
   return baseResult(totalScore, smc, indicators, totalScore >= threshold ? 'TRADE' : 'SKIP', smc.direction, zone, stopLoss, takeProfits, totalScore >= threshold ? undefined : 'SCORE_BELOW_THRESHOLD');
 }
 

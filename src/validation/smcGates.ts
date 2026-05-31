@@ -30,7 +30,7 @@ export function runSMCGates(data: MultiTFData): SMCGateResult {
   const m15Fvg = latestUnmitigatedFVG(data.m15Candles, direction);
   const m15Ob = latestUnmitigatedOrderBlock(data.m15Candles, direction);
   const m15 = analyzeMarketStructure(data.m15Candles, 2);
-  const gate3_15M = Boolean(m15Fvg || m15Ob) && (m15.choch || m15.bos) && !withinHighImpactNews(data.now);
+  const gate3_15M = Boolean(m15Fvg || m15Ob) && (m15.choch || m15.bos) && !withinHighImpactNews(data.now, data.newsEvents);
   const allPass = gate1_4H && gate2_1H && gate3_15M;
   return {
     gate1_4H,

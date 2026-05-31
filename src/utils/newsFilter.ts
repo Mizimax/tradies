@@ -12,3 +12,13 @@ export function withinHighImpactNews(now: Date, events: NewsEvent[] = [], window
     return diff <= windowMinutes * 60_000;
   });
 }
+
+export function parseNewsEvents(raw?: string): NewsEvent[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as NewsEvent[];
+    return Array.isArray(parsed) ? parsed.filter((event) => event.time && event.impact && event.currency && event.title) : [];
+  } catch {
+    return [];
+  }
+}

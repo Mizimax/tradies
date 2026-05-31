@@ -27,9 +27,12 @@ export interface Env {
   RSI_LONG_MAX?: string;
   RSI_SHORT_MIN?: string;
   ADX_MIN?: string;
+  ATR_MIN?: string;
+  ATR_MAX?: string;
   SL_ATR?: string;
   MAX_HOLD_BARS?: string;
   COOLDOWN_BARS?: string;
+  NEWS_EVENTS_JSON?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
 }
@@ -89,6 +92,7 @@ export interface MultiTFData {
   h4Candles: Candle[];
   session: Session;
   now: Date;
+  newsEvents?: Array<{ time: string; impact: 'low' | 'medium' | 'high'; currency: string; title: string }>;
 }
 
 export interface IndicatorResult {

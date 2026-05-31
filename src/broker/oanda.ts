@@ -25,8 +25,23 @@ export class OandaClient implements BrokerClient {
   }
 
   async modifyPosition(_positionId: string, _sl: number, _tp: number): Promise<void> {}
-  async closePosition(_positionId: string): Promise<void> {}
-  async closePartial(_positionId: string, _volume: number): Promise<void> {}
+  async closePosition(positionId: string): Promise<void> {
+    const [instrument, side] = positionId.split(':');
+    if (!instrument || !side) return;
+    await this.request(`/v3/accounts/${this.accountId}/positions/${instrument}/close`, {
+      method: 'PUT',
+      body: JSON.stringify(side === 'long' ? { longUnits: 'ALL' } : { shortUnits: 'ALL' })
+    });
+  }
+
+  async closePartial(positionId: string, volume: number): Promise<void> {
+    const [instrument, side] = positionId.split(':');
+    if (!instrument || !side) return;
+    await this.request(`/v3/accounts/${this.accountId}/positions/${instrument}/close`, {
+      method: 'PUT',
+      body: JSON.stringify(side === 'long' ? { longUnits: String(volume) } : { shortUnits: String(volume) })
+    });
+  }
 
   async getAccountInfo(): Promise<AccountInfo> {
     const data = await this.request<{ account: { balance: string; NAV: string; currency: string } }>(`/v3/accounts/${this.accountId}`);

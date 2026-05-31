@@ -36,9 +36,17 @@ export function detectDivergence(candles: Candle[], oscillator: number[], type: 
     && Math.max(...secondOsc) < Math.max(...firstOsc);
 }
 
-export function checkRSI(candles: Candle[]): IndicatorResult {
-  if (candles.length < 35) return { name: 'rsi', pass: false, direction: null, score: 0, reason: 'INSUFFICIENT_CANDLES' };
-  const rsi = calcRSI(candles, 14);
+export interface RSIOptions {
+  period?: number;
+  longMax?: number;
+  shortMin?: number;
+  divergenceLookback?: number;
+}
+
+export function checkRSI(candles: Candle[], options: RSIOptions = {}): IndicatorResult {
+  const period = options.period ?? 14;
+  if (candles.length < period + 21) return { name: 'rsi', pass: false, direction: null, score: 0, reason: 'INSUFFICIENT_CANDLES' };
+  const rsi = calcRSI(candles, period);
   const latest = rsi.at(-1)!;
   const prev = rsi.at(-2)!;
   if (latest > 80) return { name: 'rsi', pass: false, direction: null, score: 0, reason: 'LONG_OVERBOUGHT_BLOCK', values: { rsi: latest } };
@@ -46,16 +54,20 @@ export function checkRSI(candles: Candle[]): IndicatorResult {
   const crossedAbove30 = prev < 30 && latest >= 30;
   const crossedBelow70 = prev > 70 && latest <= 70;
   const inPullbackZone = latest >= 40 && latest <= 60;
-  const bullDiv = detectDivergence(candles, rsi, 'bullish', 20);
-  const bearDiv = detectDivergence(candles, rsi, 'bearish', 20);
+  const bullDiv = detectDivergence(candles, rsi, 'bullish', options.divergenceLookback ?? 20);
+  const bearDiv = detectDivergence(candles, rsi, 'bearish', options.divergenceLookback ?? 20);
+  const tunedLongPullback = latest <= (options.longMax ?? -Infinity);
+  const tunedShortPullback = latest >= (options.shortMin ?? Infinity);
   const bullScore = [crossedAbove30, bullDiv, inPullbackZone].filter(Boolean).length;
   const bearScore = [crossedBelow70, bearDiv, inPullbackZone].filter(Boolean).length;
-  const pass = bullScore >= 2 || bearScore >= 2;
+  const longPass = bullScore >= 2 || tunedLongPullback;
+  const shortPass = bearScore >= 2 || tunedShortPullback;
+  const pass = longPass || shortPass;
   return {
     name: 'rsi',
     pass,
-    direction: pass ? (bullScore >= bearScore ? 'LONG' : 'SHORT') : null,
+    direction: pass ? (longPass && !shortPass ? 'LONG' : shortPass && !longPass ? 'SHORT' : bullScore >= bearScore ? 'LONG' : 'SHORT') : null,
     score: pass ? 12.5 : 0,
-    values: { rsi: latest, crossedAbove30, crossedBelow70, inPullbackZone, bullDiv, bearDiv }
+    values: { rsi: latest, period, crossedAbove30, crossedBelow70, inPullbackZone, bullDiv, bearDiv, tunedLongPullback, tunedShortPullback }
   };
 }
