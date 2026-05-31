@@ -19,3 +19,4 @@ dist/
 
 # OS/editor noise
 .DS_Store
+*.lnk

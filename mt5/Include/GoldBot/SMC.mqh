@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GOLDBOT_SMC_MQH
+#define GOLDBOT_SMC_MQH
 
 enum GoldBotDirection
 {
@@ -224,3 +225,5 @@ bool GoldBotRunSMC(const string symbol, SMCResult &out)
    out.score = out.allPass ? 37.5 : 0.0;
    return true;
 }
+
+#endif

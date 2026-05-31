@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GOLDBOT_RISK_MQH
+#define GOLDBOT_RISK_MQH
 
 enum GoldBotRiskMode
 {
@@ -76,3 +77,5 @@ void GoldBotMarkSignalTime()
 {
    GlobalVariableSet("GoldBot.lastSignalTime", (double)TimeCurrent());
 }
+
+#endif

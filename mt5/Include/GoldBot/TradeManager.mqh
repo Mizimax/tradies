@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GOLDBOT_TRADE_MANAGER_MQH
+#define GOLDBOT_TRADE_MANAGER_MQH
 
 #include <Trade/Trade.mqh>
 #include <GoldBot/SMC.mqh>
@@ -240,3 +241,5 @@ void GoldBotManagePositions(const string symbol, const long magic, const double 
       }
    }
 }
+
+#endif

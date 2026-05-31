@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GOLDBOT_INDICATORS_MQH
+#define GOLDBOT_INDICATORS_MQH
 
 struct IndicatorSnapshot
 {
@@ -168,3 +169,5 @@ bool GoldBotIndicatorSnapshot(
    out.adxShort = out.adx >= adxMin && out.minusDI > out.plusDI;
    return true;
 }
+
+#endif
