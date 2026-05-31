@@ -14,6 +14,7 @@ legacy/cloudflare-worker/backtesting/results/optimization_grid.csv
 *.opt
 *.log
 mt5/backtests/reports/
+mt5/backtests/config/
 mt5/files/
 dist/
 

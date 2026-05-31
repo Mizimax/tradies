@@ -12,6 +12,24 @@ Copy:
 
 Compile `GoldBot.mq5` in MetaEditor.
 
+## Command-Line Backtest
+
+This repo includes a macOS/Wine helper for the installed MetaTrader 5 app:
+
+```bash
+bash scripts/run-mt5-backtest.sh
+```
+
+It writes a temporary tester config under `mt5/backtests/config/`, copies the set file into `MQL5/Profiles/Tester`, launches MT5 with `/config`, and copies generated reports back to `mt5/backtests/reports/`.
+
+MetaTrader requires a tester account. If MT5 already has a demo/broker account saved, the script can use it. Otherwise pass account details as environment variables:
+
+```bash
+MT5_LOGIN=12345678 MT5_SERVER="Broker-Demo" MT5_PASSWORD="password" bash scripts/run-mt5-backtest.sh
+```
+
+Do not commit generated config files; they may contain account details.
+
 ## First Test
 
 - Symbol: broker gold symbol, usually `XAUUSD` or `GOLD`
