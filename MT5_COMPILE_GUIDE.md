@@ -34,6 +34,30 @@ dist/GoldBot-MT5.zip
 
 Unzip it and copy the contained `MQL5` folders into the MT5 data folder.
 
+## Already Installed On This Mac
+
+On this machine, MetaTrader 5 was installed at:
+
+```text
+/Users/tammanoonjomjaturong/Applications/MetaTrader 5.app
+```
+
+Rosetta 2 was also installed because the official macOS bundle runs an x86_64 Wine wrapper.
+
+The EA files were copied into:
+
+```text
+/Users/tammanoonjomjaturong/Library/Application Support/net.metaquotes.wine.metatrader5/drive_c/Program Files/MetaTrader 5/MQL5/
+```
+
+To open MetaEditor directly on `GoldBot.mq5`, run:
+
+```bash
+bash scripts/open-metaeditor-goldbot.sh
+```
+
+Then click `Compile` inside MetaEditor.
+
 ## Option C: Windows VPS Or VM
 
 This is often the cleanest path for MT5 automation:
