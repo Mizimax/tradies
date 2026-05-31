@@ -1,0 +1,13 @@
+BROKER_MODE=oanda
+OANDA_BASE_URL=https://api-fxpractice.oanda.com
+OANDA_API_KEY=replace_me
+OANDA_ACCOUNT_ID=replace_me
+
+# MetaApi / MT5 demo mode
+METAAPI_TOKEN=replace_me
+MT5_ACCOUNT_ID=replace_me
+MT5_SYMBOL=XAUUSD
+
+# Optional Telegram alerts
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=

@@ -1,5 +1,5 @@
 import { recentJournal } from './execution/tradeJournal';
-import { runBot } from './scheduler';
+import { runBot, runBrokerTest, runDrySignal } from './scheduler';
 import type { Env } from './broker/types';
 
 export default {
@@ -13,6 +13,8 @@ export default {
       await env.BOT_STATE.put(key, value, { expirationTtl: 300 });
       return Response.json({ ok: true, key, value, readBack: await env.BOT_STATE.get(key) });
     }
+    if (url.pathname === '/broker-test') return runBrokerTest(env);
+    if (url.pathname === '/dry-signal') return runDrySignal(env);
     if (url.pathname === '/trigger') return runBot(env);
     return new Response('Not found', { status: 404 });
   },

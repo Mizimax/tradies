@@ -11,6 +11,54 @@ import { validate } from './validation/validator';
 import { parseNewsEvents } from './utils/newsFilter';
 
 export async function runBot(env: Env): Promise<Response> {
+  return runBrokerCycle(env, 'live');
+}
+
+export async function runDrySignal(env: Env): Promise<Response> {
+  return runBrokerCycle(env, 'dry');
+}
+
+export async function runBrokerTest(env: Env): Promise<Response> {
+  const broker = createBrokerClient(env);
+  const symbol = brokerSymbol(env);
+  const mode = env.BROKER_MODE === 'mt5' ? 'mt5' : 'oanda';
+  const tf = TF_MAP[mode];
+  const startedAt = Date.now();
+  try {
+    const [account, positions, m15Candles] = await Promise.all([
+      broker.getAccountInfo(),
+      broker.getOpenPositions(),
+      broker.getCandles(symbol, tf.m15, 20)
+    ]);
+    return Response.json({
+      ok: true,
+      mode,
+      symbol,
+      account: {
+        balance: account.balance,
+        equity: account.equity,
+        currency: account.currency ?? null
+      },
+      openPositions: positions.length,
+      candles: {
+        timeframe: tf.m15,
+        count: m15Candles.length,
+        latest: m15Candles.at(-1) ?? null
+      },
+      elapsedMs: Date.now() - startedAt
+    });
+  } catch (error) {
+    return Response.json({
+      ok: false,
+      mode,
+      symbol,
+      error: error instanceof Error ? error.message : String(error),
+      elapsedMs: Date.now() - startedAt
+    }, { status: 502 });
+  }
+}
+
+async function runBrokerCycle(env: Env, runMode: 'live' | 'dry'): Promise<Response> {
   const session = detectSession();
   if (!sessionAllowed(env.SESSION_FILTER, session)) {
     return Response.json({ ok: true, action: 'SKIP', reason: 'SESSION_FILTER', session });
@@ -18,8 +66,8 @@ export async function runBot(env: Env): Promise<Response> {
   const config = getStrategyConfig(env);
   const broker = createBrokerClient(env);
   const symbol = brokerSymbol(env);
-  const mode = env.BROKER_MODE === 'mt5' ? 'mt5' : 'oanda';
-  const tf = TF_MAP[mode];
+  const brokerMode = env.BROKER_MODE === 'mt5' ? 'mt5' : 'oanda';
+  const tf = TF_MAP[brokerMode];
   const [account, m5Candles, m15Candles, h1Candles, h4Candles] = await Promise.all([
     broker.getAccountInfo(),
     broker.getCandles(symbol, tf.m5, 120),
@@ -33,6 +81,9 @@ export async function runBot(env: Env): Promise<Response> {
 
   const active = await loadActiveSignal(env, symbol);
   if (active && ['WATCHING', 'CONFIRMED', 'PARTIAL', 'FULL'].includes(active.status)) {
+    if (runMode === 'dry') {
+      return Response.json({ ok: true, dryRun: true, action: 'ACTIVE_SIGNAL_EXISTS', signal: active });
+    }
     const managed = await managePendingSignal(active, symbol, currentPrice, data, broker, env);
     if (['CLOSED', 'EXPIRED', 'CANCELLED'].includes(managed.status)) {
       await clearSignal(env, symbol);
@@ -63,7 +114,9 @@ export async function runBot(env: Env): Promise<Response> {
 
   const validation = validate(data, config);
   if (validation.verdict !== 'TRADE' || !validation.direction || !validation.entryZone || !validation.stopLoss || !validation.takeProfits) {
-    await appendJournal(env, { id: crypto.randomUUID(), time: new Date().toISOString(), type: 'SKIP', payload: validation });
+    if (runMode === 'live') {
+      await appendJournal(env, { id: crypto.randomUUID(), time: new Date().toISOString(), type: 'SKIP', payload: validation });
+    }
     return Response.json({ ok: true, action: 'SKIP', validation });
   }
   const signal: PendingSignal = {
@@ -80,6 +133,9 @@ export async function runBot(env: Env): Promise<Response> {
     fillCount: 0,
     realizedPnL: 0
   };
+  if (runMode === 'dry') {
+    return Response.json({ ok: true, dryRun: true, action: 'SIGNAL_PREVIEW', signal, validation });
+  }
   await saveSignal(env, symbol, signal);
   await setLastSignalTime(env, signal.createdAt);
   await appendJournal(env, { id: signal.id, time: new Date().toISOString(), type: 'SIGNAL', payload: signal });

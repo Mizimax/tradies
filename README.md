@@ -32,6 +32,30 @@ python3 -m py_compile backtesting/*.py
 PYTHONPATH=backtesting python3 backtesting/run_backtest.py
 ```
 
+## Safe Integration Checks
+
+These routes do not place trades:
+
+- `/kv-test` writes and reads a short-lived KV health key.
+- `/broker-test` fetches account info, open position count, and 20 M15 candles.
+- `/dry-signal` runs the signal pipeline and returns a preview without saving a signal or placing orders.
+
+Local secret setup:
+
+```bash
+cp .dev.vars.example .dev.vars
+pnpm exec wrangler dev
+```
+
+Production secret setup:
+
+```bash
+pnpm exec wrangler secret put OANDA_API_KEY
+pnpm exec wrangler secret put OANDA_ACCOUNT_ID
+pnpm exec wrangler secret put METAAPI_TOKEN
+pnpm exec wrangler secret put MT5_ACCOUNT_ID
+```
+
 ## Notes
 
 This is research/paper-trading software, not approval for live trading. Broker credentials, real KV namespace IDs, slippage/spread checks, paper-trade reconciliation, and live risk controls must be completed before any production use.
