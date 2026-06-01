@@ -10,8 +10,22 @@ mkdir -p \
   "$MT5_ROOT/MQL5/Include/GoldBot" \
   "$MT5_ROOT/MQL5/Profiles/Tester"
 
-cp "$ROOT_DIR/mt5/Experts/GoldBot/GoldBot.mq5" "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.mq5"
-cp "$ROOT_DIR"/mt5/Include/GoldBot/*.mqh "$MT5_ROOT/MQL5/Include/GoldBot/"
+install_source() {
+  local src="$1"
+  local dst="$2"
+
+  if [[ -f "$dst" ]] && cmp -s "$src" "$dst"; then
+    touch -r "$src" "$dst"
+    return
+  fi
+
+  cp -p "$src" "$dst"
+}
+
+install_source "$ROOT_DIR/mt5/Experts/GoldBot/GoldBot.mq5" "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.mq5"
+for source_file in "$ROOT_DIR"/mt5/Include/GoldBot/*.mqh; do
+  install_source "$source_file" "$MT5_ROOT/MQL5/Include/GoldBot/$(basename "$source_file")"
+done
 cp "$ROOT_DIR/mt5/Presets/GoldBot.optimized.set" "$MT5_ROOT/MQL5/Profiles/Tester/GoldBot.optimized.set"
 
 echo "Installed GoldBot source into $MT5_ROOT/MQL5"

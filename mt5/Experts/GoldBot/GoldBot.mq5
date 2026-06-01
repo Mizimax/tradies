@@ -85,6 +85,7 @@ void GoldBotPythonParityPrintSummary();
 bool GoldBotPythonIndicatorSnapshot(const string symbol, const datetime signalTime, IndicatorSnapshot &out);
 bool GoldBotCopyRatesWindow(const string symbol, const ENUM_TIMEFRAMES tf, const datetime endTime, const int bars, MqlRates &rates[]);
 bool GoldBotCopyRatesSinceCapped(const string symbol, const ENUM_TIMEFRAMES tf, const datetime startTime, const datetime endTime, const int maxBars, MqlRates &rates[]);
+bool GoldBotPythonResampleH1FromM15(MqlRates &m15[], const int m15Count, MqlRates &h1[]);
 double GoldBotPythonEMAFromRates(MqlRates &rates[], const int count, const int period);
 double GoldBotPythonRSIFromRates(MqlRates &rates[], const int count, const int period);
 double GoldBotPythonATRFromRates(MqlRates &rates[], const int count, const int period);
@@ -774,13 +775,14 @@ bool GoldBotPythonIndicatorSnapshot(const string symbol, const datetime signalTi
    MqlRates m15[];
    if(parityStartTime <= 0)
       return false;
-   if(!GoldBotCopyRatesSinceCapped(symbol, PERIOD_H1, parityStartTime, signalTime, 2000, h1))
-      return false;
    if(!GoldBotCopyRatesSinceCapped(symbol, PERIOD_M15, parityStartTime, signalTime, 2000, m15))
       return false;
 
-   int h1Count = ArraySize(h1);
    int m15Count = ArraySize(m15);
+   if(!GoldBotPythonResampleH1FromM15(m15, m15Count, h1))
+      return false;
+
+   int h1Count = ArraySize(h1);
    if(h1Count < 220 || m15Count < 220)
       return false;
 
@@ -879,6 +881,59 @@ bool GoldBotCopyRatesSinceCapped(const string symbol, const ENUM_TIMEFRAMES tf, 
    if(copied <= 0)
       return false;
    return true;
+}
+
+bool GoldBotPythonResampleH1FromM15(MqlRates &m15[], const int m15Count, MqlRates &h1[])
+{
+   ArrayResize(h1, 0);
+   if(m15Count <= 0)
+      return false;
+
+   datetime currentBucket = 0;
+   MqlRates bucket;
+   int h1Count = 0;
+
+   for(int i = 0; i < m15Count; i++)
+   {
+      datetime bucketTime = (datetime)((long)m15[i].time - ((long)m15[i].time % 3600));
+      if(currentBucket == 0 || bucketTime != currentBucket)
+      {
+         if(currentBucket != 0)
+         {
+            ArrayResize(h1, h1Count + 1);
+            h1[h1Count] = bucket;
+            h1Count++;
+         }
+
+         currentBucket = bucketTime;
+         bucket.time = bucketTime;
+         bucket.open = m15[i].open;
+         bucket.high = m15[i].high;
+         bucket.low = m15[i].low;
+         bucket.close = m15[i].close;
+         bucket.tick_volume = m15[i].tick_volume;
+         bucket.spread = m15[i].spread;
+         bucket.real_volume = m15[i].real_volume;
+      }
+      else
+      {
+         bucket.high = MathMax(bucket.high, m15[i].high);
+         bucket.low = MathMin(bucket.low, m15[i].low);
+         bucket.close = m15[i].close;
+         bucket.tick_volume += m15[i].tick_volume;
+         bucket.real_volume += m15[i].real_volume;
+         bucket.spread = m15[i].spread;
+      }
+   }
+
+   if(currentBucket != 0)
+   {
+      ArrayResize(h1, h1Count + 1);
+      h1[h1Count] = bucket;
+      h1Count++;
+   }
+
+   return h1Count > 0;
 }
 
 double GoldBotPythonEMAFromRates(MqlRates &rates[], const int count, const int period)
