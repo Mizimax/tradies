@@ -37,6 +37,7 @@ input bool            InpLegacyParityMode = false;
 
 CTrade trade;
 datetime lastM15Bar = 0;
+datetime lastParityClosedBar = 0;
 
 struct PythonParityTrade
 {
@@ -388,6 +389,7 @@ void GoldBotPythonParityReset()
    parityMaxDrawdownR = 0.0;
    parityCooldownRemaining = 0;
    parityObservedBars = 0;
+   lastParityClosedBar = 0;
    FileDelete("GoldBot\\parity_trades.csv");
    FileDelete("GoldBot\\parity_signals.csv");
    GoldBotPythonParityJournalHeader();
@@ -425,12 +427,24 @@ void GoldBotPythonParityCatchUp(const string symbol)
    barsToProcess = MathMin(barsToProcess, 500);
 
    MqlRates closed[];
-   ArraySetAsSeries(closed, true);
    int copied = CopyRates(symbol, PERIOD_M15, 1, barsToProcess, closed);
    if(copied <= 0)
       return;
 
-   for(int i = copied - 1; i >= 0; i--)
+   for(int i = 0; i < copied - 1; i++)
+   {
+      for(int j = i + 1; j < copied; j++)
+      {
+         if(closed[i].time > closed[j].time)
+         {
+            MqlRates tmp = closed[i];
+            closed[i] = closed[j];
+            closed[j] = tmp;
+         }
+      }
+   }
+
+   for(int i = 0; i < copied; i++)
       GoldBotPythonParityProcessClosedBar(symbol, closed[i]);
 
    lastM15Bar = currentBar;
@@ -438,6 +452,10 @@ void GoldBotPythonParityCatchUp(const string symbol)
 
 void GoldBotPythonParityProcessClosedBar(const string symbol, const MqlRates &closedBar)
 {
+   if(closedBar.time <= lastParityClosedBar)
+      return;
+   lastParityClosedBar = closedBar.time;
+
    GoldBotPythonParityManage(symbol, closedBar);
    parityObservedBars++;
    if(parityObservedBars < 900)
