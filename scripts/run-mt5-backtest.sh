@@ -182,3 +182,14 @@ fi
 if [[ -f "$MT5_ROOT/reports/$REPORT_NAME.xml" ]]; then
   cp "$MT5_ROOT/reports/$REPORT_NAME.xml" "$REPORT_DIR/$REPORT_NAME.xml"
 fi
+
+LATEST_TRADES_CSV="$(
+  find "$MT5_ROOT/Tester" "$MT5_ROOT/MQL5/Files" -path "*/GoldBot/trades.csv" -type f -print0 2>/dev/null \
+    | xargs -0 ls -t 2>/dev/null \
+    | head -1 || true
+)"
+
+if [[ -n "$LATEST_TRADES_CSV" && -f "$LATEST_TRADES_CSV" ]]; then
+  cp "$LATEST_TRADES_CSV" "$REPORT_DIR/$REPORT_NAME.trades.csv"
+  echo "Copied real-mode journal: $REPORT_DIR/$REPORT_NAME.trades.csv"
+fi

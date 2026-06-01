@@ -26,7 +26,46 @@ Default mode is real broker execution:
 MT5_DEPOSIT=100000 MT5_FROM=2023.10.01 MT5_TO=2025.09.30 bash scripts/run-mt5-backtest.sh
 ```
 
-The helper installs current source, checks that `GoldBot.ex5` is newer than installed `.mq5/.mqh` files, writes a temporary tester config under `mt5/backtests/config/`, launches MT5 with `/config`, and copies generated reports back to `mt5/backtests/reports/`.
+Current Phase 2/3 candidate defaults are saved in `mt5/Presets/GoldBot.optimized.set`:
+
+```text
+InpScoreThreshold=62.5
+InpMinRealModeScore=62.5
+InpLotPer100Usd=0.003
+InpCooldownBars=24
+InpMaxOpenTrades=1
+InpMaxLaddersPerDay=2
+InpTp1R=1.5
+InpTp2R=2.0
+InpTp3R=3.0
+InpTrailAfterTp1=true
+InpResetJournalOnInit=true
+InpMinRealConfluences=5
+InpRequireDirectionalAdx=true
+InpRequireEmaTrend=false
+InpUseMacdConfluence=true
+InpUseBollingerConfluence=true
+InpUseStochasticConfluence=true
+InpRequireM5PullbackConfirmation=true
+InpPullbackConfirmChecks=2
+InpEnableNewsFilter=false
+InpBlockIndicatorDirectionConflicts=true
+InpUseExtendedDirectionConflict=true
+InpUseHtfTargetsForTp2Tp3=true
+InpRequireNearZoneBeforeLadder=true
+InpNearZoneBuffer=0.5
+InpRequireSmcSequence=false
+InpRequireLiquiditySweepForSmc=false
+InpRequireDisplacementForSmc=false
+InpRequireObFvgOverlap=false
+InpRequireHtfSmcContext=false
+InpAllowedEntryHours=
+InpAllowedLongEntryHours=
+InpAllowedShortEntryHours=
+InpLadderFirstSplit=1
+```
+
+The helper installs current source, checks that `GoldBot.ex5` is newer than installed `.mq5/.mqh` files, writes a temporary tester config under `mt5/backtests/config/`, launches MT5 with `/config`, and copies generated reports back to `mt5/backtests/reports/`. It also copies the latest real-mode `trades.csv` journal to `mt5/backtests/reports/<report-name>.trades.csv`.
 
 Useful overrides:
 
@@ -42,11 +81,12 @@ Do not commit generated config files; they may contain account details.
 Check these artifacts after each run:
 
 - Fresh MT5 HTML/XML report under `mt5/backtests/reports/`
-- Real execution journal: `MQL5/Files/GoldBot/trades.csv`, usually under the Strategy Tester agent folder
+- Real execution journal copied beside the report as `<report-name>.trades.csv`
 - Pending order success/failure entries in `trades.csv`
 - Gate/skip logs in the MT5 tester journal
 - SMC candidate entries showing H4/H1/M15 gate state and score
-- Real-mode block reasons for higher-timeframe confirmation, session window, and daily ladder limit
+- Real-mode block reasons for higher-timeframe confirmation, SMC sequence, allowed entry hour, session window, and daily ladder limit
+- Old TypeScript filter restoration events: M5 pullback confirmation, near-zone placement, direction-conflict blocks, optional news blocks, and HTF TP target selection
 - Signal skip entries with the effective real-mode score threshold
 
 Real-mode acceptance is based on Strategy Tester reports, broker-style order behavior, and `trades.csv`. `parity_trades.csv` is not a real-mode acceptance artifact.
@@ -73,10 +113,103 @@ Optimize real-mode behavior first with broker-realistic spread, commission, cont
 - `InpMinRR`
 - `InpMaxHoldBars`
 - `InpCooldownBars`
+- `InpTp1R`
+- `InpTp2R`
+- `InpTp3R`
+- `InpTrailAfterTp1`
+- `InpMinRealConfluences`
+- `InpRequireDirectionalAdx`
+- `InpRequireEmaTrend`
+- `InpUseMacdConfluence`
+- `InpUseBollingerConfluence`
+- `InpUseStochasticConfluence`
+- `InpRequireM5PullbackConfirmation`
+- `InpPullbackConfirmChecks`
+- `InpBlockIndicatorDirectionConflicts`
+- `InpUseExtendedDirectionConflict`
+- `InpUseHtfTargetsForTp2Tp3`
+- `InpRequireNearZoneBeforeLadder`
+- `InpNearZoneBuffer`
+- `InpRequireSmcSequence`
+- `InpRequireLiquiditySweepForSmc`
+- `InpRequireDisplacementForSmc`
+- `InpRequireObFvgOverlap`
+- `InpRequireHtfSmcContext`
+- `InpAllowedEntryHours`
+- `InpAllowedLongEntryHours`
+- `InpAllowedShortEntryHours`
+- `InpLadderFirstSplit`
 
 Keep daily loss, daily target, max open trades, and magic number fixed during initial optimization.
 
 The current evidence-based improvement plan is in `mt5/backtests/NEXT_IMPROVEMENT_PLAN.md`.
+
+Compare reports after each candidate run:
+
+```bash
+python3 scripts/summarize-mt5-reports.py mt5/backtests/reports/*.htm
+```
+
+Compare real-mode journals after each candidate run:
+
+```bash
+python3 scripts/analyze-mt5-trades.py mt5/backtests/reports/*.trades.csv
+```
+
+Print the next Phase 2/3 candidate commands from the matrix:
+
+```bash
+python3 scripts/print-mt5-candidate-commands.py
+python3 scripts/run-mt5-candidate.py pf-long-hours-7-12-16-ladder2only
+```
+
+Run the implemented improvement suite and produce comparison CSVs:
+
+```bash
+python3 scripts/run-mt5-improvement-suite.py
+cat mt5/backtests/reports/improvement-evaluation.csv
+```
+
+The default suite now starts with Max-PF direction/session discovery candidates, then keeps the TP-repair baseline, research-backed SMC/hour candidates, long-only/short-only direction isolation, ladder-count reduction, breakeven protection, faster TP levels, 4-of-8 quality candidates, 5-of-8 quality candidates, TS-lite candidates, and TS-complete candidates. This round uses a discovery gate of PF `>=1.20`, equity DD `<=15%`, and at least `40` trades.
+
+For loss attribution after running a candidate:
+
+```bash
+python3 scripts/analyze-mt5-trades.py --attribution mt5/backtests/reports/GoldBot-real-pf-long-hours-7-12-16-ladder2only.trades.csv
+```
+
+When candidate inputs change, remove stale reports for the selected candidates before rerunning:
+
+```bash
+python3 scripts/run-mt5-improvement-suite.py --clean
+```
+
+If the evaluation has a `PASS` row, apply the top-ranked passing candidate to the MT5 preset:
+
+```bash
+python3 scripts/apply-mt5-best-candidate.py
+```
+
+For planning only, print the suite commands without launching MT5:
+
+```bash
+python3 scripts/run-mt5-improvement-suite.py --dry-run
+```
+
+List or run a single candidate by name:
+
+```bash
+python3 scripts/run-mt5-candidate.py --list
+python3 scripts/run-mt5-candidate.py tp-repair-score62-risk003
+```
+
+Evaluate reports against the improvement gate:
+
+```bash
+python3 scripts/evaluate-mt5-candidates.py mt5/backtests/reports/*.htm
+```
+
+The evaluator prints a leaderboard sorted by pass status, profit factor, drawdown, and net profit. It returns exit code `0` when at least one candidate passes and `2` when reports were readable but no candidate passed.
 
 ## Demo Forward Test
 
@@ -89,3 +222,5 @@ Before live money:
 - Confirm pending ladder expiry.
 - Confirm filled positions close after max hold bars.
 - Confirm TP1/TP2/TP3 journal transitions.
+
+Use `mt5/backtests/DEMO_FORWARD_CHECKLIST.md` for the detailed daily checklist and pass/fail criteria.

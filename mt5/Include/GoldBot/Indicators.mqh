@@ -14,6 +14,13 @@ struct IndicatorSnapshot
    double adx;
    double plusDI;
    double minusDI;
+   double macdMain;
+   double macdSignal;
+   double bbUpper;
+   double bbMiddle;
+   double bbLower;
+   double stochK;
+   double stochD;
    bool emaLong;
    bool emaShort;
    bool rsiLong;
@@ -23,6 +30,12 @@ struct IndicatorSnapshot
    bool atrPass;
    bool adxLong;
    bool adxShort;
+   bool macdLong;
+   bool macdShort;
+   bool bbLong;
+   bool bbShort;
+   bool stochLong;
+   bool stochShort;
 };
 
 double GoldBotBufferValue(const int handle, const int buffer, const int shift)
@@ -74,6 +87,67 @@ bool GoldBotADX(const string symbol, const ENUM_TIMEFRAMES tf, const int period,
    minusDI = GoldBotBufferValue(handle, 2, shift);
    IndicatorRelease(handle);
    return adx != EMPTY_VALUE && plusDI != EMPTY_VALUE && minusDI != EMPTY_VALUE;
+}
+
+bool GoldBotMACD(
+   const string symbol,
+   const ENUM_TIMEFRAMES tf,
+   const int fastPeriod,
+   const int slowPeriod,
+   const int signalPeriod,
+   const int shift,
+   double &mainValue,
+   double &signalValue
+)
+{
+   int handle = iMACD(symbol, tf, fastPeriod, slowPeriod, signalPeriod, PRICE_CLOSE);
+   if(handle == INVALID_HANDLE)
+      return false;
+   mainValue = GoldBotBufferValue(handle, 0, shift);
+   signalValue = GoldBotBufferValue(handle, 1, shift);
+   IndicatorRelease(handle);
+   return mainValue != EMPTY_VALUE && signalValue != EMPTY_VALUE;
+}
+
+bool GoldBotBands(
+   const string symbol,
+   const ENUM_TIMEFRAMES tf,
+   const int period,
+   const double deviation,
+   const int shift,
+   double &upper,
+   double &middle,
+   double &lower
+)
+{
+   int handle = iBands(symbol, tf, period, 0, deviation, PRICE_CLOSE);
+   if(handle == INVALID_HANDLE)
+      return false;
+   middle = GoldBotBufferValue(handle, 0, shift);
+   upper = GoldBotBufferValue(handle, 1, shift);
+   lower = GoldBotBufferValue(handle, 2, shift);
+   IndicatorRelease(handle);
+   return upper != EMPTY_VALUE && middle != EMPTY_VALUE && lower != EMPTY_VALUE;
+}
+
+bool GoldBotStochastic(
+   const string symbol,
+   const ENUM_TIMEFRAMES tf,
+   const int kPeriod,
+   const int dPeriod,
+   const int slowing,
+   const int shift,
+   double &kValue,
+   double &dValue
+)
+{
+   int handle = iStochastic(symbol, tf, kPeriod, dPeriod, slowing, MODE_SMA, STO_LOWHIGH);
+   if(handle == INVALID_HANDLE)
+      return false;
+   kValue = GoldBotBufferValue(handle, 0, shift);
+   dValue = GoldBotBufferValue(handle, 1, shift);
+   IndicatorRelease(handle);
+   return kValue != EMPTY_VALUE && dValue != EMPTY_VALUE;
 }
 
 bool GoldBotSessionVWAP(const string symbol, const ENUM_TIMEFRAMES tf, const int bars, double &vwap, double &upper, double &lower)
@@ -131,6 +205,16 @@ bool GoldBotIndicatorSnapshot(
    const double atrMin,
    const double atrMax,
    const int rsiPeriod,
+   const int macdFast,
+   const int macdSlow,
+   const int macdSignal,
+   const int bbPeriod,
+   const double bbDeviation,
+   const int stochKPeriod,
+   const int stochDPeriod,
+   const int stochSlowing,
+   const double stochLongMax,
+   const double stochShortMin,
    IndicatorSnapshot &out
 )
 {
@@ -155,6 +239,12 @@ bool GoldBotIndicatorSnapshot(
       return false;
    if(!GoldBotSessionVWAP(symbol, PERIOD_M15, 96, out.vwap, out.vwapUpper, out.vwapLower))
       return false;
+   if(!GoldBotMACD(symbol, PERIOD_H1, macdFast, macdSlow, macdSignal, 1, out.macdMain, out.macdSignal))
+      return false;
+   if(!GoldBotBands(symbol, PERIOD_M15, bbPeriod, bbDeviation, 1, out.bbUpper, out.bbMiddle, out.bbLower))
+      return false;
+   if(!GoldBotStochastic(symbol, PERIOD_M15, stochKPeriod, stochDPeriod, stochSlowing, 1, out.stochK, out.stochD))
+      return false;
 
    double price = h1[0].close;
    double m15Close = m15[0].close;
@@ -167,6 +257,12 @@ bool GoldBotIndicatorSnapshot(
    out.atrPass = out.atr >= atrMin && out.atr <= atrMax;
    out.adxLong = out.adx >= adxMin && out.plusDI > out.minusDI;
    out.adxShort = out.adx >= adxMin && out.minusDI > out.plusDI;
+   out.macdLong = out.macdMain > out.macdSignal;
+   out.macdShort = out.macdMain < out.macdSignal;
+   out.bbLong = m15Close <= out.bbLower * 1.003;
+   out.bbShort = m15Close >= out.bbUpper * 0.997;
+   out.stochLong = out.stochK <= stochLongMax && out.stochK >= out.stochD;
+   out.stochShort = out.stochK >= stochShortMin && out.stochK <= out.stochD;
    return true;
 }
 
