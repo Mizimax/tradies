@@ -129,13 +129,13 @@ void OnTick()
 
    if(!GoldBotIsNewM15Bar(symbol))
    {
-      GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), trade);
+      GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), InpMaxHoldBars, trade);
       return;
    }
 
    GoldBotExpirePendingOrders(symbol, InpMagicNumber, trade);
    GoldBotCancelPendingOnStopBreach(symbol, InpMagicNumber, trade);
-   GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), trade);
+   GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), InpMaxHoldBars, trade);
 
    double pnlPct = 0.0;
    if(!GoldBotDailyRiskAllowed(InpMaxDailyLossPct, InpDailyTargetPct, pnlPct))

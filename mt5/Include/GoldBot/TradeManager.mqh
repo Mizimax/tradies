@@ -249,7 +249,7 @@ void GoldBotJournal(const string message)
    FileClose(handle);
 }
 
-void GoldBotManagePositions(const string symbol, const long magic, const double atr, CTrade &trade)
+void GoldBotManagePositions(const string symbol, const long magic, const double atr, const int maxHoldBars, CTrade &trade)
 {
    trade.SetExpertMagicNumber(magic);
    for(int i = PositionsTotal() - 1; i >= 0; i--)
@@ -265,6 +265,19 @@ void GoldBotManagePositions(const string symbol, const long magic, const double 
       double sl = PositionGetDouble(POSITION_SL);
       double tp = PositionGetDouble(POSITION_TP);
       long type = PositionGetInteger(POSITION_TYPE);
+      datetime openTime = (datetime)PositionGetInteger(POSITION_TIME);
+      if(maxHoldBars > 0 && openTime > 0 && TimeCurrent() - openTime >= maxHoldBars * PeriodSeconds(PERIOD_M15))
+      {
+         if(trade.PositionClose(ticket))
+            GoldBotJournal("Position closed after max hold bars");
+         else
+            GoldBotJournal(StringFormat("Position max-hold close failed ticket=%I64u retcode=%d %s",
+               ticket,
+               (int)trade.ResultRetcode(),
+               trade.ResultRetcodeDescription()));
+         continue;
+      }
+
       double price = type == POSITION_TYPE_BUY ? SymbolInfoDouble(symbol, SYMBOL_BID) : SymbolInfoDouble(symbol, SYMBOL_ASK);
       double risk = MathAbs(openPrice - sl);
       if(risk <= 0.0)

@@ -23,6 +23,7 @@ SERVER="${MT5_SERVER:-}"
 PASSWORD="${MT5_PASSWORD:-}"
 REPORT_NAME="${MT5_REPORT:-GoldBot-${SYMBOL}-${PERIOD}-${FROM_DATE}-${TO_DATE}}"
 PARITY="${MT5_PARITY:-0}"
+INPUT_OVERRIDES="${MT5_INPUT_OVERRIDES:-}"
 
 CONFIG_DIR="$PWD/mt5/backtests/config"
 REPORT_DIR="$PWD/mt5/backtests/reports"
@@ -91,6 +92,27 @@ awk -v parity_mode="$PARITY_MODE" -v parity_start="$PARITY_START" '
   }
 ' "$RUNTIME_SET" > "$RUNTIME_SET.tmp"
 mv "$RUNTIME_SET.tmp" "$RUNTIME_SET"
+
+if [[ -n "$INPUT_OVERRIDES" ]]; then
+  while IFS= read -r override; do
+    [[ -z "$override" ]] && continue
+    if [[ "$override" != *=* ]]; then
+      echo "Invalid MT5_INPUT_OVERRIDES entry: $override" >&2
+      exit 1
+    fi
+    key="${override%%=*}"
+    value="${override#*=}"
+    if grep -q "^${key}=" "$RUNTIME_SET"; then
+      awk -v key="$key" -v value="$value" '
+        index($0, key "=") == 1 { print key "=" value; next }
+        { print }
+      ' "$RUNTIME_SET" > "$RUNTIME_SET.tmp"
+      mv "$RUNTIME_SET.tmp" "$RUNTIME_SET"
+    else
+      printf '%s=%s\n' "$key" "$value" >> "$RUNTIME_SET"
+    fi
+  done <<< "$INPUT_OVERRIDES"
+fi
 
 {
 if [[ -n "$LOGIN" || -n "$SERVER" || -n "$PASSWORD" ]]; then

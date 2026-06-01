@@ -83,4 +83,5 @@ Before live money:
 - Confirm daily loss and daily target block new entries.
 - Confirm max open trades blocks new signals.
 - Confirm pending ladder expiry.
+- Confirm filled positions close after max hold bars.
 - Confirm TP1/TP2/TP3 journal transitions.

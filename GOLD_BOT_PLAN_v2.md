@@ -97,6 +97,7 @@ InpLegacyParityMode = false
    - TP2 closes 30% and enables ATR trailing.
    - TP3 closes the remainder.
    - Pending orders expire after `InpMaxHoldBars`.
+   - Filled positions are closed after `InpMaxHoldBars`.
    - Pending orders are cancelled if their stop is breached before fill.
 
 ## State And Logging
