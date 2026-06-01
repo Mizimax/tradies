@@ -76,6 +76,7 @@ void GoldBotPythonParityOpen(const GoldBotDirection direction, const datetime en
 void GoldBotPythonParityManage(const string symbol, const MqlRates &closedBar);
 void GoldBotPythonParityClose(const int index, const datetime exitTime, const double exitPrice, const double rr, const string exitReason);
 void GoldBotPythonParityJournalHeader();
+void GoldBotPythonParityJournalSignal(const datetime signalTime, const GoldBotDirection direction, const double close, const IndicatorSnapshot &indicators, const bool sweptLow, const bool sweptHigh);
 void GoldBotPythonParityJournalTrade(const PythonParityTrade &tradeState, const datetime exitTime, const double exitPrice, const double rr, const string exitReason);
 void GoldBotPythonParityPrintSummary();
 bool GoldBotPythonIndicatorSnapshot(const string symbol, const datetime signalTime, IndicatorSnapshot &out);
@@ -388,6 +389,7 @@ void GoldBotPythonParityReset()
    parityCooldownRemaining = 0;
    parityObservedBars = 0;
    FileDelete("GoldBot\\parity_trades.csv");
+   FileDelete("GoldBot\\parity_signals.csv");
    GoldBotPythonParityJournalHeader();
 }
 
@@ -511,6 +513,7 @@ bool GoldBotPythonParitySignal(const string symbol, const datetime signalTime, G
    {
       direction = DIR_LONG;
       atrValue = indicators.atr;
+      GoldBotPythonParityJournalSignal(signalTime, direction, close, indicators, sweptLow, sweptHigh);
       return true;
    }
 
@@ -519,6 +522,7 @@ bool GoldBotPythonParitySignal(const string symbol, const datetime signalTime, G
    {
       direction = DIR_SHORT;
       atrValue = indicators.atr;
+      GoldBotPythonParityJournalSignal(signalTime, direction, close, indicators, sweptLow, sweptHigh);
       return true;
    }
 
@@ -626,6 +630,72 @@ void GoldBotPythonParityJournalHeader()
    if(handle == INVALID_HANDLE)
       return;
    FileWrite(handle, "entry_time", "exit_time", "direction", "entry", "sl", "tp", "rr", "planned_rr", "exit_reason");
+   FileClose(handle);
+}
+
+void GoldBotPythonParityJournalSignal(const datetime signalTime, const GoldBotDirection direction, const double close, const IndicatorSnapshot &indicators, const bool sweptLow, const bool sweptHigh)
+{
+   FolderCreate("GoldBot");
+   bool exists = FileIsExist("GoldBot\\parity_signals.csv");
+   int handle = FileOpen("GoldBot\\parity_signals.csv", FILE_READ | FILE_WRITE | FILE_CSV | FILE_ANSI, ',');
+   if(handle == INVALID_HANDLE)
+      return;
+   FileSeek(handle, 0, SEEK_END);
+   if(!exists)
+   {
+      FileWrite(
+         handle,
+         "signal_time",
+         "direction",
+         "close",
+         "h1_ema21",
+         "h1_ema50",
+         "h1_ema200",
+         "rsi",
+         "adx",
+         "plus_di",
+         "minus_di",
+         "atr",
+         "vwap",
+         "vwap_upper",
+         "vwap_lower",
+         "ema_long",
+         "ema_short",
+         "rsi_long",
+         "rsi_short",
+         "adx_long",
+         "adx_short",
+         "atr_pass",
+         "swept_low",
+         "swept_high"
+      );
+   }
+   FileWrite(
+      handle,
+      TimeToString(signalTime, TIME_DATE | TIME_MINUTES),
+      direction == DIR_LONG ? "LONG" : "SHORT",
+      DoubleToString(close, _Digits),
+      DoubleToString(indicators.ema21, 6),
+      DoubleToString(indicators.ema50, 6),
+      DoubleToString(indicators.ema200, 6),
+      DoubleToString(indicators.rsi, 6),
+      DoubleToString(indicators.adx, 6),
+      DoubleToString(indicators.plusDI, 6),
+      DoubleToString(indicators.minusDI, 6),
+      DoubleToString(indicators.atr, 6),
+      DoubleToString(indicators.vwap, 6),
+      DoubleToString(indicators.vwapUpper, 6),
+      DoubleToString(indicators.vwapLower, 6),
+      indicators.emaLong ? "1" : "0",
+      indicators.emaShort ? "1" : "0",
+      indicators.rsiLong ? "1" : "0",
+      indicators.rsiShort ? "1" : "0",
+      indicators.adxLong ? "1" : "0",
+      indicators.adxShort ? "1" : "0",
+      indicators.atrPass ? "1" : "0",
+      sweptLow ? "1" : "0",
+      sweptHigh ? "1" : "0"
+   );
    FileClose(handle);
 }
 
