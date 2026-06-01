@@ -1,8 +1,8 @@
-# Gold XAU/USD MT5 Expert Advisor Execution Plan v3
+# Gold XAU/USD Real MT5 Expert Advisor Plan v4
 
-> Strategy: Smart Money Concepts (SMC) + 5-indicator confluence  
-> Broker path: MQL5 Expert Advisor -> MT5 Terminal -> Broker  
-> Backtesting: MT5 Strategy Tester with Python simulator parity first, then optimizer
+> Strategy: Smart Money Concepts (SMC) + 5-indicator confluence
+> Broker path: MQL5 Expert Advisor -> MT5 Terminal -> Broker
+> Backtesting: MT5 Strategy Tester real broker execution first
 > Infrastructure target: $0/month, excluding spread, commission, swap, and optional VPS
 
 ## Architecture
@@ -13,52 +13,39 @@ MQL5 Expert Advisor
   -> MT5 Broker
 ```
 
-The bot now runs directly inside MT5 as an Expert Advisor. MetaApi, Cloudflare Workers, KV, and serverless cron are no longer the production path. The old Cloudflare/OANDA/MetaApi implementation is preserved under `legacy/cloudflare-worker/` for reference only.
+The bot runs directly inside MT5 as an Expert Advisor. MetaApi, Cloudflare Workers, KV, and serverless cron are not the production path. The old Cloudflare/OANDA/MetaApi implementation remains under `legacy/cloudflare-worker/` for reference only.
 
-OANDA remains optional for research/reference data. The first source of truth is Python simulator parity against `legacy/cloudflare-worker/backtesting/results/backtest_best_24m.json`; after parity is proven, live-style execution and optimization move to MT5 Strategy Tester on the target broker's symbol, spread, commission, and contract settings.
+OANDA can remain optional research/reference data, but it is not the primary execution or validation path. Real MT5 Strategy Tester results, broker-style order behavior, and demo-forward testing are the source of truth.
 
 ## Strategy Rules
 
-The EA runs only on newly closed M15 bars and reads multi-timeframe data from MT5 native series APIs:
+The live EA runs on newly closed M15 bars and reads multi-timeframe data from MT5 native series APIs:
 
 - H4 for structural bias
 - H1 for confirmation, EMA, ATR, and ADX
 - M15 for entry trigger, VWAP, RSI, FVG/OB zones
-- M5 for micro CHoCH pullback confirmation
-
-### SMC Gates
+- M5 is reserved for future micro-confirmation work
 
 All 3 SMC gates must pass:
 
-1. H4 bias
-   - Market structure is bullish or bearish.
-   - Longs require discount; shorts require premium.
-   - Unmitigated H4 FVG or order block exists in bias direction.
-2. H1 confirmation
-   - Structure aligns with H4 bias or shows BOS/CHoCH.
-   - Liquidity sweep detected.
-   - Displacement candle confirms post-sweep intent.
-3. M15 entry trigger
-   - Price pulls into M15 FVG or order block.
-   - M15 BOS/CHoCH confirms direction.
-   - News block is disabled by default and can be handled manually before running live.
-
-### Indicator Gates
+1. H4 bias: market structure, discount/premium, and H4 FVG or order block.
+2. H1 confirmation: aligned structure or BOS/CHoCH, liquidity sweep, and displacement.
+3. M15 trigger: FVG or order block plus BOS/CHoCH.
 
 The confluence score keeps the 100-point system:
 
 - SMC gates: 37.5 fixed points when all pass
 - EMA stack: 12.5
-- RSI pullback/divergence: 12.5
+- RSI pullback: 12.5
 - VWAP discount/premium: 12.5
 - ATR regime: 12.5
 - ADX strength: 12.5
 
 Default trade threshold: `75`.
 
-## Expert Advisor Inputs
+## Expert Advisor Defaults
 
-Defaults match the tuned research parameters:
+Real broker execution is the default:
 
 ```text
 InpSymbol = "XAUUSD"
@@ -84,101 +71,67 @@ InpMaxDailyLossPct = 3.0
 InpDailyTargetPct = 5.0
 InpEnableTelegram = false
 InpDebugOnly = false
-InpPythonParityMode = true
+InpPythonParityMode = false
 InpSessionFilter = "all"
+InpPythonParityStart = ""
 InpLegacyParityMode = false
 ```
 
-## Python Simulator Parity Baseline
-
-Before improving strategy logic, the EA must match the Python best 24-month backtest as closely as possible:
-
-```text
-Trades: 251
-Win rate: 58.17%
-Profit factor: 2.68
-Avg planned RR: 2.0
-Expectancy: +0.69R/trade
-Max drawdown: 10.30R
-Avg trades/day: 1.35
-```
-
-`InpPythonParityMode=true` is the default backtest mode. It does not place broker orders. It simulates the Python candle engine inside the EA using closed M15 candles, H1 indicators aligned to the signal candle time, rolling 96-candle VWAP, Python sweep windows, next-candle-open entries, SL-first handling when SL and TP touch in the same candle, cooldown after simulated trade open, and max-hold candle exits capped between `-1R` and `+2R`.
-
-Parity trades are written to `MQL5/Files/GoldBot/parity_trades.csv`, and the EA prints a parity summary at tester shutdown. Live/broker execution is available only when `InpPythonParityMode=false`.
+`InpPythonParityMode=true` is diagnostic-only. It does not place broker orders and should be used only with `MT5_PARITY=1` when intentionally investigating the old Python simulator behavior.
 
 ## Execution Lifecycle
 
-1. In parity mode, simulate the Python candle backtest and skip all broker order placement.
-2. In live-style mode, on each new M15 bar, calculate SMC and indicator gates from closed candles only.
-3. If score is below threshold or direction conflicts, skip.
-4. Build the entry zone from M15 FVG, M15 order block, and EMA21 proximity.
-5. Place a 3-order pending ladder:
+1. On each new M15 bar, calculate SMC and indicator gates from closed candles only.
+2. Enforce daily loss/target, cooldown, and max-open-trades gates.
+3. If SMC gates fail, log gate state and skip.
+4. If score is below threshold or no valid entry zone exists, log the skip reason.
+5. Build the entry zone from M15 FVG, M15 order block, and EMA21 proximity.
+6. Place a 3-order broker-native pending limit ladder:
    - Long: zone top, midpoint, bottom
    - Short: zone bottom, midpoint, top
    - Split: 33%, 33%, 34%
-6. Manage positions by magic number and symbol:
+7. Manage positions by magic number and symbol:
    - TP1 closes 50% and moves SL to breakeven.
-   - TP2 closes 30% and switches TP to TP3.
+   - TP2 closes 30% and enables ATR trailing.
    - TP3 closes the remainder.
-   - SL hit cancels remaining pending orders.
-7. Expire old pending orders after `InpMaxHoldBars`.
-8. Enforce cooldown, max open trades, daily loss limit, and daily target using MT5 Global Variables.
+   - Pending orders expire after `InpMaxHoldBars`.
+   - Pending orders are cancelled if their stop is breached before fill.
 
 ## State And Logging
 
 - Active runtime state is held in EA memory.
-- Daily equity baseline and cooldown timestamp are stored in MT5 Global Variables.
-- CSV journal is written to `MQL5/Files/GoldBot/trades.csv`.
-- Python parity CSV journal is written to `MQL5/Files/GoldBot/parity_trades.csv`.
-- Debug mode prints full gate state, score, zone, SL, and TP levels without placing orders.
-
-## Repository Structure
-
-```text
-mt5/
-  Experts/GoldBot/GoldBot.mq5
-  Include/GoldBot/Indicators.mqh
-  Include/GoldBot/SMC.mqh
-  Include/GoldBot/Risk.mqh
-  Include/GoldBot/TradeManager.mqh
-  Presets/GoldBot.optimized.set
-  backtests/README.md
-
-legacy/cloudflare-worker/
-  previous TypeScript Cloudflare/OANDA/MetaApi implementation
-```
+- Daily equity baseline and cooldown timestamp use MT5 Global Variables.
+- Real execution journal writes to `MQL5/Files/GoldBot/trades.csv`.
+- Journal entries include gate blocks, skipped signals, pending order success/failure, and TP lifecycle events.
+- Strategy Tester HTML/XML reports are the primary performance artifacts.
+- `parity_trades.csv` is ignored for real-mode acceptance.
 
 ## MT5 Strategy Tester Flow
 
-1. Copy `mt5/Experts/GoldBot/GoldBot.mq5` into `MQL5/Experts/GoldBot/`.
-2. Copy `mt5/Include/GoldBot/*.mqh` into `MQL5/Include/GoldBot/`.
-3. Compile in MetaEditor.
-4. Run Strategy Tester for Python parity:
-   - Symbol: XAUUSD or broker's gold symbol
-   - Timeframe: M15
-   - `InpPythonParityMode=true`
-   - Date window: 2023-10-01 through 2025-09-30 for the current comparison run
-5. Compare the latest Strategy Tester `parity_trades.csv` to the Python baseline:
-   `python3 scripts/compare-mt5-python-parity.py --from-date 2023-10-01 --to-date 2025-09-30`
-6. Acceptance target:
-   - Trades within +/-5% of 251
-   - Win rate within +/-3 percentage points of 58.17%
-   - Profit factor within +/-10% of 2.68
-   - Expectancy within +/-0.10R of +0.69R
-7. After parity is proven, set `InpPythonParityMode=false` and run live-style Strategy Tester with broker-realistic spread/commission.
-8. Run optimization over the exposed inputs.
-9. Save best config to `mt5/Presets/GoldBot.optimized.set`.
-10. Forward test on MT5 demo for at least 2 weeks.
-11. Compare demo vs Strategy Tester before any tiny live deployment.
+1. Install the current repo source:
+   `bash scripts/install-mt5-source.sh`
+2. Compile `GoldBot.mq5` in MetaEditor with zero errors.
+3. Run real-mode Strategy Tester:
+   `MT5_DEPOSIT=100000 MT5_FROM=2023.10.01 MT5_TO=2025.09.30 bash scripts/run-mt5-backtest.sh`
+4. Inspect fresh tester report under `mt5/backtests/reports/`.
+5. Inspect real execution journal under `MQL5/Files/GoldBot/trades.csv` or the Strategy Tester agent `MQL5/Files/GoldBot/trades.csv`.
+6. Optimize exposed real-mode inputs in MT5 Strategy Tester.
+7. Save the best real-mode config to `mt5/Presets/GoldBot.optimized.set`.
+8. Forward test on MT5 demo for at least 2 weeks.
+9. Compare demo fills, skipped signals, drawdown, trade frequency, and journal events against Strategy Tester before any tiny live deployment.
+
+Optional parity diagnostic:
+
+```bash
+MT5_PARITY=1 MT5_DEPOSIT=100000 MT5_FROM=2023.10.01 MT5_TO=2025.09.30 bash scripts/run-mt5-backtest.sh
+python3 scripts/compare-mt5-python-parity.py --from-date 2023-10-01 --to-date 2025-09-30 --diff-trades --diff-signals
+```
 
 ## Production Rules
 
-1. Never start live until MT5 demo forward results are close to Strategy Tester results.
-2. Prove Python simulator parity before improving the strategy or optimizing live-style execution.
-3. Keep `InpDebugOnly=true` for first chart attachment.
-4. Use a broker demo account first.
-5. Daily drawdown kill switch must remain enabled.
-6. Max open trades must remain enabled.
-7. Use tiny live size only after demo validation.
-8. Optional VPS is for uptime only; it is not required for the initial low-cost setup.
+1. Never start live until MT5 demo forward results are close enough to Strategy Tester behavior.
+2. Real broker execution is judged by Strategy Tester reports, `trades.csv`, and demo-forward behavior.
+3. Keep daily drawdown kill switch enabled.
+4. Keep max open trades enabled.
+5. Use tiny live size only after demo validation.
+6. Optional VPS is for uptime only; it is not required for the initial low-cost setup.

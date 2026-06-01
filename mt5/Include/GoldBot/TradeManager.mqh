@@ -167,6 +167,22 @@ bool GoldBotPlaceLadder(
       else
          ok = trade.SellLimit(lot, entries[i], symbol, sl, brokerTp, ORDER_TIME_SPECIFIED, expiration, comment);
 
+      if(ok)
+      {
+         GoldBotJournal(StringFormat("Pending order placed split=%d dir=%d entry=%.2f sl=%.2f lot=%.2f", i + 1, direction, entries[i], sl, lot));
+      }
+      else
+      {
+         GoldBotJournal(StringFormat("Pending order failed split=%d dir=%d entry=%.2f sl=%.2f lot=%.2f retcode=%d %s",
+            i + 1,
+            direction,
+            entries[i],
+            sl,
+            lot,
+            (int)trade.ResultRetcode(),
+            trade.ResultRetcodeDescription()));
+      }
+
       anyPlaced = anyPlaced || ok;
    }
 

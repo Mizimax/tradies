@@ -22,6 +22,7 @@ LOGIN="${MT5_LOGIN:-}"
 SERVER="${MT5_SERVER:-}"
 PASSWORD="${MT5_PASSWORD:-}"
 REPORT_NAME="${MT5_REPORT:-GoldBot-${SYMBOL}-${PERIOD}-${FROM_DATE}-${TO_DATE}}"
+PARITY="${MT5_PARITY:-0}"
 
 CONFIG_DIR="$PWD/mt5/backtests/config"
 REPORT_DIR="$PWD/mt5/backtests/reports"
@@ -60,17 +61,33 @@ fi
 
 mkdir -p "$TESTER_PROFILE_DIR" "$MT5_REPORT_DIR"
 cp mt5/Presets/GoldBot.optimized.set "$RUNTIME_SET"
-awk -v value="$FROM_DATE 00:00" '
-  BEGIN { done = 0 }
+
+if [[ "$PARITY" == "1" || "$PARITY" == "true" || "$PARITY" == "TRUE" ]]; then
+  PARITY_MODE="true"
+  PARITY_START="$FROM_DATE 00:00"
+else
+  PARITY_MODE="false"
+  PARITY_START=""
+fi
+
+awk -v parity_mode="$PARITY_MODE" -v parity_start="$PARITY_START" '
+  BEGIN { seen_parity = 0; seen_start = 0 }
+  /^InpPythonParityMode=/ {
+    print "InpPythonParityMode=" parity_mode
+    seen_parity = 1
+    next
+  }
   /^InpPythonParityStart=/ {
-    print "InpPythonParityStart=" value
-    done = 1
+    print "InpPythonParityStart=" parity_start
+    seen_start = 1
     next
   }
   { print }
   END {
-    if (!done)
-      print "InpPythonParityStart=" value
+    if (!seen_parity)
+      print "InpPythonParityMode=" parity_mode
+    if (!seen_start)
+      print "InpPythonParityStart=" parity_start
   }
 ' "$RUNTIME_SET" > "$RUNTIME_SET.tmp"
 mv "$RUNTIME_SET.tmp" "$RUNTIME_SET"
@@ -115,9 +132,11 @@ echo "Launching MT5 Strategy Tester"
 echo "Config: $CONFIG"
 echo "Report: $REPORT_PATH.htm or $REPORT_PATH.xml"
 echo "MT5 report target: $MT5_ROOT/$MT5_REPORT_PATH.htm"
+echo "Mode: $([[ "$PARITY_MODE" == "true" ]] && echo "Python parity diagnostic" || echo "Real broker execution")"
 echo
 echo "Tip: override settings with env vars, e.g.:"
 echo "  MT5_SYMBOL=GOLD MT5_FROM=2025.01.01 MT5_TO=2025.12.31 bash scripts/run-mt5-backtest.sh"
+echo "  MT5_PARITY=1 MT5_FROM=2023.10.01 MT5_TO=2025.09.30 bash scripts/run-mt5-backtest.sh"
 echo
 
 if [[ -x "$WINEPATH" ]]; then
