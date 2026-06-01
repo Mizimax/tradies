@@ -23,4 +23,5 @@ InpEnableTelegram=false
 InpDebugOnly=false
 InpPythonParityMode=true
 InpSessionFilter=all
+InpPythonParityStart=
 InpLegacyParityMode=false

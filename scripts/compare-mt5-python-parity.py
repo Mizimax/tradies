@@ -23,6 +23,14 @@ def find_latest_parity_csv(mt5_root: Path = DEFAULT_MT5_ROOT) -> Path | None:
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
+def find_latest_parity_signal_csv(mt5_root: Path = DEFAULT_MT5_ROOT) -> Path | None:
+    candidates = list(mt5_root.glob("Tester/Agent-*/MQL5/Files/GoldBot/parity_signals.csv"))
+    candidates += list(mt5_root.glob("MQL5/Files/GoldBot/parity_signals.csv"))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
 def read_mt5_trades(path: Path) -> list[dict]:
     with path.open(newline="") as handle:
         return [
@@ -33,6 +41,44 @@ def read_mt5_trades(path: Path) -> list[dict]:
             }
             for row in csv.DictReader(handle)
         ]
+
+
+def read_mt5_signals(path: Path) -> list[dict]:
+    numeric_fields = {
+        "close",
+        "h1_ema21",
+        "h1_ema50",
+        "h1_ema200",
+        "rsi",
+        "adx",
+        "plus_di",
+        "minus_di",
+        "atr",
+        "vwap",
+        "vwap_upper",
+        "vwap_lower",
+    }
+    bool_fields = {
+        "ema_long",
+        "ema_short",
+        "rsi_long",
+        "rsi_short",
+        "adx_long",
+        "adx_short",
+        "atr_pass",
+        "swept_low",
+        "swept_high",
+    }
+    rows: list[dict] = []
+    with path.open(newline="") as handle:
+        for row in csv.DictReader(handle):
+            parsed = dict(row)
+            for field in numeric_fields:
+                parsed[field] = float(parsed[field])
+            for field in bool_fields:
+                parsed[field] = parsed[field] in {"1", "true", "True", "TRUE"}
+            rows.append(parsed)
+    return rows
 
 
 def normalize_time(value: str) -> str:
@@ -134,6 +180,100 @@ def python_trades_for_window(data_path: Path, from_date: str, to_date: str) -> l
     return trades
 
 
+def python_signals_for_window(data_path: Path, from_date: str, to_date: str) -> list[dict]:
+    sys.path.insert(0, str(BACKTESTING_DIR))
+    from indicators import adx, atr, ema, rsi, vwap
+    from run_backtest import Params, load_csv, parse_time, resample, signal_at, simulate_trade
+
+    start = parse_date(from_date)
+    end = parse_date(to_date, end_of_day=True)
+    candles = [candle for candle in load_csv(data_path) if start <= parse_time(candle.time) <= end]
+    h1 = resample(candles, 60)
+    params = Params(
+        rsi_period=10,
+        rsi_long_max=38,
+        rsi_short_min=40,
+        adx_min=14,
+        atr_min=1.0,
+        atr_max=35.0,
+        sl_atr=0.8,
+        rr=2.0,
+        max_hold_bars=48,
+        cooldown_bars=16,
+        session_filter="all",
+    )
+    h1_times = [parse_time(candle.time) for candle in h1]
+    h1_closes = [candle.close for candle in h1]
+    adx_values, plus_di, minus_di = adx(h1)
+    precomputed = {
+        "h1_close": h1_closes,
+        "ema_fast": ema(h1_closes, params.ema_fast),
+        "ema_mid": ema(h1_closes, params.ema_mid),
+        "ema_slow": ema(h1_closes, params.ema_slow),
+        "adx": adx_values,
+        "plus_di": plus_di,
+        "minus_di": minus_di,
+        "atr": atr(h1),
+        "rsi": rsi(candles, params.rsi_period),
+    }
+
+    signals: list[dict] = []
+    cooldown_until = 0
+    h1_index = 0
+    for index in range(900, len(candles) - params.max_hold_bars - 2):
+        if index < cooldown_until:
+            continue
+        current_time = parse_time(candles[index].time)
+        while h1_index + 1 < len(h1_times) and h1_times[h1_index + 1] <= current_time:
+            h1_index += 1
+
+        direction = signal_at(candles, index, h1_index, precomputed, params)
+        if not direction:
+            continue
+
+        session_vwap, upper, lower = vwap(candles[max(0, index - 95) : index + 1])
+        close = candles[index].close
+        recent_low = min(c.low for c in candles[index - 11 : index + 1])
+        recent_high = max(c.high for c in candles[index - 11 : index + 1])
+        previous_low = min(c.low for c in candles[index - 35 : index - 11])
+        previous_high = max(c.high for c in candles[index - 35 : index - 11])
+        swept_low = recent_low < previous_low and close > previous_low
+        swept_high = recent_high > previous_high and close < previous_high
+        ema_long = precomputed["h1_close"][h1_index] > precomputed["ema_fast"][h1_index] > precomputed["ema_mid"][h1_index] > precomputed["ema_slow"][h1_index]
+        ema_short = precomputed["h1_close"][h1_index] < precomputed["ema_fast"][h1_index] < precomputed["ema_mid"][h1_index] < precomputed["ema_slow"][h1_index]
+        row = {
+            "signal_time": normalize_time(candles[index].time),
+            "direction": direction,
+            "close": close,
+            "h1_ema21": precomputed["ema_fast"][h1_index],
+            "h1_ema50": precomputed["ema_mid"][h1_index],
+            "h1_ema200": precomputed["ema_slow"][h1_index],
+            "rsi": precomputed["rsi"][index],
+            "adx": precomputed["adx"][h1_index],
+            "plus_di": precomputed["plus_di"][h1_index],
+            "minus_di": precomputed["minus_di"][h1_index],
+            "atr": precomputed["atr"][h1_index],
+            "vwap": session_vwap,
+            "vwap_upper": upper,
+            "vwap_lower": lower,
+            "ema_long": ema_long,
+            "ema_short": ema_short,
+            "rsi_long": precomputed["rsi"][index] <= params.rsi_long_max,
+            "rsi_short": precomputed["rsi"][index] >= params.rsi_short_min,
+            "adx_long": precomputed["adx"][h1_index] >= params.adx_min and precomputed["plus_di"][h1_index] > precomputed["minus_di"][h1_index],
+            "adx_short": precomputed["adx"][h1_index] >= params.adx_min and precomputed["minus_di"][h1_index] > precomputed["plus_di"][h1_index],
+            "atr_pass": params.atr_min <= precomputed["atr"][h1_index] <= params.atr_max,
+            "swept_low": swept_low,
+            "swept_high": swept_high,
+        }
+        signals.append(row)
+
+        trade = simulate_trade(candles, index, direction, precomputed["atr"][h1_index], params)
+        if trade:
+            cooldown_until = index + params.cooldown_bars
+    return signals
+
+
 def python_summary_for_window(data_path: Path, from_date: str, to_date: str) -> dict:
     return summarize([
         {
@@ -185,6 +325,88 @@ def print_trade_diff(python_trades: list[dict], mt5_trades: list[dict], limit: i
             )
 
 
+def print_signal_diff(python_signals: list[dict], mt5_signals: list[dict], signal_csv: Path, limit: int) -> None:
+    mt5_times = [normalize_time(row["signal_time"]) for row in mt5_signals]
+    duplicate_times = sorted({time for time in mt5_times if mt5_times.count(time) > 1})
+    chronological_violations = sum(
+        1 for previous, current in zip(mt5_times, mt5_times[1:]) if current < previous
+    )
+    python_by_key = {(row["signal_time"], row["direction"]): row for row in python_signals}
+    mt5_by_key = {(normalize_time(row["signal_time"]), row["direction"]): row for row in mt5_signals}
+    python_keys = list(python_by_key)
+    mt5_keys = list(mt5_by_key)
+    common = set(python_keys) & set(mt5_keys)
+    missing = [key for key in python_keys if key not in common]
+    extra = [key for key in mt5_keys if key not in common]
+
+    print(f"\nMT5 signal CSV: {signal_csv}")
+    print("Signal diagnostics")
+    print(
+        f"python_signals={len(python_signals)} mt5_rows={len(mt5_signals)} "
+        f"mt5_unique={len(mt5_by_key)} duplicates={len(duplicate_times)} "
+        f"chronological_violations={chronological_violations}"
+    )
+    if duplicate_times:
+        print("duplicate_signal_times:")
+        for time in duplicate_times[:limit]:
+            print(f"  {time}")
+    print(f"common={len(common)} missing_from_mt5={len(missing)} extra_in_mt5={len(extra)}")
+    if missing:
+        print("missing_signals_from_mt5:")
+        for time, direction in missing[:limit]:
+            print(f"  {time} {direction}")
+    if extra:
+        print("extra_signals_in_mt5:")
+        for time, direction in extra[:limit]:
+            print(f"  {time} {direction}")
+
+    numeric_fields = [
+        "close",
+        "h1_ema21",
+        "h1_ema50",
+        "h1_ema200",
+        "rsi",
+        "adx",
+        "plus_di",
+        "minus_di",
+        "atr",
+        "vwap",
+        "vwap_upper",
+        "vwap_lower",
+    ]
+    bool_fields = [
+        "ema_long",
+        "ema_short",
+        "rsi_long",
+        "rsi_short",
+        "adx_long",
+        "adx_short",
+        "atr_pass",
+        "swept_low",
+        "swept_high",
+    ]
+    mismatches: list[str] = []
+    for key in python_keys:
+        if key not in common:
+            continue
+        py_row = python_by_key[key]
+        mt5_row = mt5_by_key[key]
+        bad_fields: list[str] = []
+        for field in numeric_fields:
+            if abs(float(py_row[field]) - float(mt5_row[field])) > 0.01:
+                bad_fields.append(f"{field}:py={float(py_row[field]):.5f},mt5={float(mt5_row[field]):.5f}")
+        for field in bool_fields:
+            if bool(py_row[field]) != bool(mt5_row[field]):
+                bad_fields.append(f"{field}:py={int(bool(py_row[field]))},mt5={int(bool(mt5_row[field]))}")
+        if bad_fields:
+            mismatches.append(f"  {key[0]} {key[1]} " + "; ".join(bad_fields[:6]))
+
+    if mismatches:
+        print("signal_value_mismatches:")
+        for line in mismatches[:limit]:
+            print(line)
+
+
 def pct_diff(actual: float, expected: float) -> float:
     if expected == 0:
         return 0.0 if actual == 0 else float("inf")
@@ -199,6 +421,8 @@ def main() -> int:
     parser.add_argument("--from-date", dest="from_date", help="Build Python baseline from this UTC date, e.g. 2023-10-01")
     parser.add_argument("--to-date", dest="to_date", help="Build Python baseline through this UTC date, e.g. 2025-09-30")
     parser.add_argument("--diff-trades", action="store_true", help="Print timestamp/outcome differences against Python trades.")
+    parser.add_argument("--diff-signals", action="store_true", help="Print timestamp/gate differences against Python parity signals.")
+    parser.add_argument("--signal-csv", type=Path, help="Path to MQL5/Files/GoldBot/parity_signals.csv")
     parser.add_argument("--diff-limit", type=int, default=20)
     args = parser.parse_args()
 
@@ -246,6 +470,21 @@ def main() -> int:
             print("\nTrade diff requires --from-date and --to-date.")
         else:
             print_trade_diff(python_trades, mt5_trades, args.diff_limit)
+
+    if args.diff_signals:
+        if not args.from_date or not args.to_date:
+            print("\nSignal diff requires --from-date and --to-date.")
+        else:
+            signal_csv = args.signal_csv or find_latest_parity_signal_csv()
+            if signal_csv is None:
+                print(f"\nNo parity_signals.csv found under {DEFAULT_MT5_ROOT}")
+            else:
+                print_signal_diff(
+                    python_signals_for_window(args.python_data, args.from_date, args.to_date),
+                    read_mt5_signals(signal_csv),
+                    signal_csv,
+                    args.diff_limit,
+                )
 
     return 0 if all(ok for *_, ok in checks) else 1
 

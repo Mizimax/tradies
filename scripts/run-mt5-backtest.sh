@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="${MT5_APP:-$HOME/Applications/MetaTrader 5.app}"
 PREFIX="${MT5_PREFIX:-$HOME/Library/Application Support/net.metaquotes.wine.metatrader5}"
 WINE="$APP/Contents/SharedSupport/wine/bin/wine"
@@ -29,6 +30,8 @@ mkdir -p "$CONFIG_DIR" "$REPORT_DIR"
 CONFIG="$CONFIG_DIR/goldbot-${SYMBOL}-${PERIOD}.ini"
 REPORT_PATH="$REPORT_DIR/$REPORT_NAME"
 MT5_REPORT_PATH="reports\\$REPORT_NAME"
+RUNTIME_SET_NAME="GoldBot.runtime.set"
+RUNTIME_SET="$TESTER_PROFILE_DIR/$RUNTIME_SET_NAME"
 
 if [[ ! -x "$WINE" ]]; then
   echo "Wine launcher not found: $WINE" >&2
@@ -40,20 +43,37 @@ if [[ ! -f "$TERMINAL" ]]; then
   exit 1
 fi
 
+"$ROOT_DIR/scripts/install-mt5-source.sh" >/dev/null
+
 if [[ ! -f "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" ]]; then
   echo "GoldBot.ex5 not found. Compile GoldBot in MetaEditor first." >&2
   exit 1
 fi
 
-if [[ "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.mq5" -nt "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" ]]; then
-  echo "GoldBot.ex5 is older than GoldBot.mq5. Compile GoldBot in MetaEditor first." >&2
-  echo "Source:   $MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.mq5" >&2
+NEWER_SOURCE="$(find "$MT5_ROOT/MQL5/Experts/GoldBot" "$MT5_ROOT/MQL5/Include/GoldBot" \( -name '*.mq5' -o -name '*.mqh' \) -newer "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" -print -quit)"
+if [[ -n "$NEWER_SOURCE" ]]; then
+  echo "GoldBot.ex5 is older than the installed GoldBot source. Compile GoldBot in MetaEditor first." >&2
+  echo "Changed source: $NEWER_SOURCE" >&2
   echo "Compiled: $MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" >&2
   exit 1
 fi
 
 mkdir -p "$TESTER_PROFILE_DIR" "$MT5_REPORT_DIR"
-cp mt5/Presets/GoldBot.optimized.set "$TESTER_PROFILE_DIR/GoldBot.optimized.set"
+cp mt5/Presets/GoldBot.optimized.set "$RUNTIME_SET"
+awk -v value="$FROM_DATE 00:00" '
+  BEGIN { done = 0 }
+  /^InpPythonParityStart=/ {
+    print "InpPythonParityStart=" value
+    done = 1
+    next
+  }
+  { print }
+  END {
+    if (!done)
+      print "InpPythonParityStart=" value
+  }
+' "$RUNTIME_SET" > "$RUNTIME_SET.tmp"
+mv "$RUNTIME_SET.tmp" "$RUNTIME_SET"
 
 {
 if [[ -n "$LOGIN" || -n "$SERVER" || -n "$PASSWORD" ]]; then
@@ -68,7 +88,7 @@ fi
 cat <<INI
 [Tester]
 Expert=GoldBot\\GoldBot.ex5
-ExpertParameters=GoldBot.optimized.set
+ExpertParameters=$RUNTIME_SET_NAME
 Symbol=$SYMBOL
 Period=$PERIOD
 Optimization=0

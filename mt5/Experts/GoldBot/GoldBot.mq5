@@ -33,11 +33,13 @@ input bool            InpEnableTelegram = false;
 input bool            InpDebugOnly = false;
 input bool            InpPythonParityMode = true;
 input string          InpSessionFilter = "all";
+input string          InpPythonParityStart = "";
 input bool            InpLegacyParityMode = false;
 
 CTrade trade;
 datetime lastM15Bar = 0;
 datetime lastParityClosedBar = 0;
+datetime parityStartTime = 0;
 
 struct PythonParityTrade
 {
@@ -82,6 +84,7 @@ void GoldBotPythonParityJournalTrade(const PythonParityTrade &tradeState, const 
 void GoldBotPythonParityPrintSummary();
 bool GoldBotPythonIndicatorSnapshot(const string symbol, const datetime signalTime, IndicatorSnapshot &out);
 bool GoldBotCopyRatesWindow(const string symbol, const ENUM_TIMEFRAMES tf, const datetime endTime, const int bars, MqlRates &rates[]);
+bool GoldBotCopyRatesSinceCapped(const string symbol, const ENUM_TIMEFRAMES tf, const datetime startTime, const datetime endTime, const int maxBars, MqlRates &rates[]);
 double GoldBotPythonEMAFromRates(MqlRates &rates[], const int count, const int period);
 double GoldBotPythonRSIFromRates(MqlRates &rates[], const int count, const int period);
 double GoldBotPythonATRFromRates(MqlRates &rates[], const int count, const int period);
@@ -390,6 +393,9 @@ void GoldBotPythonParityReset()
    parityCooldownRemaining = 0;
    parityObservedBars = 0;
    lastParityClosedBar = 0;
+   parityStartTime = 0;
+   if(StringLen(InpPythonParityStart) > 0)
+      parityStartTime = StringToTime(InpPythonParityStart);
    FileDelete("GoldBot\\parity_trades.csv");
    FileDelete("GoldBot\\parity_signals.csv");
    GoldBotPythonParityJournalHeader();
@@ -455,6 +461,8 @@ void GoldBotPythonParityProcessClosedBar(const string symbol, const MqlRates &cl
    if(closedBar.time <= lastParityClosedBar)
       return;
    lastParityClosedBar = closedBar.time;
+   if(parityStartTime <= 0)
+      parityStartTime = closedBar.time;
 
    GoldBotPythonParityManage(symbol, closedBar);
    parityObservedBars++;
@@ -764,9 +772,11 @@ bool GoldBotPythonIndicatorSnapshot(const string symbol, const datetime signalTi
 {
    MqlRates h1[];
    MqlRates m15[];
-   if(!GoldBotCopyRatesWindow(symbol, PERIOD_H1, signalTime, 260, h1))
+   if(parityStartTime <= 0)
       return false;
-   if(!GoldBotCopyRatesWindow(symbol, PERIOD_M15, signalTime, 1000, m15))
+   if(!GoldBotCopyRatesSinceCapped(symbol, PERIOD_H1, parityStartTime, signalTime, 2000, h1))
+      return false;
+   if(!GoldBotCopyRatesSinceCapped(symbol, PERIOD_M15, parityStartTime, signalTime, 2000, m15))
       return false;
 
    int h1Count = ArraySize(h1);
@@ -818,6 +828,56 @@ bool GoldBotCopyRatesWindow(const string symbol, const ENUM_TIMEFRAMES tf, const
          rates[copied - 1 - i] = tmp;
       }
    }
+
+   return true;
+}
+
+bool GoldBotCopyRatesSinceCapped(const string symbol, const ENUM_TIMEFRAMES tf, const datetime startTime, const datetime endTime, const int maxBars, MqlRates &rates[])
+{
+   int endShift = iBarShift(symbol, tf, endTime, false);
+   if(endShift < 0)
+      return false;
+
+   int startShift = iBarShift(symbol, tf, startTime, false);
+   int copied = 0;
+   if(startShift >= endShift)
+   {
+      int availableBars = startShift - endShift + 1;
+      int barsToCopy = MathMin(availableBars, maxBars);
+      copied = CopyRates(symbol, tf, endShift, barsToCopy, rates);
+   }
+   else
+   {
+      copied = CopyRates(symbol, tf, startTime, endTime, rates);
+   }
+
+   if(copied <= 0)
+      return false;
+   ArrayResize(rates, copied);
+
+   if(copied > 1 && rates[0].time > rates[copied - 1].time)
+   {
+      for(int i = 0; i < copied / 2; i++)
+      {
+         MqlRates tmp = rates[i];
+         rates[i] = rates[copied - 1 - i];
+         rates[copied - 1 - i] = tmp;
+      }
+   }
+
+   int firstInRange = 0;
+   while(firstInRange < copied && rates[firstInRange].time < startTime)
+      firstInRange++;
+   if(firstInRange > 0)
+   {
+      for(int i = firstInRange; i < copied; i++)
+         rates[i - firstInRange] = rates[i];
+      copied -= firstInRange;
+      ArrayResize(rates, copied);
+   }
+
+   if(copied <= 0)
+      return false;
    return true;
 }
 

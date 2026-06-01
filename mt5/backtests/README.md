@@ -10,7 +10,17 @@ Copy:
 - `mt5/Include/GoldBot/*.mqh` to `MQL5/Include/GoldBot/*.mqh`
 - `mt5/Presets/GoldBot.optimized.set` to `MQL5/Presets/GoldBot.optimized.set`
 
-Compile `GoldBot.mq5` in MetaEditor.
+Or install the repo copy directly:
+
+```bash
+bash scripts/install-mt5-source.sh
+```
+
+Compile `GoldBot.mq5` in MetaEditor. The command-line compile helper attempts the same MetaEditor compile path and verifies that `GoldBot.ex5` was updated:
+
+```bash
+bash scripts/compile-mt5-goldbot.sh
+```
 
 ## Command-Line Backtest
 
@@ -20,7 +30,7 @@ This repo includes a macOS/Wine helper for the installed MetaTrader 5 app:
 bash scripts/run-mt5-backtest.sh
 ```
 
-It writes a temporary tester config under `mt5/backtests/config/`, copies the set file into `MQL5/Profiles/Tester`, launches MT5 with `/config`, and copies generated reports back to `mt5/backtests/reports/`.
+It writes a temporary tester config under `mt5/backtests/config/`, installs the current repo source into the MT5 data folder, copies a runtime set file into `MQL5/Profiles/Tester`, launches MT5 with `/config`, and copies generated reports back to `mt5/backtests/reports/`.
 
 MetaTrader requires a tester account. If MT5 already has a demo/broker account saved, the script can use it. Otherwise pass account details as environment variables:
 
@@ -39,12 +49,14 @@ Do not commit generated config files; they may contain account details.
 - Spread/commission: realistic broker settings
 - Preset: `GoldBot.optimized.set`
 - For Python backtest parity, use `InpPythonParityMode=true`. This mode does not place broker orders; it simulates the Python candle backtest internally and writes `MQL5/Files/GoldBot/parity_trades.csv`.
+- `scripts/run-mt5-backtest.sh` sets `InpPythonParityStart` from `MT5_FROM` so parity indicators warm up from the same window as the Python comparison.
 - For live-style broker testing, use `InpPythonParityMode=false`.
 - Compare the parity CSV with the Python baseline. In Strategy Tester, MT5 writes this file under `Tester/Agent-*/MQL5/Files/GoldBot/parity_trades.csv`, so the helper auto-detects the latest one:
   `python3 scripts/compare-mt5-python-parity.py`
 - For the current overlap window, compare against a Python baseline generated from the same dates:
   `python3 scripts/compare-mt5-python-parity.py --from-date 2023-10-01 --to-date 2025-09-30`
 - Add `--diff-trades` to show missing, extra, and outcome-mismatched trade timestamps.
+- Add `--diff-signals` to check duplicate signal times, chronological processing, missing/extra signal timestamps, and indicator/gate value drift.
 
 ## Optimization
 
