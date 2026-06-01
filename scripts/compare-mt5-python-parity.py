@@ -8,6 +8,15 @@ from pathlib import Path
 
 
 DEFAULT_BASELINE = Path("legacy/cloudflare-worker/backtesting/results/backtest_best_24m.json")
+DEFAULT_MT5_ROOT = Path.home() / "Library/Application Support/net.metaquotes.wine.metatrader5/drive_c/Program Files/MetaTrader 5"
+
+
+def find_latest_parity_csv(mt5_root: Path = DEFAULT_MT5_ROOT) -> Path | None:
+    candidates = list(mt5_root.glob("Tester/Agent-*/MQL5/Files/GoldBot/parity_trades.csv"))
+    candidates += list(mt5_root.glob("MQL5/Files/GoldBot/parity_trades.csv"))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
 def read_mt5_trades(path: Path) -> list[dict]:
@@ -20,6 +29,12 @@ def read_mt5_trades(path: Path) -> list[dict]:
             }
             for row in csv.DictReader(handle)
         ]
+
+
+def trade_window(trades: list[dict]) -> tuple[str, str]:
+    if not trades:
+        return "", ""
+    return trades[0].get("entry_time", ""), trades[-1].get("exit_time", "")
 
 
 def summarize(trades: list[dict]) -> dict:
@@ -56,20 +71,32 @@ def pct_diff(actual: float, expected: float) -> float:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compare MT5 parity_trades.csv against the Python backtest baseline.")
-    parser.add_argument("mt5_csv", type=Path, help="Path to MQL5/Files/GoldBot/parity_trades.csv")
+    parser.add_argument("mt5_csv", type=Path, nargs="?", help="Path to MQL5/Files/GoldBot/parity_trades.csv")
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     args = parser.parse_args()
 
-    baseline = json.loads(args.baseline.read_text())
-    mt5_summary = summarize(read_mt5_trades(args.mt5_csv))
+    mt5_csv = args.mt5_csv or find_latest_parity_csv()
+    if mt5_csv is None:
+        print(f"No parity_trades.csv found under {DEFAULT_MT5_ROOT}")
+        print("Run MT5 Strategy Tester with InpPythonParityMode=true first.")
+        return 2
 
-    checks = [
+    baseline = json.loads(args.baseline.read_text())
+    mt5_trades = read_mt5_trades(mt5_csv)
+    mt5_summary = summarize(mt5_trades)
+    first_trade, last_trade = trade_window(mt5_trades)
+
+    checks: list[tuple[str, float, float, bool]] = [
         ("trades", mt5_summary["trades"], baseline["trades"], abs(pct_diff(mt5_summary["trades"], baseline["trades"])) <= 0.05),
         ("win_rate", mt5_summary["win_rate"], baseline["win_rate"], abs(mt5_summary["win_rate"] - baseline["win_rate"]) <= 0.03),
         ("profit_factor", mt5_summary["profit_factor"], baseline["profit_factor"], abs(pct_diff(mt5_summary["profit_factor"], baseline["profit_factor"])) <= 0.10),
         ("expectancy_r", mt5_summary["expectancy_r"], baseline["expectancy_r"], abs(mt5_summary["expectancy_r"] - baseline["expectancy_r"]) <= 0.10),
     ]
 
+    print(f"MT5 CSV: {mt5_csv}")
+    if first_trade or last_trade:
+        print(f"MT5 trade window: {first_trade} -> {last_trade}")
+    print()
     print("MT5 parity summary")
     print(json.dumps(mt5_summary, indent=2))
     print("\nPython baseline")

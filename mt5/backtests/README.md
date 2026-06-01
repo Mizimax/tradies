@@ -40,8 +40,8 @@ Do not commit generated config files; they may contain account details.
 - Preset: `GoldBot.optimized.set`
 - For Python backtest parity, use `InpPythonParityMode=true`. This mode does not place broker orders; it simulates the Python candle backtest internally and writes `MQL5/Files/GoldBot/parity_trades.csv`.
 - For live-style broker testing, use `InpPythonParityMode=false`.
-- Compare the parity CSV with the Python baseline:
-  `python3 scripts/compare-mt5-python-parity.py "<MT5 root>/MQL5/Files/GoldBot/parity_trades.csv"`
+- Compare the parity CSV with the Python baseline. In Strategy Tester, MT5 writes this file under `Tester/Agent-*/MQL5/Files/GoldBot/parity_trades.csv`, so the helper auto-detects the latest one:
+  `python3 scripts/compare-mt5-python-parity.py`
 
 ## Optimization
 

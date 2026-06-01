@@ -159,8 +159,8 @@ legacy/cloudflare-worker/
    - Timeframe: M15
    - `InpPythonParityMode=true`
    - Date window: 2023-10-01 through 2025-09-30 for the current comparison run
-5. Compare `MQL5/Files/GoldBot/parity_trades.csv` to the Python baseline:
-   `python3 scripts/compare-mt5-python-parity.py "<MT5 root>/MQL5/Files/GoldBot/parity_trades.csv"`
+5. Compare the latest Strategy Tester `parity_trades.csv` to the Python baseline:
+   `python3 scripts/compare-mt5-python-parity.py`
 6. Acceptance target:
    - Trades within +/-5% of 251
    - Win rate within +/-3 percentage points of 58.17%
