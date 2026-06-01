@@ -20,4 +20,5 @@ InpMaxOpenTrades=2
 InpMaxDailyLossPct=3.0
 InpDailyTargetPct=5.0
 InpEnableTelegram=false
-InpDebugOnly=true
+InpDebugOnly=false
+InpLegacyParityMode=true
