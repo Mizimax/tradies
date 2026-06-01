@@ -38,7 +38,10 @@ Do not commit generated config files; they may contain account details.
 - Deposit/currency: match intended account
 - Spread/commission: realistic broker settings
 - Preset: `GoldBot.optimized.set`
-- Start with `InpDebugOnly=true`
+- For Python backtest parity, use `InpPythonParityMode=true`. This mode does not place broker orders; it simulates the Python candle backtest internally and writes `MQL5/Files/GoldBot/parity_trades.csv`.
+- For live-style broker testing, use `InpPythonParityMode=false`.
+- Compare the parity CSV with the Python baseline:
+  `python3 scripts/compare-mt5-python-parity.py "<MT5 root>/MQL5/Files/GoldBot/parity_trades.csv"`
 
 ## Optimization
 

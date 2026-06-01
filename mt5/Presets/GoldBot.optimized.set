@@ -21,4 +21,6 @@ InpMaxDailyLossPct=3.0
 InpDailyTargetPct=5.0
 InpEnableTelegram=false
 InpDebugOnly=false
-InpLegacyParityMode=true
+InpPythonParityMode=true
+InpSessionFilter=all
+InpLegacyParityMode=false
