@@ -45,6 +45,7 @@ Check these artifacts after each run:
 - Real execution journal: `MQL5/Files/GoldBot/trades.csv`, usually under the Strategy Tester agent folder
 - Pending order success/failure entries in `trades.csv`
 - Gate/skip logs in the MT5 tester journal
+- SMC candidate entries showing H4/H1/M15 gate state and score
 
 Real-mode acceptance is based on Strategy Tester reports, broker-style order behavior, and `trades.csv`. `parity_trades.csv` is not a real-mode acceptance artifact.
 

@@ -164,6 +164,18 @@ void OnTick()
    }
 
    SMCResult smc;
+   smc.gateH4 = false;
+   smc.gateH1 = false;
+   smc.gateM15 = false;
+   smc.allPass = false;
+   smc.direction = DIR_NONE;
+   smc.fvg.valid = false;
+   smc.fvg.bottom = 0.0;
+   smc.fvg.top = 0.0;
+   smc.orderBlock.valid = false;
+   smc.orderBlock.bottom = 0.0;
+   smc.orderBlock.top = 0.0;
+   smc.score = 0.0;
    bool smcReady = GoldBotRunSMC(symbol, smc);
    GoldBotDirection direction = DIR_NONE;
    double score = 0.0;
@@ -205,6 +217,14 @@ void OnTick()
       score = smc.score;
       fvg = smc.fvg;
       orderBlock = smc.orderBlock;
+      GoldBotJournal(StringFormat("SMC candidate h4=%s h1=%s m15=%s dir=%d smcScore=%.2f fvg=%s ob=%s",
+         smc.gateH4 ? "yes" : "no",
+         smc.gateH1 ? "yes" : "no",
+         smc.gateM15 ? "yes" : "no",
+         smc.direction,
+         smc.score,
+         smc.fvg.valid ? "yes" : "no",
+         smc.orderBlock.valid ? "yes" : "no"));
    }
 
    if(direction == DIR_LONG)
@@ -229,6 +249,8 @@ void OnTick()
    if(score < InpScoreThreshold || !zone.valid)
    {
       GoldBotLog(StringFormat("Signal skipped. score=%.2f zone=%s", score, zone.valid ? "yes" : "no"));
+      if(score >= 50.0 || zone.valid)
+         GoldBotJournal(StringFormat("Signal skipped score=%.2f zone=%s dir=%d", score, zone.valid ? "yes" : "no", direction));
       return;
    }
 

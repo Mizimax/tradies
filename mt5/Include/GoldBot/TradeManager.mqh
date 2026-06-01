@@ -21,21 +21,67 @@ EntryZone GoldBotBuildEntryZone(const GoldBotZone &fvg, const GoldBotZone &ob, c
    zone.top = 0.0;
    zone.midpoint = 0.0;
 
-   double bottom = ema21 * 0.998;
-   double top = ema21 * 1.002;
+   double emaBottom = ema21 * 0.998;
+   double emaTop = ema21 * 1.002;
+   double bottom = emaBottom;
+   double top = emaTop;
+   bool hasStructureZone = false;
 
    if(fvg.valid)
    {
-      bottom = MathMax(bottom, fvg.bottom);
-      top = MathMin(top, fvg.top);
+      bottom = fvg.bottom;
+      top = fvg.top;
+      hasStructureZone = true;
    }
    if(ob.valid)
    {
-      bottom = MathMax(bottom, ob.bottom);
-      top = MathMin(top, ob.top);
+      if(hasStructureZone)
+      {
+         double overlapBottom = MathMax(bottom, ob.bottom);
+         double overlapTop = MathMin(top, ob.top);
+         if(overlapBottom < overlapTop)
+         {
+            bottom = overlapBottom;
+            top = overlapTop;
+         }
+         else
+         {
+            double currentMid = bottom + (top - bottom) / 2.0;
+            double obMid = ob.bottom + (ob.top - ob.bottom) / 2.0;
+            if(MathAbs(obMid - ema21) < MathAbs(currentMid - ema21))
+            {
+               bottom = ob.bottom;
+               top = ob.top;
+            }
+         }
+      }
+      else
+      {
+         bottom = ob.bottom;
+         top = ob.top;
+         hasStructureZone = true;
+      }
    }
 
-   if(bottom >= top || top - bottom > atr * 1.5)
+   if(!hasStructureZone)
+      return zone;
+
+   double emaOverlapBottom = MathMax(bottom, emaBottom);
+   double emaOverlapTop = MathMin(top, emaTop);
+   if(emaOverlapBottom < emaOverlapTop)
+   {
+      bottom = emaOverlapBottom;
+      top = emaOverlapTop;
+   }
+   else
+   {
+      double mid = bottom + (top - bottom) / 2.0;
+      double halfWidth = MathMin(MathMax((top - bottom) / 2.0, atr * 0.15), atr * 0.75);
+      bottom = mid - halfWidth;
+      top = mid + halfWidth;
+   }
+
+   if(bottom >= top || top - bottom > atr * 2.5)
       return zone;
 
    zone.valid = true;

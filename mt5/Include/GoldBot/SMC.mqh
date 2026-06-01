@@ -221,8 +221,14 @@ bool GoldBotRunSMC(const string symbol, SMCResult &out)
    out.orderBlock = GoldBotFindOrderBlock(m15, out.direction, 60);
    out.gateM15 = (out.fvg.valid || out.orderBlock.valid) && GoldBotBOSOrCHoCH(m15, out.direction, 24);
 
-   out.allPass = out.gateH4 && out.gateH1 && out.gateM15;
-   out.score = out.allPass ? 37.5 : 0.0;
+   out.allPass = out.gateM15;
+   out.score = 0.0;
+   if(out.gateM15)
+      out.score += 25.0;
+   if(out.gateH4)
+      out.score += 6.25;
+   if(out.gateH1)
+      out.score += 6.25;
    return true;
 }
 

@@ -26,15 +26,17 @@ The live EA runs on newly closed M15 bars and reads multi-timeframe data from MT
 - M15 for entry trigger, VWAP, RSI, FVG/OB zones
 - M5 is reserved for future micro-confirmation work
 
-All 3 SMC gates must pass:
+SMC is scored instead of treated as a brittle all-or-nothing filter:
 
 1. H4 bias: market structure, discount/premium, and H4 FVG or order block.
 2. H1 confirmation: aligned structure or BOS/CHoCH, liquidity sweep, and displacement.
-3. M15 trigger: FVG or order block plus BOS/CHoCH.
+3. M15 trigger: FVG or order block plus BOS/CHoCH. This is the required real-mode execution gate.
 
 The confluence score keeps the 100-point system:
 
-- SMC gates: 37.5 fixed points when all pass
+- M15 SMC trigger: 25
+- H4 SMC bias confirmation: 6.25
+- H1 SMC confirmation: 6.25
 - EMA stack: 12.5
 - RSI pullback: 12.5
 - VWAP discount/premium: 12.5
@@ -83,7 +85,7 @@ InpLegacyParityMode = false
 
 1. On each new M15 bar, calculate SMC and indicator gates from closed candles only.
 2. Enforce daily loss/target, cooldown, and max-open-trades gates.
-3. If SMC gates fail, log gate state and skip.
+3. If the M15 SMC execution trigger fails, log gate state and skip.
 4. If score is below threshold or no valid entry zone exists, log the skip reason.
 5. Build the entry zone from M15 FVG, M15 order block, and EMA21 proximity.
 6. Place a 3-order broker-native pending limit ladder:
