@@ -78,4 +78,44 @@ void GoldBotMarkSignalTime()
    GlobalVariableSet("GoldBot.lastSignalTime", (double)TimeCurrent());
 }
 
+bool GoldBotServerHourAllowed(const bool enabled, const int startHour, const int endHour)
+{
+   if(!enabled)
+      return true;
+
+   MqlDateTime t;
+   TimeToStruct(TimeCurrent(), t);
+   int start = MathMax(0, MathMin(23, startHour));
+   int end = MathMax(0, MathMin(23, endHour));
+
+   if(start == end)
+      return true;
+   if(start < end)
+      return t.hour >= start && t.hour < end;
+   return t.hour >= start || t.hour < end;
+}
+
+int GoldBotDailyLadderCount()
+{
+   string key = GoldBotDayKey("ladderCount");
+   if(!GlobalVariableCheck(key))
+      return 0;
+   return (int)GlobalVariableGet(key);
+}
+
+bool GoldBotDailyLadderAllowed(const int maxLaddersPerDay, int &currentCount)
+{
+   currentCount = GoldBotDailyLadderCount();
+   if(maxLaddersPerDay <= 0)
+      return true;
+   return currentCount < maxLaddersPerDay;
+}
+
+void GoldBotMarkLadderPlaced()
+{
+   string key = GoldBotDayKey("ladderCount");
+   int currentCount = GoldBotDailyLadderCount();
+   GlobalVariableSet(key, (double)(currentCount + 1));
+}
+
 #endif

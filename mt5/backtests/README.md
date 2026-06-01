@@ -46,6 +46,8 @@ Check these artifacts after each run:
 - Pending order success/failure entries in `trades.csv`
 - Gate/skip logs in the MT5 tester journal
 - SMC candidate entries showing H4/H1/M15 gate state and score
+- Real-mode block reasons for higher-timeframe confirmation, session window, and daily ladder limit
+- Signal skip entries with the effective real-mode score threshold
 
 Real-mode acceptance is based on Strategy Tester reports, broker-style order behavior, and `trades.csv`. `parity_trades.csv` is not a real-mode acceptance artifact.
 

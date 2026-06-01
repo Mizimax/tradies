@@ -63,6 +63,8 @@ This is not the final trading goal. It is the next quality gate before deeper op
 
 ## Phase 1: Add Real-Mode Filter Controls
 
+Status: implemented in the EA and preset; next step is MetaEditor compile and Strategy Tester validation.
+
 Add inputs:
 
 ```text
@@ -222,4 +224,3 @@ MT5_REPORT=GoldBot-real-confirmed-score68 \
 MT5_INPUT_OVERRIDES=$'InpScoreThreshold=68.75\nInpLotPer100Usd=0.003\nInpCooldownBars=24\nInpMaxOpenTrades=1' \
 bash scripts/run-mt5-backtest.sh
 ```
-

@@ -35,6 +35,12 @@ input bool            InpPythonParityMode = false;
 input string          InpSessionFilter = "all";
 input string          InpPythonParityStart = "";
 input bool            InpLegacyParityMode = false;
+input bool            InpRequireHigherTfConfirmation = true;
+input double          InpMinRealModeScore = 68.75;
+input int             InpMaxLaddersPerDay = 3;
+input bool            InpUseSessionFilterForRealMode = true;
+input int             InpRealSessionStartHour = 7;
+input int             InpRealSessionEndHour = 22;
 
 CTrade trade;
 datetime lastM15Bar = 0;
@@ -225,6 +231,36 @@ void OnTick()
          smc.score,
          smc.fvg.valid ? "yes" : "no",
          smc.orderBlock.valid ? "yes" : "no"));
+
+      if(InpRequireHigherTfConfirmation && !smc.gateH4 && !smc.gateH1)
+      {
+         GoldBotLog("Higher timeframe confirmation blocked new entry.");
+         GoldBotJournal(StringFormat("Higher timeframe confirmation blocked h4=%s h1=%s m15=%s dir=%d",
+            smc.gateH4 ? "yes" : "no",
+            smc.gateH1 ? "yes" : "no",
+            smc.gateM15 ? "yes" : "no",
+            smc.direction));
+         return;
+      }
+   }
+
+   if(!InpLegacyParityMode && !GoldBotServerHourAllowed(InpUseSessionFilterForRealMode, InpRealSessionStartHour, InpRealSessionEndHour))
+   {
+      GoldBotLog("Real session filter blocked new entry.");
+      GoldBotJournal(StringFormat("Real session filter blocked start=%d end=%d",
+         InpRealSessionStartHour,
+         InpRealSessionEndHour));
+      return;
+   }
+
+   int dailyLadderCount = 0;
+   if(!InpLegacyParityMode && !GoldBotDailyLadderAllowed(InpMaxLaddersPerDay, dailyLadderCount))
+   {
+      GoldBotLog("Daily ladder limit blocked new entry. Count=" + IntegerToString(dailyLadderCount));
+      GoldBotJournal(StringFormat("Daily ladder limit blocked count=%d max=%d",
+         dailyLadderCount,
+         InpMaxLaddersPerDay));
+      return;
    }
 
    if(direction == DIR_LONG)
@@ -246,11 +282,12 @@ void OnTick()
 
    EntryZone zone = InpLegacyParityMode ? GoldBotLegacyEntryZone(symbol, direction)
                                         : GoldBotBuildEntryZone(fvg, orderBlock, indicators.ema21, indicators.atr);
-   if(score < InpScoreThreshold || !zone.valid)
+   double effectiveScoreThreshold = InpLegacyParityMode ? InpScoreThreshold : MathMax(InpScoreThreshold, InpMinRealModeScore);
+   if(score < effectiveScoreThreshold || !zone.valid)
    {
-      GoldBotLog(StringFormat("Signal skipped. score=%.2f zone=%s", score, zone.valid ? "yes" : "no"));
+      GoldBotLog(StringFormat("Signal skipped. score=%.2f threshold=%.2f zone=%s", score, effectiveScoreThreshold, zone.valid ? "yes" : "no"));
       if(score >= 50.0 || zone.valid)
-         GoldBotJournal(StringFormat("Signal skipped score=%.2f zone=%s dir=%d", score, zone.valid ? "yes" : "no", direction));
+         GoldBotJournal(StringFormat("Signal skipped score=%.2f threshold=%.2f zone=%s dir=%d", score, effectiveScoreThreshold, zone.valid ? "yes" : "no", direction));
       return;
    }
 
@@ -276,7 +313,10 @@ void OnTick()
    }
 
    if(GoldBotPlaceLadder(symbol, InpMagicNumber, direction, zone, sl, score, InpLotPer100Usd, InpMinLot, InpMaxLot, InpHighConvictionScore, InpMinRR, InpMaxHoldBars, trade))
+   {
+      GoldBotMarkLadderPlaced();
       GoldBotJournal("Pending ladder placed");
+   }
 }
 
 string GoldBotSymbol()

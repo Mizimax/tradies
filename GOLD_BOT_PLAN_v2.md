@@ -77,6 +77,12 @@ InpPythonParityMode = false
 InpSessionFilter = "all"
 InpPythonParityStart = ""
 InpLegacyParityMode = false
+InpRequireHigherTfConfirmation = true
+InpMinRealModeScore = 68.75
+InpMaxLaddersPerDay = 3
+InpUseSessionFilterForRealMode = true
+InpRealSessionStartHour = 7
+InpRealSessionEndHour = 22
 ```
 
 `InpPythonParityMode=true` is diagnostic-only. It does not place broker orders and should be used only with `MT5_PARITY=1` when intentionally investigating the old Python simulator behavior.
@@ -86,9 +92,12 @@ InpLegacyParityMode = false
 1. On each new M15 bar, calculate SMC and indicator gates from closed candles only.
 2. Enforce daily loss/target, cooldown, and max-open-trades gates.
 3. If the M15 SMC execution trigger fails, log gate state and skip.
-4. If score is below threshold or no valid entry zone exists, log the skip reason.
-5. Build the entry zone from M15 FVG, M15 order block, and EMA21 proximity.
-6. Place a 3-order broker-native pending limit ladder:
+4. If enabled, require H4 or H1 confirmation before a real-mode entry.
+5. If enabled, enforce the real-mode server-hour session window.
+6. If enabled, enforce the max ladders per broker day limit.
+7. If score is below threshold or no valid entry zone exists, log the skip reason.
+8. Build the entry zone from M15 FVG, M15 order block, and EMA21 proximity.
+9. Place a 3-order broker-native pending limit ladder:
    - Long: zone top, midpoint, bottom
    - Short: zone bottom, midpoint, top
    - Split: 33%, 33%, 34%
@@ -103,7 +112,7 @@ InpLegacyParityMode = false
 ## State And Logging
 
 - Active runtime state is held in EA memory.
-- Daily equity baseline and cooldown timestamp use MT5 Global Variables.
+- Daily equity baseline, cooldown timestamp, and daily ladder count use MT5 Global Variables.
 - Real execution journal writes to `MQL5/Files/GoldBot/trades.csv`.
 - Journal entries include gate blocks, skipped signals, pending order success/failure, and TP lifecycle events.
 - Strategy Tester HTML/XML reports are the primary performance artifacts.
