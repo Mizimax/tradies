@@ -45,6 +45,13 @@ if [[ ! -f "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" ]]; then
   exit 1
 fi
 
+if [[ "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.mq5" -nt "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" ]]; then
+  echo "GoldBot.ex5 is older than GoldBot.mq5. Compile GoldBot in MetaEditor first." >&2
+  echo "Source:   $MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.mq5" >&2
+  echo "Compiled: $MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" >&2
+  exit 1
+fi
+
 mkdir -p "$TESTER_PROFILE_DIR" "$MT5_REPORT_DIR"
 cp mt5/Presets/GoldBot.optimized.set "$TESTER_PROFILE_DIR/GoldBot.optimized.set"
 
