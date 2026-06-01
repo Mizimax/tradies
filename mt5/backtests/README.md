@@ -74,6 +74,8 @@ Optimize real-mode behavior first with broker-realistic spread, commission, cont
 
 Keep daily loss, daily target, max open trades, and magic number fixed during initial optimization.
 
+The current evidence-based improvement plan is in `mt5/backtests/NEXT_IMPROVEMENT_PLAN.md`.
+
 ## Demo Forward Test
 
 Before live money:

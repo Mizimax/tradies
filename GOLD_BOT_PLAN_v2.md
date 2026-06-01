@@ -138,3 +138,7 @@ python3 scripts/compare-mt5-python-parity.py --from-date 2023-10-01 --to-date 20
 4. Keep max open trades enabled.
 5. Use tiny live size only after demo validation.
 6. Optional VPS is for uptime only; it is not required for the initial low-cost setup.
+
+## Next Improvement Plan
+
+The next implementation plan is tracked in `mt5/backtests/NEXT_IMPROVEMENT_PLAN.md`.
