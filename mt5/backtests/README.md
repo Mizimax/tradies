@@ -42,6 +42,8 @@ Do not commit generated config files; they may contain account details.
 - For live-style broker testing, use `InpPythonParityMode=false`.
 - Compare the parity CSV with the Python baseline. In Strategy Tester, MT5 writes this file under `Tester/Agent-*/MQL5/Files/GoldBot/parity_trades.csv`, so the helper auto-detects the latest one:
   `python3 scripts/compare-mt5-python-parity.py`
+- For the current overlap window, compare against a Python baseline generated from the same dates:
+  `python3 scripts/compare-mt5-python-parity.py --from-date 2023-10-01 --to-date 2025-09-30`
 
 ## Optimization
 

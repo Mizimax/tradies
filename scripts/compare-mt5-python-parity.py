@@ -4,11 +4,15 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 DEFAULT_BASELINE = Path("legacy/cloudflare-worker/backtesting/results/backtest_best_24m.json")
 DEFAULT_MT5_ROOT = Path.home() / "Library/Application Support/net.metaquotes.wine.metatrader5/drive_c/Program Files/MetaTrader 5"
+DEFAULT_PYTHON_DATA = Path("legacy/cloudflare-worker/backtesting/results/xauusd_m15.csv")
+BACKTESTING_DIR = Path("legacy/cloudflare-worker/backtesting")
 
 
 def find_latest_parity_csv(mt5_root: Path = DEFAULT_MT5_ROOT) -> Path | None:
@@ -63,6 +67,37 @@ def summarize(trades: list[dict]) -> dict:
     }
 
 
+def parse_date(value: str, end_of_day: bool = False) -> datetime:
+    if "T" not in value:
+        suffix = "T23:59:59+00:00" if end_of_day else "T00:00:00+00:00"
+        value = value + suffix
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def python_summary_for_window(data_path: Path, from_date: str, to_date: str) -> dict:
+    sys.path.insert(0, str(BACKTESTING_DIR))
+    from run_backtest import Params, load_csv, parse_time, resample, run_loaded
+
+    start = parse_date(from_date)
+    end = parse_date(to_date, end_of_day=True)
+    candles = [candle for candle in load_csv(data_path) if start <= parse_time(candle.time) <= end]
+    params = Params(
+        rsi_period=10,
+        rsi_long_max=38,
+        rsi_short_min=40,
+        adx_min=14,
+        atr_min=1.0,
+        atr_max=35.0,
+        sl_atr=0.8,
+        rr=2.0,
+        max_hold_bars=48,
+        cooldown_bars=16,
+        session_filter="all",
+    )
+    result = run_loaded(candles, resample(candles, 60), params)
+    return {key: result[key] for key in ["trades", "win_rate", "profit_factor", "avg_rr", "expectancy_r", "max_drawdown_r", "avg_trades_day"]}
+
+
 def pct_diff(actual: float, expected: float) -> float:
     if expected == 0:
         return 0.0 if actual == 0 else float("inf")
@@ -73,6 +108,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Compare MT5 parity_trades.csv against the Python backtest baseline.")
     parser.add_argument("mt5_csv", type=Path, nargs="?", help="Path to MQL5/Files/GoldBot/parity_trades.csv")
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
+    parser.add_argument("--python-data", type=Path, default=DEFAULT_PYTHON_DATA)
+    parser.add_argument("--from-date", dest="from_date", help="Build Python baseline from this UTC date, e.g. 2023-10-01")
+    parser.add_argument("--to-date", dest="to_date", help="Build Python baseline through this UTC date, e.g. 2025-09-30")
     args = parser.parse_args()
 
     mt5_csv = args.mt5_csv or find_latest_parity_csv()
@@ -81,7 +119,13 @@ def main() -> int:
         print("Run MT5 Strategy Tester with InpPythonParityMode=true first.")
         return 2
 
-    baseline = json.loads(args.baseline.read_text())
+    if args.from_date and args.to_date:
+        baseline = python_summary_for_window(args.python_data, args.from_date, args.to_date)
+        baseline_label = f"Python baseline ({args.from_date} -> {args.to_date})"
+    else:
+        baseline = json.loads(args.baseline.read_text())
+        baseline_label = f"Python baseline ({args.baseline})"
+
     mt5_trades = read_mt5_trades(mt5_csv)
     mt5_summary = summarize(mt5_trades)
     first_trade, last_trade = trade_window(mt5_trades)
@@ -99,7 +143,7 @@ def main() -> int:
     print()
     print("MT5 parity summary")
     print(json.dumps(mt5_summary, indent=2))
-    print("\nPython baseline")
+    print(f"\n{baseline_label}")
     print(json.dumps({key: baseline[key] for key in mt5_summary}, indent=2))
     print("\nAcceptance checks")
     for name, actual, expected, ok in checks:
