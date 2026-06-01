@@ -35,6 +35,10 @@ def read_mt5_trades(path: Path) -> list[dict]:
         ]
 
 
+def normalize_time(value: str) -> str:
+    return value.replace("T", " ").replace(":00Z", "").replace("-", ".")
+
+
 def trade_window(trades: list[dict]) -> tuple[str, str]:
     if not trades:
         return "", ""
@@ -74,13 +78,15 @@ def parse_date(value: str, end_of_day: bool = False) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
-def python_summary_for_window(data_path: Path, from_date: str, to_date: str) -> dict:
+def python_trades_for_window(data_path: Path, from_date: str, to_date: str) -> list[dict]:
     sys.path.insert(0, str(BACKTESTING_DIR))
-    from run_backtest import Params, load_csv, parse_time, resample, run_loaded
+    from indicators import adx, atr, ema, rsi
+    from run_backtest import Params, load_csv, parse_time, resample, signal_at, simulate_trade
 
     start = parse_date(from_date)
     end = parse_date(to_date, end_of_day=True)
     candles = [candle for candle in load_csv(data_path) if start <= parse_time(candle.time) <= end]
+    h1 = resample(candles, 60)
     params = Params(
         rsi_period=10,
         rsi_long_max=38,
@@ -94,8 +100,89 @@ def python_summary_for_window(data_path: Path, from_date: str, to_date: str) -> 
         cooldown_bars=16,
         session_filter="all",
     )
-    result = run_loaded(candles, resample(candles, 60), params)
-    return {key: result[key] for key in ["trades", "win_rate", "profit_factor", "avg_rr", "expectancy_r", "max_drawdown_r", "avg_trades_day"]}
+    h1_times = [parse_time(candle.time) for candle in h1]
+    h1_closes = [candle.close for candle in h1]
+    adx_values, plus_di, minus_di = adx(h1)
+    precomputed = {
+        "h1_close": h1_closes,
+        "ema_fast": ema(h1_closes, params.ema_fast),
+        "ema_mid": ema(h1_closes, params.ema_mid),
+        "ema_slow": ema(h1_closes, params.ema_slow),
+        "adx": adx_values,
+        "plus_di": plus_di,
+        "minus_di": minus_di,
+        "atr": atr(h1),
+        "rsi": rsi(candles, params.rsi_period),
+    }
+
+    trades: list[dict] = []
+    cooldown_until = 0
+    h1_index = 0
+    for index in range(900, len(candles) - params.max_hold_bars - 2):
+        if index < cooldown_until:
+            continue
+        current_time = parse_time(candles[index].time)
+        while h1_index + 1 < len(h1_times) and h1_times[h1_index + 1] <= current_time:
+            h1_index += 1
+        direction = signal_at(candles, index, h1_index, precomputed, params)
+        if not direction:
+            continue
+        trade = simulate_trade(candles, index, direction, precomputed["atr"][h1_index], params)
+        if trade:
+            trades.append(trade)
+            cooldown_until = index + params.cooldown_bars
+    return trades
+
+
+def python_summary_for_window(data_path: Path, from_date: str, to_date: str) -> dict:
+    return summarize([
+        {
+            **trade,
+            "rr": float(trade["rr"]),
+            "planned_rr": float(trade["planned_rr"]),
+        }
+        for trade in python_trades_for_window(data_path, from_date, to_date)
+    ])
+
+
+def print_trade_diff(python_trades: list[dict], mt5_trades: list[dict], limit: int) -> None:
+    python_by_time = {normalize_time(trade["entry_time"]): trade for trade in python_trades}
+    mt5_by_time = {normalize_time(trade["entry_time"]): trade for trade in mt5_trades}
+    python_times = list(python_by_time)
+    mt5_times = list(mt5_by_time)
+    common = set(python_times) & set(mt5_times)
+    missing = [time for time in python_times if time not in common]
+    extra = [time for time in mt5_times if time not in common]
+
+    print("\nTrade timestamp diff")
+    print(f"common={len(common)} missing_from_mt5={len(missing)} extra_in_mt5={len(extra)}")
+    if missing:
+        print("missing_from_mt5:")
+        for time in missing[:limit]:
+            trade = python_by_time[time]
+            print(f"  {time} {trade['direction']} rr={float(trade['rr']):.4f}")
+    if extra:
+        print("extra_in_mt5:")
+        for time in extra[:limit]:
+            trade = mt5_by_time[time]
+            print(f"  {time} {trade['direction']} rr={float(trade['rr']):.4f}")
+
+    outcome_mismatches = []
+    for time in python_times:
+        if time not in common:
+            continue
+        py_trade = python_by_time[time]
+        mt_trade = mt5_by_time[time]
+        if py_trade["direction"] != mt_trade["direction"] or abs(float(py_trade["rr"]) - float(mt_trade["rr"])) > 0.0001:
+            outcome_mismatches.append((time, py_trade, mt_trade))
+
+    if outcome_mismatches:
+        print("outcome_mismatches:")
+        for time, py_trade, mt_trade in outcome_mismatches[:limit]:
+            print(
+                f"  {time} py={py_trade['direction']} {float(py_trade['rr']):.4f} "
+                f"mt5={mt_trade['direction']} {float(mt_trade['rr']):.4f}"
+            )
 
 
 def pct_diff(actual: float, expected: float) -> float:
@@ -111,6 +198,8 @@ def main() -> int:
     parser.add_argument("--python-data", type=Path, default=DEFAULT_PYTHON_DATA)
     parser.add_argument("--from-date", dest="from_date", help="Build Python baseline from this UTC date, e.g. 2023-10-01")
     parser.add_argument("--to-date", dest="to_date", help="Build Python baseline through this UTC date, e.g. 2025-09-30")
+    parser.add_argument("--diff-trades", action="store_true", help="Print timestamp/outcome differences against Python trades.")
+    parser.add_argument("--diff-limit", type=int, default=20)
     args = parser.parse_args()
 
     mt5_csv = args.mt5_csv or find_latest_parity_csv()
@@ -120,9 +209,11 @@ def main() -> int:
         return 2
 
     if args.from_date and args.to_date:
-        baseline = python_summary_for_window(args.python_data, args.from_date, args.to_date)
+        python_trades = python_trades_for_window(args.python_data, args.from_date, args.to_date)
+        baseline = summarize(python_trades)
         baseline_label = f"Python baseline ({args.from_date} -> {args.to_date})"
     else:
+        python_trades = []
         baseline = json.loads(args.baseline.read_text())
         baseline_label = f"Python baseline ({args.baseline})"
 
@@ -149,6 +240,12 @@ def main() -> int:
     for name, actual, expected, ok in checks:
         status = "PASS" if ok else "FAIL"
         print(f"{status} {name}: actual={actual:.6g} expected={expected:.6g}")
+
+    if args.diff_trades:
+        if not python_trades:
+            print("\nTrade diff requires --from-date and --to-date.")
+        else:
+            print_trade_diff(python_trades, mt5_trades, args.diff_limit)
 
     return 0 if all(ok for *_, ok in checks) else 1
 

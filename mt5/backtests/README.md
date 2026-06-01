@@ -44,6 +44,7 @@ Do not commit generated config files; they may contain account details.
   `python3 scripts/compare-mt5-python-parity.py`
 - For the current overlap window, compare against a Python baseline generated from the same dates:
   `python3 scripts/compare-mt5-python-parity.py --from-date 2023-10-01 --to-date 2025-09-30`
+- Add `--diff-trades` to show missing, extra, and outcome-mismatched trade timestamps.
 
 ## Optimization
 
