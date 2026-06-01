@@ -15,6 +15,55 @@ DEFAULT_PYTHON_DATA = Path("legacy/cloudflare-worker/backtesting/results/xauusd_
 BACKTESTING_DIR = Path("legacy/cloudflare-worker/backtesting")
 
 
+def mt5_goldbot_sources(mt5_root: Path = DEFAULT_MT5_ROOT) -> list[Path]:
+    source_roots = [
+        mt5_root / "MQL5/Experts/GoldBot",
+        mt5_root / "MQL5/Include/GoldBot",
+    ]
+    sources: list[Path] = []
+    for root in source_roots:
+        if root.exists():
+            sources.extend(root.glob("*.mq5"))
+            sources.extend(root.glob("*.mqh"))
+    return sources
+
+
+def latest_mtime(paths: list[Path]) -> float:
+    existing = [path.stat().st_mtime for path in paths if path.exists()]
+    return max(existing) if existing else 0.0
+
+
+def check_fresh_mt5_artifacts(mt5_csv: Path, signal_csv: Path | None, mt5_root: Path = DEFAULT_MT5_ROOT) -> list[str]:
+    messages: list[str] = []
+    ex5 = mt5_root / "MQL5/Experts/GoldBot/GoldBot.ex5"
+    sources = mt5_goldbot_sources(mt5_root)
+    newest_source_mtime = latest_mtime(sources)
+
+    if not ex5.exists():
+        messages.append(f"compiled EA missing: {ex5}")
+        return messages
+
+    ex5_mtime = ex5.stat().st_mtime
+    if newest_source_mtime > ex5_mtime:
+        newest_source = max((path for path in sources if path.exists()), key=lambda path: path.stat().st_mtime, default=None)
+        source_label = f" ({newest_source})" if newest_source else ""
+        messages.append(f"compiled EA is older than installed source{source_label}")
+
+    if mt5_csv.stat().st_mtime < ex5_mtime:
+        messages.append("parity_trades.csv is older than the compiled EA; run Strategy Tester again")
+
+    if signal_csv is not None and signal_csv.exists() and signal_csv.stat().st_mtime < ex5_mtime:
+        messages.append("parity_signals.csv is older than the compiled EA; run Strategy Tester again")
+
+    if newest_source_mtime and mt5_csv.stat().st_mtime < newest_source_mtime:
+        messages.append("parity_trades.csv is older than installed source; compile and rerun Strategy Tester")
+
+    if signal_csv is not None and signal_csv.exists() and newest_source_mtime and signal_csv.stat().st_mtime < newest_source_mtime:
+        messages.append("parity_signals.csv is older than installed source; compile and rerun Strategy Tester")
+
+    return messages
+
+
 def find_latest_parity_csv(mt5_root: Path = DEFAULT_MT5_ROOT) -> Path | None:
     candidates = list(mt5_root.glob("Tester/Agent-*/MQL5/Files/GoldBot/parity_trades.csv"))
     candidates += list(mt5_root.glob("MQL5/Files/GoldBot/parity_trades.csv"))
@@ -423,6 +472,7 @@ def main() -> int:
     parser.add_argument("--diff-trades", action="store_true", help="Print timestamp/outcome differences against Python trades.")
     parser.add_argument("--diff-signals", action="store_true", help="Print timestamp/gate differences against Python parity signals.")
     parser.add_argument("--signal-csv", type=Path, help="Path to MQL5/Files/GoldBot/parity_signals.csv")
+    parser.add_argument("--allow-stale", action="store_true", help="Allow comparison against CSVs older than installed source/EX5.")
     parser.add_argument("--diff-limit", type=int, default=20)
     args = parser.parse_args()
 
@@ -431,6 +481,18 @@ def main() -> int:
         print(f"No parity_trades.csv found under {DEFAULT_MT5_ROOT}")
         print("Run MT5 Strategy Tester with InpPythonParityMode=true first.")
         return 2
+
+    signal_csv = args.signal_csv or find_latest_parity_signal_csv()
+    if not args.allow_stale:
+        freshness_messages = check_fresh_mt5_artifacts(mt5_csv, signal_csv)
+        if freshness_messages:
+            print("Stale MT5 parity artifacts detected:")
+            for message in freshness_messages:
+                print(f"- {message}")
+            print()
+            print("Compile GoldBot.mq5 in MetaEditor, rerun Strategy Tester, then rerun this comparison.")
+            print("Use --allow-stale only when intentionally inspecting old CSVs.")
+            return 2
 
     if args.from_date and args.to_date:
         python_trades = python_trades_for_window(args.python_data, args.from_date, args.to_date)
@@ -475,7 +537,6 @@ def main() -> int:
         if not args.from_date or not args.to_date:
             print("\nSignal diff requires --from-date and --to-date.")
         else:
-            signal_csv = args.signal_csv or find_latest_parity_signal_csv()
             if signal_csv is None:
                 print(f"\nNo parity_signals.csv found under {DEFAULT_MT5_ROOT}")
             else:

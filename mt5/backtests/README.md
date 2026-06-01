@@ -57,6 +57,7 @@ Do not commit generated config files; they may contain account details.
   `python3 scripts/compare-mt5-python-parity.py --from-date 2023-10-01 --to-date 2025-09-30`
 - Add `--diff-trades` to show missing, extra, and outcome-mismatched trade timestamps.
 - Add `--diff-signals` to check duplicate signal times, chronological processing, missing/extra signal timestamps, and indicator/gate value drift.
+- The comparator refuses stale CSVs by default when installed source is newer than `GoldBot.ex5`, or when CSVs are older than the current build. Use `--allow-stale` only when intentionally inspecting old output.
 
 ## Optimization
 
