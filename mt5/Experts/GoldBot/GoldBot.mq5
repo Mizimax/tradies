@@ -69,8 +69,10 @@ EntryZone GoldBotLegacyEntryZone(const string symbol, const GoldBotDirection dir
 bool GoldBotPlaceLegacyMarket(const string symbol, const long magic, const GoldBotDirection direction, const double sl, const double atrValue, const double score);
 void GoldBotPythonParityReset();
 void GoldBotPythonParityOnNewBar(const string symbol);
+void GoldBotPythonParityCatchUp(const string symbol);
+void GoldBotPythonParityProcessClosedBar(const string symbol, const MqlRates &closedBar);
 bool GoldBotPythonParitySignal(const string symbol, const datetime signalTime, GoldBotDirection &direction, double &atrValue);
-void GoldBotPythonParityOpen(const string symbol, const GoldBotDirection direction, const datetime entryTime, const double entry, const double atrValue);
+void GoldBotPythonParityOpen(const GoldBotDirection direction, const datetime entryTime, const double entry, const double atrValue);
 void GoldBotPythonParityManage(const string symbol, const MqlRates &closedBar);
 void GoldBotPythonParityClose(const int index, const datetime exitTime, const double exitPrice, const double rr, const string exitReason);
 void GoldBotPythonParityJournalHeader();
@@ -113,16 +115,15 @@ void OnDeinit(const int reason)
 void OnTick()
 {
    string symbol = GoldBotSymbol();
-   if(!GoldBotIsNewM15Bar(symbol))
+   if(InpPythonParityMode)
    {
-      if(!InpPythonParityMode)
-         GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), trade);
+      GoldBotPythonParityCatchUp(symbol);
       return;
    }
 
-   if(InpPythonParityMode)
+   if(!GoldBotIsNewM15Bar(symbol))
    {
-      GoldBotPythonParityOnNewBar(symbol);
+      GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), trade);
       return;
    }
 
@@ -397,7 +398,45 @@ void GoldBotPythonParityOnNewBar(const string symbol)
    if(CopyRates(symbol, PERIOD_M15, 1, 1, closed) != 1)
       return;
 
-   GoldBotPythonParityManage(symbol, closed[0]);
+   GoldBotPythonParityProcessClosedBar(symbol, closed[0]);
+}
+
+void GoldBotPythonParityCatchUp(const string symbol)
+{
+   datetime currentBar = iTime(symbol, PERIOD_M15, 0);
+   if(currentBar == 0)
+      return;
+
+   if(lastM15Bar == 0)
+   {
+      lastM15Bar = currentBar;
+      return;
+   }
+
+   if(currentBar <= lastM15Bar)
+      return;
+
+   int seconds = PeriodSeconds(PERIOD_M15);
+   int barsToProcess = (int)((currentBar - lastM15Bar) / seconds);
+   if(barsToProcess <= 0)
+      return;
+   barsToProcess = MathMin(barsToProcess, 500);
+
+   MqlRates closed[];
+   ArraySetAsSeries(closed, true);
+   int copied = CopyRates(symbol, PERIOD_M15, 1, barsToProcess, closed);
+   if(copied <= 0)
+      return;
+
+   for(int i = copied - 1; i >= 0; i--)
+      GoldBotPythonParityProcessClosedBar(symbol, closed[i]);
+
+   lastM15Bar = currentBar;
+}
+
+void GoldBotPythonParityProcessClosedBar(const string symbol, const MqlRates &closedBar)
+{
+   GoldBotPythonParityManage(symbol, closedBar);
    parityObservedBars++;
    if(parityObservedBars < 900)
       return;
@@ -410,15 +449,19 @@ void GoldBotPythonParityOnNewBar(const string symbol)
 
    GoldBotDirection direction = DIR_NONE;
    double atrValue = 0.0;
-   if(!GoldBotPythonParitySignal(symbol, closed[0].time, direction, atrValue))
+   if(!GoldBotPythonParitySignal(symbol, closedBar.time, direction, atrValue))
       return;
 
-   datetime entryTime = iTime(symbol, PERIOD_M15, 0);
-   double entry = iOpen(symbol, PERIOD_M15, 0);
+   datetime expectedEntryTime = closedBar.time + PeriodSeconds(PERIOD_M15);
+   int entryShift = iBarShift(symbol, PERIOD_M15, expectedEntryTime, true);
+   if(entryShift < 0)
+      return;
+   datetime entryTime = iTime(symbol, PERIOD_M15, entryShift);
+   double entry = iOpen(symbol, PERIOD_M15, entryShift);
    if(entryTime == 0 || entry <= 0.0)
       return;
 
-   GoldBotPythonParityOpen(symbol, direction, entryTime, entry, atrValue);
+   GoldBotPythonParityOpen(direction, entryTime, entry, atrValue);
    parityCooldownRemaining = MathMax(0, InpCooldownBars - 1);
 }
 
@@ -482,7 +525,7 @@ bool GoldBotPythonParitySignal(const string symbol, const datetime signalTime, G
    return false;
 }
 
-void GoldBotPythonParityOpen(const string symbol, const GoldBotDirection direction, const datetime entryTime, const double entry, const double atrValue)
+void GoldBotPythonParityOpen(const GoldBotDirection direction, const datetime entryTime, const double entry, const double atrValue)
 {
    double risk = atrValue * InpSlAtr;
    if(risk <= 0.0 || direction == DIR_NONE)
