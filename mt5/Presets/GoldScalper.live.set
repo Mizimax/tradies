@@ -1,0 +1,26 @@
+; GoldScalper Live Preset - Mean Reversion Only (Winning Candidate)
+; Optimized for XAUUSD M1/M5
+InpMagicNumber=20260601
+InpSymbol=
+InpTradingEndHour=22
+InpEnableAsianBreakout=false
+InpEnableMeanReversion=true
+InpEnableMomentum=false
+InpRiskPerTradePct=0.5
+InpMaxDailyLossPct=3.0
+InpMaxDailyTrades=10
+InpMaxOpenTrades=3
+InpBreakoutMinRange=200.0
+InpBreakoutMaxRange=3000.0
+InpBreakoutMaxTrades=2
+InpMrMaxTrades=8
+InpMomMaxTrades=2
+InpBbPeriod=20
+InpBbDeviation=2.0
+InpRsiPeriod=14
+InpRsiOverbought=70
+InpRsiOversold=30
+InpMrTrendEma=50
+InpNyOverlapStartHour=12
+InpNyOverlapEndHour=16
+InpEnableNewsFilter=false

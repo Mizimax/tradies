@@ -1,0 +1,48 @@
+name,description,overrides
+scalper-baseline,All 3 strategies enabled default params,InpEnableAsianBreakout=true\nInpEnableMeanReversion=true\nInpEnableMomentum=true\nInpRiskPerTradePct=0.5\nInpMaxDailyLossPct=3.0\nInpMaxDailyTrades=15\nInpMaxOpenTrades=3\nInpBreakoutMinRange=200.0\nInpBreakoutMaxRange=3000.0\nInpBreakoutMaxTrades=2\nInpMrMaxTrades=6\nInpMomMaxTrades=2
+scalper-breakout-only,Asian Breakout strategy only,InpEnableAsianBreakout=true\nInpEnableMeanReversion=false\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMaxDailyLossPct=3.0\nInpMaxDailyTrades=5\nInpMaxOpenTrades=2\nInpBreakoutMinRange=200.0\nInpBreakoutMaxRange=3000.0\nInpBreakoutMaxTrades=3
+scalper-mr-only,Mean Reversion strategy only,InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMaxDailyLossPct=3.0\nInpMaxDailyTrades=10\nInpMaxOpenTrades=3\nInpMrMaxTrades=8
+scalper-momentum-only,Momentum Continuation strategy only (EMA trend fallback),InpEnableAsianBreakout=false\nInpEnableMeanReversion=false\nInpEnableMomentum=true\nInpRiskPerTradePct=0.5\nInpMaxDailyLossPct=3.0\nInpMaxDailyTrades=5\nInpMaxOpenTrades=2\nInpMomMaxTrades=3
+scalper-breakout-mr,Breakout plus Mean Reversion no momentum,InpEnableAsianBreakout=true\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMaxDailyLossPct=3.0\nInpMaxDailyTrades=12\nInpMaxOpenTrades=3\nInpBreakoutMinRange=200.0\nInpBreakoutMaxRange=3000.0\nInpBreakoutMaxTrades=2\nInpMrMaxTrades=6
+scalper-aggressive,All strategies with higher risk,InpEnableAsianBreakout=true\nInpEnableMeanReversion=true\nInpEnableMomentum=true\nInpRiskPerTradePct=1.0\nInpMaxDailyLossPct=5.0\nInpMaxDailyTrades=20\nInpMaxOpenTrades=4\nInpBreakoutMinRange=200.0\nInpBreakoutMaxRange=3000.0\nInpBreakoutMaxTrades=3\nInpMrMaxTrades=8\nInpMomMaxTrades=3
+scalper-conservative,All strategies with lower risk,InpEnableAsianBreakout=true\nInpEnableMeanReversion=true\nInpEnableMomentum=true\nInpRiskPerTradePct=0.3\nInpMaxDailyLossPct=2.0\nInpMaxDailyTrades=10\nInpMaxOpenTrades=2\nInpBreakoutMinRange=200.0\nInpBreakoutMaxRange=3000.0\nInpBreakoutMaxTrades=2\nInpMrMaxTrades=4\nInpMomMaxTrades=2
+scalper-mr-lowrisk,Mean Reversion only with lower risk to reduce drawdown,InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.25\nInpMaxDailyLossPct=2.0\nInpMaxDailyTrades=10\nInpMaxOpenTrades=3\nInpMrMaxTrades=8
+scalper-breakout-loose,Asian Breakout with relaxed range filter (wider acceptance),InpEnableAsianBreakout=true\nInpEnableMeanReversion=false\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMaxDailyLossPct=3.0\nInpMaxDailyTrades=5\nInpMaxOpenTrades=2\nInpBreakoutMinRange=150.0\nInpBreakoutMaxRange=5000.0\nInpBreakoutMaxTrades=3
+mr-v2-adx,MR with ADX regime filter only,InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMrMaxTrades=8\nInpMrAdxPeriod=14\nInpMrAdxMax=25.0\nInpMrBbMinWidth=0.0\nInpMaxConsecLoss=0\nInpEnableDdScaling=false
+mr-v2-squeeze,MR with BB squeeze filter only,InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMrMaxTrades=8\nInpMrAdxMax=0.0\nInpMrBbMinWidth=0.3\nInpMaxConsecLoss=0\nInpEnableDdScaling=false
+mr-v2-cooldown,MR with 2-loss cooldown only,InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMrMaxTrades=8\nInpMrAdxMax=0.0\nInpMrBbMinWidth=0.0\nInpMaxConsecLoss=2\nInpEnableDdScaling=false
+mr-v2-widersl,MR with ATR 2.0 SL only,InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMrMaxTrades=8\nInpMrSlAtr=2.0\nInpMrAdxMax=0.0\nInpMrBbMinWidth=0.0\nInpMaxConsecLoss=0\nInpEnableDdScaling=false
+mr-v2-full,MR with all 5 improvements,InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMrMaxTrades=8\nInpMrSlAtr=2.0\nInpMrAdxMax=25.0\nInpMrBbMinWidth=0.3\nInpMaxConsecLoss=2\nInpEnableDdScaling=true
+mr-v2-full-lowrisk,MR all improvements conservative risk,InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.25\nInpMrMaxTrades=8\nInpMrSlAtr=2.0\nInpMrAdxMax=25.0\nInpMrBbMinWidth=0.3\nInpMaxConsecLoss=2\nInpEnableDdScaling=true
+mr-v2-noadx,MR wider SL + squeeze + cooldown + DD scaling (no ADX),InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.5\nInpMrMaxTrades=8\nInpMrSlAtr=2.0\nInpMrAdxMax=0.0\nInpMrBbMinWidth=0.3\nInpMaxConsecLoss=2\nInpEnableDdScaling=true
+mr-v2-noadx-lowrisk,MR wider SL + squeeze + cooldown + DD scaling + low risk (no ADX),InpEnableAsianBreakout=false\nInpEnableMeanReversion=true\nInpEnableMomentum=false\nInpRiskPerTradePct=0.25\nInpMrMaxTrades=8\nInpMrSlAtr=2.0\nInpMrAdxMax=0.0\nInpMrBbMinWidth=0.3\nInpMaxConsecLoss=2\nInpEnableDdScaling=true
+mr-v3,MR phase 5 full improvements,InpEnableAsianBreakout=false
+InpEnableMeanReversion=true
+InpEnableMomentum=false
+InpRiskPerTradePct=0.5
+InpMrMaxTrades=8
+InpMrSlAtr=2.0
+InpMrAdxMax=0.0
+InpMrBbMinWidth=0.3
+InpMaxConsecLoss=0
+InpEnableDdScaling=true
+InpMrRegimeFilter=true
+InpMrTrailBE=true
+InpMrTrailBETrigger=1.0
+InpNyOverlapStartHour=10
+InpNyOverlapEndHour=18
+mr-v4-safe,MR with Regime Filter and Trailing BE but keeping ADX and strict SL,InpEnableAsianBreakout=false
+InpEnableMeanReversion=true
+InpEnableMomentum=false
+InpRiskPerTradePct=0.5
+InpMrMaxTrades=8
+InpMrSlAtr=1.5
+InpMrAdxMax=25.0
+InpMrBbMinWidth=0.3
+InpMaxConsecLoss=2
+InpEnableDdScaling=true
+InpMrRegimeFilter=true
+InpMrTrailBE=true
+InpMrTrailBETrigger=1.0
+InpNyOverlapStartHour=12
+InpNyOverlapEndHour=16
