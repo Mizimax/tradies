@@ -45,6 +45,40 @@ DEFAULT_CANDIDATES = [
     "ts-lite-8ind-conf4-check1",
     "ts-complete-8ind-conf5",
     "ts-complete-8ind-conf5-ladder1",
+    "growth-long-7-12-full",
+    "growth-long-7-12-ladder23",
+    "growth-long-7-12-19-ladder23",
+    "growth-dir-long7-12-short19-full",
+    "growth-open-cooldown8",
+    "growth-open-fasttp",
+]
+
+GROWTH_LAYER1_CANDIDATES = [
+    "growth-long-7-12-full",
+    "growth-long-7-12-ladder23",
+    "growth-long-7-12-19-ladder23",
+    "growth-dir-long7-12-short19-full",
+    "growth-open-cooldown8",
+    "growth-open-fasttp",
+]
+
+GROWTH_LAYER2_CANDIDATES = [
+    "growth-best-risk006",
+    "growth-best-risk010",
+    "growth-full-risk006",
+    "growth-full-risk010",
+    "growth-full-risk015",
+    "growth-full-risk010-cooldown12",
+    "growth-full-risk010-fasttp",
+    "growth-fasttp-hour12-only",
+    "growth-fasttp-hour12-split1",
+    "growth-fasttp-hour12-split12",
+    "growth-fasttp-hours12-15-16-19-full",
+    "growth-fasttp-hours12-15-16-19-split12",
+    "growth-fasttp-hours12-15-16-17-19-full",
+    "growth-fasttp-hours12-15-16-17-19-split12",
+    "growth-fasttp-dir-long12-15-16-short19-full",
+    "growth-fasttp-dir-long12-15-16-short19-split12",
 ]
 
 
@@ -82,10 +116,10 @@ def write_command_output(command: list[str], output_path: Path, allow_statuses: 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("candidates", nargs="*", help="Candidate names to run. Defaults to Phase 3B/3C candidates.")
+    parser.add_argument("candidates", nargs="*", help="Candidate names to run. Defaults to Phase 3B/3C + growth candidates.")
     parser.add_argument("--matrix", type=Path, default=ROOT / "mt5/backtests/CANDIDATE_MATRIX.csv")
-    parser.add_argument("--from-date", default="2023.10.01")
-    parser.add_argument("--to-date", default="2025.09.30")
+    parser.add_argument("--from-date", default="2024.06.01")
+    parser.add_argument("--to-date", default="2026.05.31")
     parser.add_argument("--deposit", default="100000")
     parser.add_argument("--symbol", default="")
     parser.add_argument("--period", default="")
@@ -93,10 +127,21 @@ def main() -> int:
     parser.add_argument("--clean", action="store_true", help="Delete selected candidate reports before running.")
     parser.add_argument("--dry-run", action="store_true", help="Print candidate commands without launching MT5.")
     parser.add_argument("--continue-on-fail", action="store_true", help="Continue suite if one MT5 run fails.")
+    parser.add_argument("--growth-only", action="store_true", help="Run only growth Layer 1 candidates.")
+    parser.add_argument("--layer2", action="store_true", help="Include Layer 2 risk-scaled candidates.")
     args = parser.parse_args()
 
     known = load_candidate_names(args.matrix)
-    candidates = args.candidates or DEFAULT_CANDIDATES
+    if args.growth_only:
+        candidates = args.candidates or GROWTH_LAYER1_CANDIDATES
+    elif args.candidates:
+        candidates = args.candidates
+    else:
+        candidates = DEFAULT_CANDIDATES
+
+    if args.layer2:
+        candidates = list(candidates) + GROWTH_LAYER2_CANDIDATES
+
     unknown = [name for name in candidates if name not in known]
     if unknown:
         print("Unknown candidates: " + ", ".join(unknown), file=sys.stderr)
@@ -160,7 +205,13 @@ def main() -> int:
         {0},
     )
     evaluation_status = write_command_output(
-        [sys.executable, "scripts/evaluate-mt5-candidates.py", *map(str, reports)],
+        [
+            sys.executable, "scripts/evaluate-mt5-candidates.py",
+            "--from-date", args.from_date,
+            "--to-date", args.to_date,
+            "--deposit", args.deposit,
+            *map(str, reports),
+        ],
         evaluation_path,
         {0, 2},
     )
@@ -181,6 +232,46 @@ def main() -> int:
     if journals:
         print(f"Wrote {journal_path_out}")
         print(f"Wrote {attribution_path}")
+
+    # Daily growth report
+    daily_growth_script = ROOT / "scripts/daily-growth-report.py"
+    if daily_growth_script.exists():
+        daily_growth_path = output_dir / "improvement-daily-growth.csv"
+        write_command_output(
+            [
+                sys.executable, str(daily_growth_script),
+                "--deposit", args.deposit,
+                "--from-date", args.from_date,
+                "--to-date", args.to_date,
+                *map(str, reports),
+            ],
+            daily_growth_path,
+            {0, 1},
+        )
+        print(f"Wrote {daily_growth_path}")
+
+    # Equity curve analysis
+    equity_curve_script = ROOT / "scripts/equity-curve-analysis.py"
+    if equity_curve_script.exists():
+        equity_curve_path = output_dir / "improvement-equity-curve.csv"
+        write_command_output(
+            [sys.executable, str(equity_curve_script), "--deposit", args.deposit, *map(str, reports)],
+            equity_curve_path,
+            {0, 1},
+        )
+        print(f"Wrote {equity_curve_path}")
+
+    # Rolling stability check
+    stability_script = ROOT / "scripts/rolling-stability-check.py"
+    if stability_script.exists():
+        stability_path = output_dir / "improvement-stability.csv"
+        write_command_output(
+            [sys.executable, str(stability_script), "--deposit", args.deposit, *map(str, reports)],
+            stability_path,
+            {0, 1},
+        )
+        print(f"Wrote {stability_path}")
+
     if evaluation_status == 2:
         print("No candidate passed the improvement gate yet.")
     return 0

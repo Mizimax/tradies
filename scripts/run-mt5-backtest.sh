@@ -24,6 +24,12 @@ PASSWORD="${MT5_PASSWORD:-}"
 REPORT_NAME="${MT5_REPORT:-GoldBot-${SYMBOL}-${PERIOD}-${FROM_DATE}-${TO_DATE}}"
 PARITY="${MT5_PARITY:-0}"
 INPUT_OVERRIDES="${MT5_INPUT_OVERRIDES:-}"
+EXPERT="${MT5_EXPERT:-GoldBot\\GoldBot.ex5}"
+PRESET="${MT5_PRESET:-GoldBot.optimized.set}"
+
+# Derive the expert directory name from the path (e.g. GoldBot\GoldBot.ex5 -> GoldBot)
+EXPERT_DIR="${EXPERT%%\\*}"
+EXPERT_FILE="${EXPERT##*\\}"
 
 CONFIG_DIR="$PWD/mt5/backtests/config"
 REPORT_DIR="$PWD/mt5/backtests/reports"
@@ -32,7 +38,7 @@ mkdir -p "$CONFIG_DIR" "$REPORT_DIR"
 CONFIG="$CONFIG_DIR/goldbot-${SYMBOL}-${PERIOD}.ini"
 REPORT_PATH="$REPORT_DIR/$REPORT_NAME"
 MT5_REPORT_PATH="reports\\$REPORT_NAME"
-RUNTIME_SET_NAME="GoldBot.runtime.set"
+RUNTIME_SET_NAME="${EXPERT_DIR}.runtime.set"
 RUNTIME_SET="$TESTER_PROFILE_DIR/$RUNTIME_SET_NAME"
 
 if [[ ! -x "$WINE" ]]; then
@@ -47,21 +53,21 @@ fi
 
 "$ROOT_DIR/scripts/install-mt5-source.sh" >/dev/null
 
-if [[ ! -f "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" ]]; then
-  echo "GoldBot.ex5 not found. Compile GoldBot in MetaEditor first." >&2
+if [[ ! -f "$MT5_ROOT/MQL5/Experts/$EXPERT_DIR/$EXPERT_FILE" ]]; then
+  echo "$EXPERT_FILE not found. Compile $EXPERT_DIR in MetaEditor first." >&2
   exit 1
 fi
 
-NEWER_SOURCE="$(find "$MT5_ROOT/MQL5/Experts/GoldBot" "$MT5_ROOT/MQL5/Include/GoldBot" \( -name '*.mq5' -o -name '*.mqh' \) -newer "$MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" -print -quit)"
+NEWER_SOURCE="$(find "$MT5_ROOT/MQL5/Experts/$EXPERT_DIR" "$MT5_ROOT/MQL5/Include/$EXPERT_DIR" \( -name '*.mq5' -o -name '*.mqh' \) -newer "$MT5_ROOT/MQL5/Experts/$EXPERT_DIR/$EXPERT_FILE" -print -quit 2>/dev/null || true)"
 if [[ -n "$NEWER_SOURCE" ]]; then
-  echo "GoldBot.ex5 is older than the installed GoldBot source. Compile GoldBot in MetaEditor first." >&2
+  echo "$EXPERT_FILE is older than the installed $EXPERT_DIR source. Compile in MetaEditor first." >&2
   echo "Changed source: $NEWER_SOURCE" >&2
-  echo "Compiled: $MT5_ROOT/MQL5/Experts/GoldBot/GoldBot.ex5" >&2
+  echo "Compiled: $MT5_ROOT/MQL5/Experts/$EXPERT_DIR/$EXPERT_FILE" >&2
   exit 1
 fi
 
 mkdir -p "$TESTER_PROFILE_DIR" "$MT5_REPORT_DIR"
-cp mt5/Presets/GoldBot.optimized.set "$RUNTIME_SET"
+cp "mt5/Presets/$PRESET" "$RUNTIME_SET"
 
 if [[ "$PARITY" == "1" || "$PARITY" == "true" || "$PARITY" == "TRUE" ]]; then
   PARITY_MODE="true"
@@ -126,7 +132,7 @@ fi
 
 cat <<INI
 [Tester]
-Expert=GoldBot\\GoldBot.ex5
+Expert=$EXPERT
 ExpertParameters=$RUNTIME_SET_NAME
 Symbol=$SYMBOL
 Period=$PERIOD
@@ -175,21 +181,29 @@ fi
 
 WINEPREFIX="$PREFIX" "$WINE" "$TERMINAL" "/config:$CONFIG_ARG"
 
+REPORT_COPIED=0
 if [[ -f "$MT5_ROOT/reports/$REPORT_NAME.htm" ]]; then
   cp "$MT5_ROOT/reports/$REPORT_NAME.htm" "$REPORT_DIR/$REPORT_NAME.htm"
+  REPORT_COPIED=1
 fi
 
 if [[ -f "$MT5_ROOT/reports/$REPORT_NAME.xml" ]]; then
   cp "$MT5_ROOT/reports/$REPORT_NAME.xml" "$REPORT_DIR/$REPORT_NAME.xml"
+  REPORT_COPIED=1
+fi
+
+if [[ "$REPORT_COPIED" == "0" ]]; then
+  echo "Warning: MT5 finished, but no HTML/XML report was exported for $REPORT_NAME." >&2
+  echo "Expected: $MT5_ROOT/reports/$REPORT_NAME.htm or .xml" >&2
 fi
 
 LATEST_TRADES_CSV="$(
-  find "$MT5_ROOT/Tester" "$MT5_ROOT/MQL5/Files" -path "*/GoldBot/trades.csv" -type f -print0 2>/dev/null \
+  find "$MT5_ROOT/Tester" "$MT5_ROOT/MQL5/Files" -path "*/$EXPERT_DIR/trades.csv" -type f -print0 2>/dev/null \
     | xargs -0 ls -t 2>/dev/null \
     | head -1 || true
 )"
 
 if [[ -n "$LATEST_TRADES_CSV" && -f "$LATEST_TRADES_CSV" ]]; then
   cp "$LATEST_TRADES_CSV" "$REPORT_DIR/$REPORT_NAME.trades.csv"
-  echo "Copied real-mode journal: $REPORT_DIR/$REPORT_NAME.trades.csv"
+  echo "Copied journal: $REPORT_DIR/$REPORT_NAME.trades.csv"
 fi

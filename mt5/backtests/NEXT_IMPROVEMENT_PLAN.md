@@ -573,3 +573,177 @@ python3 scripts/apply-mt5-best-candidate.py
 ```bash
 python3 scripts/apply-mt5-best-candidate.py --allow-best-fail
 ```
+
+## Phase 7: Average Daily Growth Research
+
+Status: implemented in the candidate matrix, evaluator, improvement suite, and three new analysis scripts. Next step is MetaEditor compile and Strategy Tester validation.
+
+Rationale:
+
+- The previous improvement target was strict trade frequency (1 order per day). The new primary target is average net growth of 3-5% per trading day in real MT5 Strategy Tester.
+- 3-5% daily average is extremely aggressive, so this phase treats it as a research target first. A candidate is not demo-ready unless drawdown and loss clustering remain acceptable.
+- The best current seeds (PF 1.38 at 36 trades, PF 1.12 at 67 trades) show the strategy has profitable configurations, but daily growth is far below 3% at current risk levels.
+
+### Growth-First Acceptance Criteria
+
+```text
+Primary target: avg_daily_net_pct >= 3.0
+Stretch target: avg_daily_net_pct >= 5.0
+PF floor: >= 1.10 for exploration, >= 1.20 for adoption
+Equity DD research limit: <= 35%
+Demo-forward limit: <= 25%
+Minimum trades: >= 150 preferred, >= 75 acceptable only if daily distribution is stable
+Positive-day rate target: >= 55%
+```
+
+### Test Window
+
+Shifted to current market structure:
+
+```text
+MT5_FROM=2024.06.01
+MT5_TO=2026.05.31
+MT5_DEPOSIT=100000
+```
+
+### Growth Candidates
+
+Layer 1 (frequency recovery without risk scaling):
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py growth-long-7-12-full
+python3 scripts/run-mt5-growth-candidate.py growth-long-7-12-ladder23
+python3 scripts/run-mt5-growth-candidate.py growth-long-7-12-19-ladder23
+python3 scripts/run-mt5-growth-candidate.py growth-dir-long7-12-short19-full
+python3 scripts/run-mt5-growth-candidate.py growth-open-cooldown8
+python3 scripts/run-mt5-growth-candidate.py growth-open-fasttp
+```
+
+Layer 2 (risk scaling, only if Layer 1 has positive net profit):
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py growth-best-risk006
+python3 scripts/run-mt5-growth-candidate.py growth-best-risk010
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk006
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk010
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk015
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk010-cooldown12
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk010-fasttp
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hour12-only
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hour12-split1
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hour12-split12
+```
+
+Use `growth-best-risk006/010` as comparison rows only. The main Layer 2 seed is `growth-long-7-12-full`, because it kept the better sample size while staying profitable.
+
+Stop before `growth-full-risk015` if `growth-full-risk010` exceeds 20% DD or PF falls below 1.10. Stop all scaling if DD exceeds 35%.
+
+The hour-12 fast-TP candidates isolate the strongest attributed server hour from `growth-full-risk010-fasttp`:
+
+- `growth-fasttp-hour12-only`: hour 12, full ladder.
+- `growth-fasttp-hour12-split1`: hour 12, first ladder split only.
+- `growth-fasttp-hour12-split12`: hour 12, first and second ladder splits.
+
+Layer 4 restores frequency from the hour-12 fast-TP seed while keeping hour 7 excluded:
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hours12-15-16-19-full --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hours12-15-16-19-split12 --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hours12-15-16-17-19-full --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hours12-15-16-17-19-split12 --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-dir-long12-15-16-short19-full --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-dir-long12-15-16-short19-split12 --clean
+```
+
+List or dry-run individual growth candidates:
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py --list
+python3 scripts/run-mt5-growth-candidate.py growth-open-fasttp --dry-run
+```
+
+Run only growth candidates:
+
+```bash
+python3 scripts/run-mt5-improvement-suite.py --growth-only
+```
+
+Add Layer 2 after Layer 1 analysis:
+
+```bash
+python3 scripts/run-mt5-improvement-suite.py --growth-only --layer2
+```
+
+### Daily Growth Report Metrics
+
+New script `scripts/daily-growth-report.py` computes:
+
+```text
+avg_window_daily_net_pct  (primary; full from-date/to-date window)
+avg_active_day_net_pct    (setup-quality diagnostic; days with closed trades)
+avg_daily_net_pct         (backwards-compatible alias for avg_window_daily_net_pct)
+median_window_daily_net_pct
+median_active_day_net_pct
+positive_day_pct          (active-day positive rate)
+positive_window_day_pct
+worst_daily_net_pct
+best_daily_net_pct
+max_losing_days_in_row
+trades_per_trading_day
+trades_per_window_day
+daily_sharpe              (window daily avg/stdev)
+```
+
+### Equity Curve Analysis
+
+New script `scripts/equity-curve-analysis.py` computes:
+
+```text
+max_dd_pct, max_dd_dollars
+max_dd_start, max_dd_trough, max_dd_recovery
+max_dd_duration_days
+calmar_ratio               (annualized return / max drawdown)
+profit_to_maxdd_ratio
+dd_events_gt5pct
+loss_cluster_count_3plus
+```
+
+### Rolling Stability Check
+
+New script `scripts/rolling-stability-check.py` computes:
+
+```text
+total_months, profitable_months
+month_consistency_pct
+worst_month_pct, best_month_pct
+max_negative_months_in_row
+max_negative_weeks_in_row
+stability_status           (STABLE / UNSTABLE / INSUFFICIENT_DATA)
+```
+
+### Updated Evaluator
+
+`scripts/evaluate-mt5-candidates.py` now supports dual pass paths:
+
+- `PASS_LEGACY`: meets PF >= 1.20, DD <= 35%, trade count 40-450, TP lifecycle
+- `PASS_GROWTH`: meets full-window growth target, PF/DD, trade count, journal, and positive active-day rate
+- `PASS_GROWTH_RESEARCH`: has positive full-window growth and PF/DD, but remains a research signal due to sample size or target gap
+
+The evaluator sorts growth-first (by avg_window_daily_net_pct desc), then by PF desc.
+
+### Updated Improvement Suite
+
+`scripts/run-mt5-improvement-suite.py` now generates additional output files:
+
+```text
+mt5/backtests/reports/improvement-daily-growth.csv
+mt5/backtests/reports/improvement-equity-curve.csv
+mt5/backtests/reports/improvement-stability.csv
+```
+
+### Resolved Design Decisions
+
+- **Compounding**: daily % is calculated relative to running equity at the start of each day.
+- **Layer 2 trigger**: at least one Layer 1 candidate must have positive net profit over the full window.
+- **Max ladders cap**: `growth-open-cooldown8` uses `InpMaxLaddersPerDay=10` (safety cap; functionally uncapped with cooldown 8).
+- **Test window**: 2024.06.01 to 2026.05.31 (same 24-month range, shifted to current date).

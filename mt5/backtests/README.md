@@ -203,6 +203,46 @@ python3 scripts/run-mt5-candidate.py --list
 python3 scripts/run-mt5-candidate.py tp-repair-score62-risk003
 ```
 
+Run a single growth candidate with the growth test window and per-candidate growth reports:
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py --list
+python3 scripts/run-mt5-growth-candidate.py growth-open-fasttp
+```
+
+Run the full-ladder Layer 2 growth scaling candidates one by one:
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk006
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk010
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk015
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk010-cooldown12
+python3 scripts/run-mt5-growth-candidate.py growth-full-risk010-fasttp
+```
+
+Check `growth-full-risk010` before running `growth-full-risk015`; skip `risk015` if `risk010` has DD over `20%` or PF below `1.10`.
+
+Run the hour-12 fast-TP isolation candidates one by one:
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hour12-only
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hour12-split1
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hour12-split12
+```
+
+Run the fast-TP frequency restoration candidates one by one. These keep hour `7` excluded and use full-window daily growth as the primary growth metric:
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hours12-15-16-19-full --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hours12-15-16-19-split12 --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hours12-15-16-17-19-full --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-hours12-15-16-17-19-split12 --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-dir-long12-15-16-short19-full --clean
+python3 scripts/run-mt5-growth-candidate.py growth-fasttp-dir-long12-15-16-short19-split12 --clean
+```
+
+If another MT5 tester or terminal is intentionally running, add `--allow-parallel-mt5`; otherwise stop the other run first.
+
 Evaluate reports against the improvement gate:
 
 ```bash
