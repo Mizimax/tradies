@@ -155,6 +155,12 @@ FREQ100F = [
     "freq100f-breakout-no-vwap-no-long18-split123",
     "freq100f-breakout-no-vwap-long12-only",
 ]
+FREQ100G = [
+    "freq100g-streak-cooldown",
+    "freq100g-streak-monthly",
+    "freq100g-streak-monthly-body",
+    "freq100g-breakout-no-vwap-no-long18-jan-guard",
+]
 
 
 def load_candidates() -> dict[str, dict[str, str]]:
@@ -379,7 +385,7 @@ def main() -> int:
     args = parser.parse_args()
 
     candidates = load_candidates()
-    growth_candidates = LAYER1 + LAYER2 + RECENT_YEAR + PROFIT_CORE + FREQ80 + FREQ100 + FREQ100B + FREQ100C + FREQ100D + FREQ100E + FREQ100F
+    growth_candidates = LAYER1 + LAYER2 + RECENT_YEAR + PROFIT_CORE + FREQ80 + FREQ100 + FREQ100B + FREQ100C + FREQ100D + FREQ100E + FREQ100F + FREQ100G
 
     if args.list:
         for name in growth_candidates:

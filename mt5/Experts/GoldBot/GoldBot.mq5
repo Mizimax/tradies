@@ -41,8 +41,10 @@ input double          InpSlAtr = 0.8;
 input double          InpMinRR = 2.0;
 input int             InpMaxHoldBars = 48;
 input int             InpCooldownBars = 16;
+input int             InpStreakCooldownBars = 48;
 input int             InpMaxOpenTrades = 2;
 input double          InpMaxDailyLossPct = 3.0;
+input double          InpMaxMonthlyLossPct = 5.0;
 input double          InpDailyTargetPct = 5.0;
 input bool            InpEnableTelegram = false;
 input bool            InpDebugOnly = false;
@@ -118,6 +120,8 @@ input string          InpBreakoutShortHours = "";
 input int             InpBreakoutLookbackBars = 16;
 input double          InpBreakoutRangeBufferAtr = 0.10;
 input double          InpBreakoutMinBodyAtr = 0.35;
+input double          InpMinBodyRatio = 0.35;
+input double          InpVolumeMultiplier = 1.1;
 input double          InpBreakoutMinAdx = 18.0;
 input double          InpBreakoutMinDiGap = 4.0;
 input bool            InpBreakoutRequireEma = true;
@@ -208,8 +212,14 @@ bool GoldBotContinuationSetupPass(const string symbol, const GoldBotDirection di
 bool GoldBotBreakoutH1TrendPass(const string symbol, const GoldBotDirection direction);
 bool GoldBotBuildBreakoutRetestZone(const string symbol, const GoldBotDirection direction, const double breakoutLevel, const IndicatorSnapshot &indicators, EntryZone &zone);
 bool GoldBotBreakoutRetestSetupPass(const string symbol, const IndicatorSnapshot &indicators, GoldBotDirection &direction, double &score, EntryZone &zone);
+bool GoldBotBreakoutVolumePass(const string symbol, const double multiplier, long &volume, double &averageVolume, double &requiredVolume);
 void GoldBotApplyHourSplitGuard(const GoldBotDirection direction, const double score, const int confluenceCount, const int enabledConfluences, int &ladderOrderCount, int &ladderFirstSplit);
 bool GoldBotRegimePass(const string symbol, const GoldBotDirection direction, const SMCResult &smc, const bool enabled, const int slopeBars, const double minSlopeAtr, const double maxExtensionAtr, const bool requireH1Direction, const double score, const int confluenceCount, const int enabledConfluences, double &slopeAtr, double &extensionAtr);
+string GoldBotMagicKey(const string suffix);
+int GoldBotMonthCode(const datetime timeValue);
+bool GoldBotMonthlyRiskAllowed(const double maxMonthlyLossPct, double &pnlPct);
+bool GoldBotStreakCooldownAllowed(double &remainingMinutes, datetime &cooldownEnd, int &consecutiveLosses);
+void GoldBotUpdateLossStreak(const double profit);
 
 int OnInit()
 {
@@ -297,6 +307,9 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
       setupName,
       comment));
 
+   if(dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
+      GoldBotUpdateLossStreak(profit);
+
    if((dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY) && positionId > 0 && !PositionSelectByTicket((ulong)positionId))
       GoldBotDeletePositionMetadata(positionId);
 }
@@ -324,6 +337,29 @@ void OnTick()
    if(!GoldBotDailyRiskAllowed(InpMaxDailyLossPct, InpDailyTargetPct, pnlPct))
    {
       GoldBotLog("Daily risk gate blocked new entries. PnL%=" + DoubleToString(pnlPct, 2));
+      return;
+   }
+
+   double monthlyPnlPct = 0.0;
+   if(!GoldBotMonthlyRiskAllowed(InpMaxMonthlyLossPct, monthlyPnlPct))
+   {
+      GoldBotLog("Monthly risk gate blocked new entries. PnL%=" + DoubleToString(monthlyPnlPct, 2));
+      GoldBotJournal(StringFormat("Monthly risk gate blocked pnlPct=%.2f maxLossPct=%.2f",
+         monthlyPnlPct,
+         InpMaxMonthlyLossPct));
+      return;
+   }
+
+   double streakRemainingMinutes = 0.0;
+   datetime streakCooldownEnd = 0;
+   int streakLosses = 0;
+   if(!GoldBotStreakCooldownAllowed(streakRemainingMinutes, streakCooldownEnd, streakLosses))
+   {
+      GoldBotLog("Streak cooldown gate blocked new entries.");
+      GoldBotJournal(StringFormat("Streak cooldown active losses=%d remainingMinutes=%.1f end=%s",
+         streakLosses,
+         streakRemainingMinutes,
+         TimeToString(streakCooldownEnd, TIME_DATE | TIME_MINUTES)));
       return;
    }
 
@@ -927,6 +963,136 @@ string GoldBotSymbol()
    return InpSymbol == "" ? _Symbol : InpSymbol;
 }
 
+string GoldBotMagicKey(const string suffix)
+{
+   return StringFormat("GoldBot_%s_%I64d", suffix, InpMagicNumber);
+}
+
+int GoldBotMonthCode(const datetime timeValue)
+{
+   MqlDateTime parts;
+   TimeToStruct(timeValue, parts);
+   return parts.year * 100 + parts.mon;
+}
+
+bool GoldBotMonthlyRiskAllowed(const double maxMonthlyLossPct, double &pnlPct)
+{
+   pnlPct = 0.0;
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   if(equity <= 0.0)
+      return true;
+
+   int currentMonth = GoldBotMonthCode(TimeCurrent());
+   string monthKey = GoldBotMagicKey("MonthYear");
+   string startKey = GoldBotMagicKey("MonthStartEquity");
+   string haltKey = GoldBotMagicKey("MonthlyHalt");
+
+   int storedMonth = GlobalVariableCheck(monthKey) ? (int)GlobalVariableGet(monthKey) : 0;
+   if(storedMonth != currentMonth || !GlobalVariableCheck(startKey))
+   {
+      GlobalVariableSet(monthKey, (double)currentMonth);
+      GlobalVariableSet(startKey, equity);
+      GlobalVariableSet(haltKey, 0.0);
+      GoldBotJournal(StringFormat("Monthly risk baseline reset month=%d equity=%.2f",
+         currentMonth,
+         equity));
+      return true;
+   }
+
+   double startEquity = GlobalVariableGet(startKey);
+   if(startEquity <= 0.0)
+   {
+      GlobalVariableSet(startKey, equity);
+      startEquity = equity;
+   }
+
+   pnlPct = ((equity - startEquity) / startEquity) * 100.0;
+   if(maxMonthlyLossPct <= 0.0)
+      return true;
+
+   int haltedMonth = GlobalVariableCheck(haltKey) ? (int)GlobalVariableGet(haltKey) : 0;
+   if(haltedMonth == currentMonth)
+      return false;
+
+   double lossPct = ((startEquity - equity) / startEquity) * 100.0;
+   if(lossPct > maxMonthlyLossPct)
+   {
+      GlobalVariableSet(haltKey, (double)currentMonth);
+      GoldBotJournal(StringFormat("Monthly loss limit reached month=%d startEquity=%.2f equity=%.2f lossPct=%.2f maxLossPct=%.2f",
+         currentMonth,
+         startEquity,
+         equity,
+         lossPct,
+         maxMonthlyLossPct));
+      return false;
+   }
+
+   return true;
+}
+
+bool GoldBotStreakCooldownAllowed(double &remainingMinutes, datetime &cooldownEnd, int &consecutiveLosses)
+{
+   remainingMinutes = 0.0;
+   cooldownEnd = 0;
+   consecutiveLosses = 0;
+   if(InpStreakCooldownBars <= 0)
+      return true;
+
+   string endKey = GoldBotMagicKey("StreakCooldownEnd");
+   string lossKey = GoldBotMagicKey("ConsecLosses");
+   if(GlobalVariableCheck(lossKey))
+      consecutiveLosses = (int)GlobalVariableGet(lossKey);
+   if(!GlobalVariableCheck(endKey))
+      return true;
+
+   cooldownEnd = (datetime)GlobalVariableGet(endKey);
+   datetime now = TimeCurrent();
+   if(cooldownEnd <= now)
+      return true;
+
+   remainingMinutes = (double)(cooldownEnd - now) / 60.0;
+   return false;
+}
+
+void GoldBotUpdateLossStreak(const double profit)
+{
+   if(InpStreakCooldownBars <= 0)
+      return;
+
+   string lossKey = GoldBotMagicKey("ConsecLosses");
+   string endKey = GoldBotMagicKey("StreakCooldownEnd");
+   int previousLosses = GlobalVariableCheck(lossKey) ? (int)GlobalVariableGet(lossKey) : 0;
+
+   if(profit > 0.0)
+   {
+      if(previousLosses > 0)
+         GoldBotJournal(StringFormat("Streak loss counter reset profit=%.2f previousLosses=%d",
+            profit,
+            previousLosses));
+      GlobalVariableSet(lossKey, 0.0);
+      return;
+   }
+
+   if(profit >= 0.0)
+      return;
+
+   int consecutiveLosses = previousLosses + 1;
+   GlobalVariableSet(lossKey, (double)consecutiveLosses);
+   GoldBotJournal(StringFormat("Streak loss counted profit=%.2f consecutiveLosses=%d",
+      profit,
+      consecutiveLosses));
+
+   if(consecutiveLosses >= 2)
+   {
+      datetime cooldownEnd = TimeCurrent() + InpStreakCooldownBars * PeriodSeconds(PERIOD_M15);
+      GlobalVariableSet(endKey, (double)cooldownEnd);
+      GoldBotJournal(StringFormat("Streak cooldown extended losses=%d bars=%d end=%s",
+         consecutiveLosses,
+         InpStreakCooldownBars,
+         TimeToString(cooldownEnd, TIME_DATE | TIME_MINUTES)));
+   }
+}
+
 bool GoldBotAllowedEntryHour(const string allowedHours)
 {
    MqlDateTime nowParts;
@@ -1128,6 +1294,35 @@ bool GoldBotBuildBreakoutRetestZone(
    return true;
 }
 
+bool GoldBotBreakoutVolumePass(const string symbol, const double multiplier, long &volume, double &averageVolume, double &requiredVolume)
+{
+   volume = iVolume(symbol, PERIOD_M15, 1);
+   averageVolume = 0.0;
+   requiredVolume = 0.0;
+
+   double sum = 0.0;
+   int count = 0;
+   for(int i = 1; i <= 20; i++)
+   {
+      long candleVolume = iVolume(symbol, PERIOD_M15, i);
+      if(candleVolume <= 0)
+         continue;
+      sum += (double)candleVolume;
+      count++;
+   }
+
+   if(count <= 0)
+      return multiplier <= 1.0;
+
+   averageVolume = sum / count;
+   requiredVolume = averageVolume * MathMax(1.0, multiplier);
+   if(multiplier <= 1.0)
+      return true;
+   if(volume <= 0 || averageVolume <= 0.0)
+      return false;
+   return (double)volume >= requiredVolume;
+}
+
 bool GoldBotBreakoutRetestSetupPass(
    const string symbol,
    const IndicatorSnapshot &indicators,
@@ -1162,8 +1357,11 @@ bool GoldBotBreakoutRetestSetupPass(
 
    double buffer = indicators.atr * MathMax(0.0, InpBreakoutRangeBufferAtr);
    double body = MathAbs(rates[0].close - rates[0].open);
+   double range = rates[0].high - rates[0].low;
+   double bodyRatio = range > 0.0 ? body / range : 0.0;
    double bodyAtr = body / indicators.atr;
    bool bodyOk = bodyAtr >= InpBreakoutMinBodyAtr;
+   bool bodyRatioOk = InpMinBodyRatio <= 0.0 || (range > 0.0 && bodyRatio >= InpMinBodyRatio);
    bool longBreak = rates[0].close > previousHigh + buffer;
    bool shortBreak = rates[0].close < previousLow - buffer;
    if(longBreak && shortBreak)
@@ -1191,14 +1389,18 @@ bool GoldBotBreakoutRetestSetupPass(
       || (candidateDirection == DIR_LONG ? indicators.vwapLong : indicators.vwapShort);
    bool h1Ok = !InpBreakoutRequireH1Trend || GoldBotBreakoutH1TrendPass(symbol, candidateDirection);
    bool zoneOk = GoldBotBuildBreakoutRetestZone(symbol, candidateDirection, breakoutLevel, indicators, zone);
+   long breakoutVolume = 0;
+   double averageVolume = 0.0;
+   double requiredVolume = 0.0;
+   bool volumeOk = GoldBotBreakoutVolumePass(symbol, InpVolumeMultiplier, breakoutVolume, averageVolume, requiredVolume);
 
    MqlDateTime nowParts;
    TimeToStruct(TimeCurrent(), nowParts);
-   if(bodyOk && hourOk && adxOk && diOk && emaOk && vwapOk && h1Ok && zoneOk)
+   if(bodyOk && bodyRatioOk && hourOk && adxOk && diOk && emaOk && vwapOk && h1Ok && zoneOk && volumeOk)
    {
       direction = candidateDirection;
       score = InpBreakoutBaseScore;
-      GoldBotJournal(StringFormat("Breakout retest setup accepted dir=%d hour=%d close=%.2f level=%.2f prevHigh=%.2f prevLow=%.2f bodyAtr=%.2f minBodyAtr=%.2f adx=%.2f minAdx=%.2f diGap=%.2f minDiGap=%.2f ema=%s vwap=%s h1=%s zone=%.2f-%.2f baseScore=%.2f",
+      GoldBotJournal(StringFormat("Breakout retest setup accepted dir=%d hour=%d close=%.2f level=%.2f prevHigh=%.2f prevLow=%.2f bodyAtr=%.2f minBodyAtr=%.2f bodyRatio=%.2f minBodyRatio=%.2f volume=%I64d avgVolume=%.2f requiredVolume=%.2f adx=%.2f minAdx=%.2f diGap=%.2f minDiGap=%.2f ema=%s vwap=%s h1=%s zone=%.2f-%.2f baseScore=%.2f",
          direction,
          nowParts.hour,
          rates[0].close,
@@ -1207,6 +1409,11 @@ bool GoldBotBreakoutRetestSetupPass(
          previousLow,
          bodyAtr,
          InpBreakoutMinBodyAtr,
+         bodyRatio,
+         InpMinBodyRatio,
+         breakoutVolume,
+         averageVolume,
+         requiredVolume,
          indicators.adx,
          InpBreakoutMinAdx,
          diGap,
@@ -1220,7 +1427,7 @@ bool GoldBotBreakoutRetestSetupPass(
       return true;
    }
 
-   GoldBotJournal(StringFormat("Breakout retest setup blocked dir=%d hour=%d close=%.2f level=%.2f prevHigh=%.2f prevLow=%.2f bodyAtr=%.2f minBodyAtr=%.2f body=%s hourOk=%s adx=%.2f minAdx=%.2f adxOk=%s diGap=%.2f minDiGap=%.2f diOk=%s ema=%s vwap=%s h1=%s zone=%s",
+   GoldBotJournal(StringFormat("Breakout retest setup blocked dir=%d hour=%d close=%.2f level=%.2f prevHigh=%.2f prevLow=%.2f bodyAtr=%.2f minBodyAtr=%.2f bodyRatio=%.2f minBodyRatio=%.2f body=%s bodyRatioOk=%s volume=%I64d avgVolume=%.2f requiredVolume=%.2f volumeOk=%s hourOk=%s adx=%.2f minAdx=%.2f adxOk=%s diGap=%.2f minDiGap=%.2f diOk=%s ema=%s vwap=%s h1=%s zone=%s",
       candidateDirection,
       nowParts.hour,
       rates[0].close,
@@ -1229,7 +1436,14 @@ bool GoldBotBreakoutRetestSetupPass(
       previousLow,
       bodyAtr,
       InpBreakoutMinBodyAtr,
+      bodyRatio,
+      InpMinBodyRatio,
       bodyOk ? "yes" : "no",
+      bodyRatioOk ? "yes" : "no",
+      breakoutVolume,
+      averageVolume,
+      requiredVolume,
+      volumeOk ? "yes" : "no",
       hourOk ? "yes" : "no",
       indicators.adx,
       InpBreakoutMinAdx,
