@@ -191,6 +191,11 @@ GROWTH_FREQ100E_CANDIDATES = [
     "freq100e-breakout-no-h1trend",
     "freq100e-breakout-quality",
 ]
+GROWTH_FREQ100F_CANDIDATES = [
+    "freq100f-breakout-no-vwap-no-long18",
+    "freq100f-breakout-no-vwap-no-long18-split123",
+    "freq100f-breakout-no-vwap-long12-only",
+]
 
 
 def load_candidate_names(matrix: Path) -> set[str]:
@@ -327,10 +332,13 @@ def main() -> int:
     parser.add_argument("--freq100c", action="store_true", help="Run only GoldBot last-6-month frequency-100C candidates unless names are provided.")
     parser.add_argument("--freq100d", action="store_true", help="Run only GoldBot last-6-month frequency-100D candidates unless names are provided.")
     parser.add_argument("--freq100e", action="store_true", help="Run only GoldBot breakout-retest frequency-100E candidates unless names are provided.")
+    parser.add_argument("--freq100f", action="store_true", help="Run only GoldBot breakout no-VWAP cleanup frequency-100F candidates unless names are provided.")
     args = parser.parse_args()
 
     known = load_candidate_names(args.matrix)
-    if args.freq100e:
+    if args.freq100f:
+        candidates = args.candidates or GROWTH_FREQ100F_CANDIDATES
+    elif args.freq100e:
         candidates = args.candidates or GROWTH_FREQ100E_CANDIDATES
     elif args.freq100d:
         candidates = args.candidates or GROWTH_FREQ100D_CANDIDATES
