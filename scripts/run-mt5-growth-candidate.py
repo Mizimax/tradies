@@ -32,12 +32,123 @@ LAYER2 = [
     "growth-fasttp-hour12-only",
     "growth-fasttp-hour12-split1",
     "growth-fasttp-hour12-split12",
+    "growth-fasttp-hours12-16-full",
+    "growth-fasttp-hours12-16-split12",
+    "growth-fasttp-hours12-16-split1",
+    "growth-freq-12-16-split12-cd12",
+    "growth-freq-12-16-split12-cd8",
+    "growth-freq-long12-14-16-18-split12",
+    "growth-freq-long12-14-16-18-split12-cd8",
+    "growth-freq-long12-14-16-18-split1",
+    "growth-freq-dir-l12-14-16-18-s7-10-12-15-split12",
+    "growth-freq-dir-l12-14-16-18-s10-12-15-split12",
+    "growth-freq-dir-l12-14-16-18-s7-8-10-12-15-21-split12-cd8",
+    "growth-fasttp-hour16-only-full",
+    "growth-fasttp-hour16-only-split12",
     "growth-fasttp-hours12-15-16-19-full",
     "growth-fasttp-hours12-15-16-19-split12",
     "growth-fasttp-hours12-15-16-17-19-full",
     "growth-fasttp-hours12-15-16-17-19-split12",
     "growth-fasttp-dir-long12-15-16-short19-full",
     "growth-fasttp-dir-long12-15-16-short19-split12",
+]
+RECENT_YEAR = [
+    "recent-l12-14-16-18-split1-cd8",
+    "recent-l12-14-16-18-split12-cd8",
+    "recent-l12-14-16-18-split1-cd6",
+    "recent-l12-14-16-18-split1-cd4",
+    "recent-l12-14-16-18-split1-maxopen3",
+    "recent-l12-14-16-18-split1-maxladder20",
+    "recent-dir-l12-14-16-18-s7-8-10-21-split12-cd8",
+    "recent-dir-l12-14-16-18-s7-8-10-21-split1-cd8",
+    "recent-freq-dir-split12-cd4",
+    "recent-freq-dir-split12-maxladder20",
+    "recent-freq-dir-split12-maxopen3",
+    "recent-freq-dir-split123-cd8",
+    "recent-freq-dir-split123-maxopen3",
+    "recent-freq-dir-long7-split12-cd8",
+    "recent-freq-dir-long7-split123-cd8",
+    "recent-freq-dir-score60-split12-cd8",
+    "recent-regime-ext3",
+    "recent-regime-ext25",
+    "recent-regime-slope015-ext3",
+    "recent-regime-slope015-ext25",
+    "recent-regime-h1dir-ext3",
+]
+PROFIT_CORE = [
+    "profit-core-l12-18-shorts-split12",
+    "profit-core-l12-18-shorts-split1",
+    "profit-core-l12-shorts-split12",
+    "profit-core-l18-shorts-split12",
+    "profit-core-no-long16-split12",
+    "profit-core-l12-18-shorts-split12-cd4",
+    "profit-core-l12-18-shorts-split12-maxopen3",
+    "profit-core-freq-no-long16-split123",
+    "profit-core-freq-no-long16-cd4",
+    "profit-core-freq-no-long16-maxopen3",
+    "profit-core-freq-no-long16-score60",
+    "profit-core-freq-no-long16-short12",
+    "profit-core-freq-no-long16-short12-15",
+    "profit-core-freq-add-long16-split12",
+    "profit-core-freq-add-long16-split1",
+]
+FREQ80 = [
+    "freq80-core-short12-cd4-maxopen3",
+    "freq80-long10-20-short12",
+    "freq80-long10-16-20-short12",
+    "freq80-long10-16-20-short12-14-16",
+    "freq80-wide-no15",
+    "freq80-wide-no15-strict-added",
+    "freq80-wide-no15-strict-vwap",
+    "freq80-wide-no15-strict-m5",
+]
+FREQ100 = [
+    "freq100-wide-no15-cd2",
+    "freq100-wide-no15-maxopen4",
+    "freq100-wide-no15-split123",
+    "freq100-splitguard-wide-no15",
+    "freq100-splitguard-cd2-maxopen4",
+    "freq100-strict-vwap-weakonly",
+    "freq100-strict-vwap-weakonly-cd2-maxopen4",
+    "freq100-continuation-core",
+    "freq100-continuation-wide-splitguard",
+    "freq100-continuation-wide-strict-vwap",
+]
+FREQ100B = [
+    "freq100b-splitguard-cd1-maxopen4",
+    "freq100b-splitguard-cd2-maxopen4-maxladder30",
+    "freq100b-splitguard-cd1-maxopen4-maxladder30",
+    "freq100b-splitguard-cd2-maxopen5",
+    "freq100b-strict-vwap-cd1-maxopen4",
+    "freq100b-strict-vwap-cd2-maxopen5",
+    "freq100b-strict-vwap-cd1-maxopen5",
+    "freq100b-strict-vwap-score60-cd2-maxopen4",
+    "freq100b-strict-vwap-long14-open-cd2-maxopen4",
+    "freq100b-strict-vwap-long14-open-cd1-maxopen4",
+]
+FREQ100C = [
+    "freq100c-splitguard-cd1-no-short12",
+    "freq100c-splitguard-cd1-no-short12-score60",
+    "freq100c-splitguard-cd1-no-short12-long14-open",
+    "freq100c-splitguard-cd1-no-short12-maxopen5",
+    "freq100c-strict-vwap-cd1-score60-rerun",
+    "freq100c-strict-vwap-cd1-long14-open-rerun",
+]
+FREQ100D = [
+    "freq100d-no-short12-split123",
+    "freq100d-no-short12-split123-maxopen5",
+    "freq100d-no-short12-no-long16-split123",
+    "freq100d-no-short12-open-short16-split12",
+    "freq100d-no-short12-continuation-safe",
+    "freq100d-no-short12-continuation-safe-split123",
+]
+FREQ100E = [
+    "freq100e-breakout-core",
+    "freq100e-breakout-core-split123",
+    "freq100e-breakout-loose-body",
+    "freq100e-breakout-no-vwap",
+    "freq100e-breakout-no-h1trend",
+    "freq100e-breakout-quality",
 ]
 
 
@@ -99,6 +210,13 @@ def as_int(value: str) -> int:
         return int(float(value))
     except (TypeError, ValueError):
         return 0
+
+
+def artifact_name(candidate: str, report_suffix: str = "") -> str:
+    report_suffix = report_suffix.strip()
+    if report_suffix:
+        return f"{candidate}-{report_suffix}"
+    return candidate
 
 
 def active_mt5_processes() -> list[str]:
@@ -248,6 +366,7 @@ def main() -> int:
     parser.add_argument("--deposit", default="100000")
     parser.add_argument("--symbol", default="")
     parser.add_argument("--period", default="")
+    parser.add_argument("--report-suffix", default="", help="Append a suffix to report artifacts, e.g. recent-12m.")
     parser.add_argument("--clean", action="store_true", help="Delete this candidate's report artifacts before running.")
     parser.add_argument("--dry-run", action="store_true", help="Print the underlying command without launching MT5.")
     parser.add_argument("--list", action="store_true", help="List growth candidates.")
@@ -255,7 +374,7 @@ def main() -> int:
     args = parser.parse_args()
 
     candidates = load_candidates()
-    growth_candidates = LAYER1 + LAYER2
+    growth_candidates = LAYER1 + LAYER2 + RECENT_YEAR + PROFIT_CORE + FREQ80 + FREQ100 + FREQ100B + FREQ100C + FREQ100D + FREQ100E
 
     if args.list:
         for name in growth_candidates:
@@ -282,9 +401,11 @@ def main() -> int:
                 print(f"  {process}", file=sys.stderr)
             return 3
 
+    artifact = artifact_name(args.candidate, args.report_suffix)
+
     if args.clean:
         for suffix in (".htm", ".xml", ".trades.csv", ".summary.csv", ".evaluation.csv", ".daily-growth.csv", ".equity-curve.csv", ".stability.csv", ".journal-summary.csv", ".attribution.csv", ".report-status.csv"):
-            (REPORT_DIR / f"GoldBot-real-{args.candidate}{suffix}").unlink(missing_ok=True)
+            (REPORT_DIR / f"GoldBot-real-{artifact}{suffix}").unlink(missing_ok=True)
 
     command = [
         sys.executable,
@@ -301,13 +422,15 @@ def main() -> int:
         command.extend(["--symbol", args.symbol])
     if args.period:
         command.extend(["--period", args.period])
+    if args.report_suffix:
+        command.extend(["--report-suffix", args.report_suffix])
     if args.dry_run:
         command.append("--dry-run")
 
     status = run(command)
     if status != 0 or args.dry_run:
         return status
-    return refresh_artifacts(args.candidate, args.deposit, args.from_date, args.to_date)
+    return refresh_artifacts(artifact, args.deposit, args.from_date, args.to_date)
 
 
 if __name__ == "__main__":

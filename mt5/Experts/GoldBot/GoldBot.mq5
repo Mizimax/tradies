@@ -9,6 +9,10 @@
 #include <GoldBot/TradeManager.mqh>
 #include <GoldBot/EntryFilters.mqh>
 
+#define GOLDBOT_SETUP_SMC 1
+#define GOLDBOT_SETUP_CONTINUATION 2
+#define GOLDBOT_SETUP_BREAKOUT_RETEST 3
+
 input string          InpSymbol = "XAUUSD";
 input long            InpMagicNumber = 26053101;
 input GoldBotRiskMode InpRiskMode = EQUITY_LOT_RATIO;
@@ -81,6 +85,47 @@ input bool            InpRequireLiquiditySweepForSmc = false;
 input bool            InpRequireDisplacementForSmc = false;
 input bool            InpRequireObFvgOverlap = false;
 input bool            InpRequireHtfSmcContext = false;
+input bool            InpEnableRegimeFilter = false;
+input int             InpRegimeSlopeBars = 24;
+input double          InpRegimeMinSlopeAtr = 0.0;
+input double          InpRegimeMaxExtensionAtr = 3.0;
+input bool            InpRegimeRequireH1Direction = false;
+input bool            InpEnableStrictHourQuality = false;
+input string          InpStrictLongHours = "";
+input string          InpStrictShortHours = "";
+input double          InpStrictHourMinAdx = 18.0;
+input double          InpStrictHourMinDiGap = 4.0;
+input bool            InpStrictHourRequireVwap = false;
+input bool            InpStrictHourRequireEma = false;
+input bool            InpStrictHourRequireM5Pullback = false;
+input int             InpStrictHourPullbackChecks = 2;
+input bool            InpEnableHourSplitGuard = false;
+input string          InpSplit1OnlyLongHours = "";
+input string          InpSplit1OnlyShortHours = "";
+input bool            InpEnableContinuationPullbackSetup = false;
+input string          InpContinuationLongHours = "";
+input string          InpContinuationShortHours = "";
+input double          InpContinuationMinAdx = 18.0;
+input double          InpContinuationMinDiGap = 4.0;
+input bool            InpContinuationRequireVwap = true;
+input bool            InpContinuationRequireEma = true;
+input bool            InpContinuationRequireM5Pullback = true;
+input int             InpContinuationPullbackChecks = 2;
+input double          InpContinuationZoneAtr = 0.35;
+input bool            InpEnableBreakoutRetestSetup = false;
+input string          InpBreakoutLongHours = "";
+input string          InpBreakoutShortHours = "";
+input int             InpBreakoutLookbackBars = 16;
+input double          InpBreakoutRangeBufferAtr = 0.10;
+input double          InpBreakoutMinBodyAtr = 0.35;
+input double          InpBreakoutMinAdx = 18.0;
+input double          InpBreakoutMinDiGap = 4.0;
+input bool            InpBreakoutRequireEma = true;
+input bool            InpBreakoutRequireVwap = true;
+input bool            InpBreakoutRequireH1Trend = true;
+input double          InpBreakoutZoneAtr = 0.25;
+input double          InpBreakoutMaxZoneAtr = 0.80;
+input double          InpBreakoutBaseScore = 25.0;
 input string          InpAllowedEntryHours = "";
 input string          InpAllowedLongEntryHours = "";
 input string          InpAllowedShortEntryHours = "";
@@ -151,8 +196,20 @@ void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long posi
 void GoldBotDeletePositionMetadata(const long positionId);
 double GoldBotMetadataValue(const string baseKey, const string field, const double fallback);
 int GoldBotSplitFromComment(const string comment);
+string GoldBotSetupName(const int setupCode);
 bool GoldBotAllowedEntryHour(const string allowedHours);
 bool GoldBotDirectionAllowedEntryHour(const GoldBotDirection direction, const string allowedLongHours, const string allowedShortHours);
+bool GoldBotHourListContains(const string allowedHours, const int targetHour);
+bool GoldBotStrictHourApplies(const GoldBotDirection direction, const string strictLongHours, const string strictShortHours);
+bool GoldBotStrictHourQualityPass(const string symbol, const GoldBotDirection direction, const EntryZone &zone, const IndicatorSnapshot &indicators, const bool emaPass, const bool vwapPass, const double score, const int confluenceCount, const int enabledConfluences);
+void GoldBotResetEntryZone(EntryZone &zone);
+bool GoldBotBuildContinuationEntryZone(const string symbol, const IndicatorSnapshot &indicators, EntryZone &zone);
+bool GoldBotContinuationSetupPass(const string symbol, const GoldBotDirection direction, const IndicatorSnapshot &indicators, const bool emaPass, const bool vwapPass, const double score, const int confluenceCount, const int enabledConfluences, EntryZone &zone);
+bool GoldBotBreakoutH1TrendPass(const string symbol, const GoldBotDirection direction);
+bool GoldBotBuildBreakoutRetestZone(const string symbol, const GoldBotDirection direction, const double breakoutLevel, const IndicatorSnapshot &indicators, EntryZone &zone);
+bool GoldBotBreakoutRetestSetupPass(const string symbol, const IndicatorSnapshot &indicators, GoldBotDirection &direction, double &score, EntryZone &zone);
+void GoldBotApplyHourSplitGuard(const GoldBotDirection direction, const double score, const int confluenceCount, const int enabledConfluences, int &ladderOrderCount, int &ladderFirstSplit);
+bool GoldBotRegimePass(const string symbol, const GoldBotDirection direction, const SMCResult &smc, const bool enabled, const int slopeBars, const double minSlopeAtr, const double maxExtensionAtr, const bool requireH1Direction, const double score, const int confluenceCount, const int enabledConfluences, double &slopeAtr, double &extensionAtr);
 
 int OnInit()
 {
@@ -216,11 +273,13 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    int confluences = (int)GoldBotMetadataValue(posKey, "confluences", -1.0);
    int enabledConfluences = (int)GoldBotMetadataValue(posKey, "enabledConfluences", -1.0);
    double scoreBucket = GoldBotMetadataValue(posKey, "scoreBucket", -1.0);
+   int setupCode = (int)GoldBotMetadataValue(posKey, "setup", (double)GOLDBOT_SETUP_SMC);
+   string setupName = GoldBotSetupName(setupCode);
    double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT) +
                    HistoryDealGetDouble(trans.deal, DEAL_COMMISSION) +
                    HistoryDealGetDouble(trans.deal, DEAL_SWAP);
 
-   GoldBotJournal(StringFormat("Deal event deal=%I64u position=%I64d entry=%d type=%d reason=%d price=%.2f volume=%.2f profit=%.2f dir=%d split=%d hour=%d scoreBucket=%.0f confluences=%d/%d comment=%s",
+   GoldBotJournal(StringFormat("Deal event deal=%I64u position=%I64d entry=%d type=%d reason=%d price=%.2f volume=%.2f profit=%.2f dir=%d split=%d hour=%d scoreBucket=%.0f confluences=%d/%d setup=%s comment=%s",
       trans.deal,
       positionId,
       dealEntry,
@@ -235,6 +294,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
       scoreBucket,
       confluences,
       enabledConfluences,
+      setupName,
       comment));
 
    if((dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY) && positionId > 0 && !PositionSelectByTicket((ulong)positionId))
@@ -317,6 +377,11 @@ void OnTick()
    orderBlock.valid = false;
    orderBlock.bottom = 0.0;
    orderBlock.top = 0.0;
+   int setupCode = GOLDBOT_SETUP_SMC;
+   string setupName = GoldBotSetupName(setupCode);
+   EntryZone selectedZone;
+   GoldBotResetEntryZone(selectedZone);
+   bool setupHasPrebuiltZone = false;
 
    if(InpLegacyParityMode)
    {
@@ -332,6 +397,7 @@ void OnTick()
    }
    else
    {
+      bool smcCandidate = false;
       if(!smcReady || !smc.allPass)
       {
          GoldBotLog(StringFormat("SMC gates failed. h4=%s h1=%s m15=%s dir=%d fvg=%s ob=%s",
@@ -341,104 +407,137 @@ void OnTick()
             smc.direction,
             smc.fvg.valid ? "yes" : "no",
             smc.orderBlock.valid ? "yes" : "no"));
-         return;
       }
-      direction = smc.direction;
-      score = smc.score;
-      fvg = smc.fvg;
-      orderBlock = smc.orderBlock;
-      GoldBotJournal(StringFormat("SMC candidate h4=%s h1=%s m15=%s dir=%d h4Dir=%d h1Dir=%d m15Dir=%d smcScore=%.2f fvg=%s ob=%s h4PD=%s h4Sweep=%s h4Disp=%s h4Bos=%s h4Overlap=%s h1Aligned=%s h1Sweep=%s h1Disp=%s h1Bos=%s h1Overlap=%s m15Sweep=%s m15RecentSweep=%s m15Disp=%s m15Bos=%s m15HasZone=%s m15Overlap=%s m15Retest=%s m15Sequence=%s",
-         smc.gateH4 ? "yes" : "no",
-         smc.gateH1 ? "yes" : "no",
-         smc.gateM15 ? "yes" : "no",
-         smc.direction,
-         smc.h4Direction,
-         smc.h1Direction,
-         smc.m15Direction,
-         smc.score,
-         smc.fvg.valid ? "yes" : "no",
-         smc.orderBlock.valid ? "yes" : "no",
-         smc.h4PremiumDiscount ? "yes" : "no",
-         smc.h4LiquiditySweep ? "yes" : "no",
-         smc.h4Displacement ? "yes" : "no",
-         smc.h4BosChoCh ? "yes" : "no",
-         smc.h4ObFvgOverlap ? "yes" : "no",
-         smc.h1Aligned ? "yes" : "no",
-         smc.h1LiquiditySweep ? "yes" : "no",
-         smc.h1Displacement ? "yes" : "no",
-         smc.h1BosChoCh ? "yes" : "no",
-         smc.h1ObFvgOverlap ? "yes" : "no",
-         smc.m15LiquiditySweep ? "yes" : "no",
-         smc.m15RecentSweep ? "yes" : "no",
-         smc.m15Displacement ? "yes" : "no",
-         smc.m15BosChoCh ? "yes" : "no",
-         smc.m15HasZone ? "yes" : "no",
-         smc.m15ObFvgOverlap ? "yes" : "no",
-         smc.m15RetestingZone ? "yes" : "no",
-         smc.m15SequenceOk ? "yes" : "no"));
-
-      if(InpRequireHigherTfConfirmation && !smc.gateH4 && !smc.gateH1)
+      else
       {
-         GoldBotLog("Higher timeframe confirmation blocked new entry.");
-         GoldBotJournal(StringFormat("Higher timeframe confirmation blocked h4=%s h1=%s m15=%s dir=%d",
+         smcCandidate = true;
+         direction = smc.direction;
+         score = smc.score;
+         fvg = smc.fvg;
+         orderBlock = smc.orderBlock;
+         GoldBotJournal(StringFormat("SMC candidate h4=%s h1=%s m15=%s dir=%d h4Dir=%d h1Dir=%d m15Dir=%d smcScore=%.2f fvg=%s ob=%s h4PD=%s h4Sweep=%s h4Disp=%s h4Bos=%s h4Overlap=%s h1Aligned=%s h1Sweep=%s h1Disp=%s h1Bos=%s h1Overlap=%s m15Sweep=%s m15RecentSweep=%s m15Disp=%s m15Bos=%s m15HasZone=%s m15Overlap=%s m15Retest=%s m15Sequence=%s",
             smc.gateH4 ? "yes" : "no",
             smc.gateH1 ? "yes" : "no",
             smc.gateM15 ? "yes" : "no",
-            smc.direction));
-         return;
-      }
-      if(InpRequireHtfSmcContext && !smc.gateH4 && !smc.gateH1)
-      {
-         GoldBotLog("HTF SMC context blocked new entry.");
-         GoldBotJournal(StringFormat("HTF SMC context blocked h4=%s h1=%s h4Dir=%d h1Dir=%d dir=%d",
-            smc.gateH4 ? "yes" : "no",
-            smc.gateH1 ? "yes" : "no",
+            smc.direction,
             smc.h4Direction,
             smc.h1Direction,
-            smc.direction));
-         return;
-      }
-      if(InpRequireSmcSequence && !smc.m15SequenceOk)
-      {
-         GoldBotLog("SMC sequence blocked new entry.");
-         GoldBotJournal(StringFormat("SMC sequence blocked recentSweep=%s displacement=%s bos=%s hasZone=%s retest=%s overlap=%s dir=%d",
+            smc.m15Direction,
+            smc.score,
+            smc.fvg.valid ? "yes" : "no",
+            smc.orderBlock.valid ? "yes" : "no",
+            smc.h4PremiumDiscount ? "yes" : "no",
+            smc.h4LiquiditySweep ? "yes" : "no",
+            smc.h4Displacement ? "yes" : "no",
+            smc.h4BosChoCh ? "yes" : "no",
+            smc.h4ObFvgOverlap ? "yes" : "no",
+            smc.h1Aligned ? "yes" : "no",
+            smc.h1LiquiditySweep ? "yes" : "no",
+            smc.h1Displacement ? "yes" : "no",
+            smc.h1BosChoCh ? "yes" : "no",
+            smc.h1ObFvgOverlap ? "yes" : "no",
+            smc.m15LiquiditySweep ? "yes" : "no",
             smc.m15RecentSweep ? "yes" : "no",
             smc.m15Displacement ? "yes" : "no",
             smc.m15BosChoCh ? "yes" : "no",
             smc.m15HasZone ? "yes" : "no",
+            smc.m15ObFvgOverlap ? "yes" : "no",
             smc.m15RetestingZone ? "yes" : "no",
-            smc.m15ObFvgOverlap ? "yes" : "no",
-            smc.direction));
-         return;
+            smc.m15SequenceOk ? "yes" : "no"));
+
+         if(InpRequireHigherTfConfirmation && !smc.gateH4 && !smc.gateH1)
+         {
+            GoldBotLog("Higher timeframe confirmation blocked new entry.");
+            GoldBotJournal(StringFormat("Higher timeframe confirmation blocked h4=%s h1=%s m15=%s dir=%d",
+               smc.gateH4 ? "yes" : "no",
+               smc.gateH1 ? "yes" : "no",
+               smc.gateM15 ? "yes" : "no",
+               smc.direction));
+            smcCandidate = false;
+         }
+         else if(InpRequireHtfSmcContext && !smc.gateH4 && !smc.gateH1)
+         {
+            GoldBotLog("HTF SMC context blocked new entry.");
+            GoldBotJournal(StringFormat("HTF SMC context blocked h4=%s h1=%s h4Dir=%d h1Dir=%d dir=%d",
+               smc.gateH4 ? "yes" : "no",
+               smc.gateH1 ? "yes" : "no",
+               smc.h4Direction,
+               smc.h1Direction,
+               smc.direction));
+            smcCandidate = false;
+         }
+         else if(InpRequireSmcSequence && !smc.m15SequenceOk)
+         {
+            GoldBotLog("SMC sequence blocked new entry.");
+            GoldBotJournal(StringFormat("SMC sequence blocked recentSweep=%s displacement=%s bos=%s hasZone=%s retest=%s overlap=%s dir=%d",
+               smc.m15RecentSweep ? "yes" : "no",
+               smc.m15Displacement ? "yes" : "no",
+               smc.m15BosChoCh ? "yes" : "no",
+               smc.m15HasZone ? "yes" : "no",
+               smc.m15RetestingZone ? "yes" : "no",
+               smc.m15ObFvgOverlap ? "yes" : "no",
+               smc.direction));
+            smcCandidate = false;
+         }
+         else if(InpRequireLiquiditySweepForSmc && !smc.m15RecentSweep)
+         {
+            GoldBotLog("SMC liquidity sweep blocked new entry.");
+            GoldBotJournal(StringFormat("SMC liquidity sweep blocked currentSweep=%s recentSweep=%s dir=%d",
+               smc.m15LiquiditySweep ? "yes" : "no",
+               smc.m15RecentSweep ? "yes" : "no",
+               smc.direction));
+            smcCandidate = false;
+         }
+         else if(InpRequireDisplacementForSmc && !smc.m15Displacement)
+         {
+            GoldBotLog("SMC displacement blocked new entry.");
+            GoldBotJournal(StringFormat("SMC displacement blocked displacement=%s bos=%s dir=%d",
+               smc.m15Displacement ? "yes" : "no",
+               smc.m15BosChoCh ? "yes" : "no",
+               smc.direction));
+            smcCandidate = false;
+         }
+         else if(InpRequireObFvgOverlap && !smc.m15ObFvgOverlap)
+         {
+            GoldBotLog("SMC OB/FVG overlap blocked new entry.");
+            GoldBotJournal(StringFormat("SMC OB/FVG overlap blocked fvg=%s ob=%s overlap=%s dir=%d",
+               smc.fvg.valid ? "yes" : "no",
+               smc.orderBlock.valid ? "yes" : "no",
+               smc.m15ObFvgOverlap ? "yes" : "no",
+               smc.direction));
+            smcCandidate = false;
+         }
+
+         if(smcCandidate)
+         {
+            selectedZone = GoldBotBuildEntryZone(fvg, orderBlock, indicators.ema21, indicators.atr);
+            setupHasPrebuiltZone = selectedZone.valid;
+         }
       }
-      if(InpRequireLiquiditySweepForSmc && !smc.m15RecentSweep)
+
+      if(!smcCandidate || !setupHasPrebuiltZone)
       {
-         GoldBotLog("SMC liquidity sweep blocked new entry.");
-         GoldBotJournal(StringFormat("SMC liquidity sweep blocked currentSweep=%s recentSweep=%s dir=%d",
-            smc.m15LiquiditySweep ? "yes" : "no",
-            smc.m15RecentSweep ? "yes" : "no",
-            smc.direction));
-         return;
+         GoldBotDirection breakoutDirection = DIR_NONE;
+         double breakoutScore = 0.0;
+         EntryZone breakoutZone;
+         GoldBotResetEntryZone(breakoutZone);
+         if(GoldBotBreakoutRetestSetupPass(symbol, indicators, breakoutDirection, breakoutScore, breakoutZone))
+         {
+            direction = breakoutDirection;
+            score = breakoutScore;
+            fvg.valid = false;
+            orderBlock.valid = false;
+            selectedZone = breakoutZone;
+            setupHasPrebuiltZone = true;
+            setupCode = GOLDBOT_SETUP_BREAKOUT_RETEST;
+            setupName = GoldBotSetupName(setupCode);
+         }
+         else if(!smcCandidate)
+            return;
       }
-      if(InpRequireDisplacementForSmc && !smc.m15Displacement)
-      {
-         GoldBotLog("SMC displacement blocked new entry.");
-         GoldBotJournal(StringFormat("SMC displacement blocked displacement=%s bos=%s dir=%d",
-            smc.m15Displacement ? "yes" : "no",
-            smc.m15BosChoCh ? "yes" : "no",
-            smc.direction));
+
+      if(direction == DIR_NONE)
          return;
-      }
-      if(InpRequireObFvgOverlap && !smc.m15ObFvgOverlap)
-      {
-         GoldBotLog("SMC OB/FVG overlap blocked new entry.");
-         GoldBotJournal(StringFormat("SMC OB/FVG overlap blocked fvg=%s ob=%s overlap=%s dir=%d",
-            smc.fvg.valid ? "yes" : "no",
-            smc.orderBlock.valid ? "yes" : "no",
-            smc.m15ObFvgOverlap ? "yes" : "no",
-            smc.direction));
-         return;
-      }
    }
 
    if(!InpLegacyParityMode && !GoldBotAllowedEntryHour(InpAllowedEntryHours))
@@ -641,14 +740,25 @@ void OnTick()
       }
    }
 
-   EntryZone zone = InpLegacyParityMode ? GoldBotLegacyEntryZone(symbol, direction)
-                                        : GoldBotBuildEntryZone(fvg, orderBlock, indicators.ema21, indicators.atr);
+   double regimeSlopeAtr = 0.0;
+   double regimeExtensionAtr = 0.0;
+   if(!InpLegacyParityMode && !GoldBotRegimePass(symbol, direction, smc, InpEnableRegimeFilter, InpRegimeSlopeBars, InpRegimeMinSlopeAtr, InpRegimeMaxExtensionAtr, InpRegimeRequireH1Direction, score, confluenceCount, enabledConfluences, regimeSlopeAtr, regimeExtensionAtr))
+      return;
+
+   EntryZone zone;
+   if(InpLegacyParityMode)
+      zone = GoldBotLegacyEntryZone(symbol, direction);
+   else if(setupHasPrebuiltZone)
+      zone = selectedZone;
+   else
+      zone = GoldBotBuildEntryZone(fvg, orderBlock, indicators.ema21, indicators.atr);
    double effectiveScoreThreshold = InpLegacyParityMode ? InpScoreThreshold : MathMax(InpScoreThreshold, InpMinRealModeScore);
-   if(score < effectiveScoreThreshold || !zone.valid)
+   if(score < effectiveScoreThreshold)
    {
       GoldBotLog(StringFormat("Signal skipped. score=%.2f threshold=%.2f zone=%s", score, effectiveScoreThreshold, zone.valid ? "yes" : "no"));
       if(score >= 50.0 || zone.valid)
-         GoldBotJournal(StringFormat("Signal skipped score=%.2f threshold=%.2f zone=%s dir=%d confluences=%d/%d ema=%s rsi=%s vwap=%s atr=%s adx=%s macd=%s bb=%s stoch=%s",
+         GoldBotJournal(StringFormat("Signal skipped setup=%s score=%.2f threshold=%.2f zone=%s dir=%d confluences=%d/%d ema=%s rsi=%s vwap=%s atr=%s adx=%s macd=%s bb=%s stoch=%s",
+            setupName,
             score,
             effectiveScoreThreshold,
             zone.valid ? "yes" : "no",
@@ -665,6 +775,34 @@ void OnTick()
             stochPass ? "yes" : "no"));
       return;
    }
+   if(!zone.valid)
+   {
+      if(!InpLegacyParityMode && GoldBotContinuationSetupPass(symbol, direction, indicators, emaPass, vwapPass, score, confluenceCount, enabledConfluences, zone))
+      {
+         setupCode = GOLDBOT_SETUP_CONTINUATION;
+         setupName = GoldBotSetupName(setupCode);
+      }
+      else
+      {
+         GoldBotLog(StringFormat("Signal skipped. score=%.2f threshold=%.2f zone=no", score, effectiveScoreThreshold));
+         GoldBotJournal(StringFormat("Signal skipped setup=smc score=%.2f threshold=%.2f zone=no continuation=%s dir=%d confluences=%d/%d ema=%s rsi=%s vwap=%s atr=%s adx=%s macd=%s bb=%s stoch=%s",
+            score,
+            effectiveScoreThreshold,
+            InpEnableContinuationPullbackSetup ? "failed" : "disabled",
+            direction,
+            confluenceCount,
+            enabledConfluences,
+            emaPass ? "yes" : "no",
+            rsiPass ? "yes" : "no",
+            vwapPass ? "yes" : "no",
+            atrPass ? "yes" : "no",
+            adxPass ? "yes" : "no",
+            macdPass ? "yes" : "no",
+            bbPass ? "yes" : "no",
+            stochPass ? "yes" : "no"));
+         return;
+      }
+   }
 
    MqlRates m15[];
    ArraySetAsSeries(m15, true);
@@ -674,6 +812,9 @@ void OnTick()
    double entryReference = m15[0].close;
    double sl = direction == DIR_LONG ? MathMin(zone.bottom, entryReference - indicators.atr * InpSlAtr)
                                      : MathMax(zone.top, entryReference + indicators.atr * InpSlAtr);
+
+   if(!InpLegacyParityMode && !GoldBotStrictHourQualityPass(symbol, direction, zone, indicators, emaPass, vwapPass, score, confluenceCount, enabledConfluences))
+      return;
 
    if(!InpLegacyParityMode && InpRequireM5PullbackConfirmation)
    {
@@ -717,8 +858,9 @@ void OnTick()
 
    string signalId = GoldBotNewSignalId(direction);
    GoldBotLog(StringFormat("Signal score=%.2f dir=%d zone=%.2f-%.2f sl=%.2f confluences=%d/%d", score, direction, zone.bottom, zone.top, sl, confluenceCount, enabledConfluences));
-   GoldBotJournal(StringFormat("Signal accepted signalId=%s score=%.2f dir=%d confluences=%d/%d ema=%s rsi=%s vwap=%s atr=%s adx=%s macd=%s bb=%s stoch=%s zone=%.2f-%.2f sl=%.2f",
+   GoldBotJournal(StringFormat("Signal accepted signalId=%s setup=%s score=%.2f dir=%d confluences=%d/%d emaPass=%s rsiPass=%s vwapPass=%s atrPass=%s adxPass=%s macdPass=%s bbPass=%s stochPass=%s zone=%.2f-%.2f sl=%.2f rsi=%.2f adx=%.2f plusDI=%.2f minusDI=%.2f atr=%.2f ema21=%.2f ema50=%.2f ema200=%.2f vwap=%.2f regimeSlopeAtr=%.2f regimeExtensionAtr=%.2f",
       signalId,
+      setupName,
       score,
       direction,
       confluenceCount,
@@ -733,7 +875,18 @@ void OnTick()
       stochPass ? "yes" : "no",
       zone.bottom,
       zone.top,
-      sl));
+      sl,
+      indicators.rsi,
+      indicators.adx,
+      indicators.plusDI,
+      indicators.minusDI,
+      indicators.atr,
+      indicators.ema21,
+      indicators.ema50,
+      indicators.ema200,
+      indicators.vwap,
+      regimeSlopeAtr,
+      regimeExtensionAtr));
 
    if(InpDebugOnly)
       return;
@@ -760,10 +913,12 @@ void OnTick()
    if(ladderOrderCount > maxOrdersFromFirstSplit)
       ladderOrderCount = maxOrdersFromFirstSplit;
 
-   if(GoldBotPlaceLadder(symbol, InpMagicNumber, direction, zone, sl, score, signalId, ladderOrderCount, ladderFirstSplit, confluenceCount, enabledConfluences, InpLotPer100Usd, InpMinLot, InpMaxLot, InpHighConvictionScore, InpMinRR, InpMaxHoldBars, trade))
+   GoldBotApplyHourSplitGuard(direction, score, confluenceCount, enabledConfluences, ladderOrderCount, ladderFirstSplit);
+
+   if(GoldBotPlaceLadder(symbol, InpMagicNumber, direction, zone, sl, score, signalId, setupCode, setupName, ladderOrderCount, ladderFirstSplit, confluenceCount, enabledConfluences, InpLotPer100Usd, InpMinLot, InpMaxLot, InpHighConvictionScore, InpMinRR, InpMaxHoldBars, trade))
    {
       GoldBotMarkLadderPlaced();
-      GoldBotJournal(StringFormat("Pending ladder placed signalId=%s orderCount=%d firstSplit=%d", signalId, ladderOrderCount, ladderFirstSplit));
+      GoldBotJournal(StringFormat("Pending ladder placed signalId=%s setup=%s orderCount=%d firstSplit=%d", signalId, setupName, ladderOrderCount, ladderFirstSplit));
    }
 }
 
@@ -773,6 +928,13 @@ string GoldBotSymbol()
 }
 
 bool GoldBotAllowedEntryHour(const string allowedHours)
+{
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   return GoldBotHourListContains(allowedHours, nowParts.hour);
+}
+
+bool GoldBotHourListContains(const string allowedHours, const int targetHour)
 {
    if(StringLen(allowedHours) <= 0)
       return true;
@@ -784,9 +946,6 @@ bool GoldBotAllowedEntryHour(const string allowedHours)
    if(StringLen(normalized) <= 0)
       return true;
 
-   MqlDateTime nowParts;
-   TimeToStruct(TimeCurrent(), nowParts);
-
    string tokens[];
    int count = StringSplit(normalized, ',', tokens);
    for(int i = 0; i < count; i++)
@@ -794,7 +953,7 @@ bool GoldBotAllowedEntryHour(const string allowedHours)
       if(StringLen(tokens[i]) <= 0)
          continue;
       int hour = (int)StringToInteger(tokens[i]);
-      if(hour == nowParts.hour)
+      if(hour == targetHour)
          return true;
    }
    return false;
@@ -807,6 +966,485 @@ bool GoldBotDirectionAllowedEntryHour(const GoldBotDirection direction, const st
    if(direction == DIR_SHORT && StringLen(allowedShortHours) > 0)
       return GoldBotAllowedEntryHour(allowedShortHours);
    return true;
+}
+
+bool GoldBotStrictHourApplies(const GoldBotDirection direction, const string strictLongHours, const string strictShortHours)
+{
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   if(direction == DIR_LONG && StringLen(strictLongHours) > 0)
+      return GoldBotHourListContains(strictLongHours, nowParts.hour);
+   if(direction == DIR_SHORT && StringLen(strictShortHours) > 0)
+      return GoldBotHourListContains(strictShortHours, nowParts.hour);
+   return false;
+}
+
+bool GoldBotStrictHourQualityPass(
+   const string symbol,
+   const GoldBotDirection direction,
+   const EntryZone &zone,
+   const IndicatorSnapshot &indicators,
+   const bool emaPass,
+   const bool vwapPass,
+   const double score,
+   const int confluenceCount,
+   const int enabledConfluences)
+{
+   if(!InpEnableStrictHourQuality)
+      return true;
+   if(!GoldBotStrictHourApplies(direction, InpStrictLongHours, InpStrictShortHours))
+      return true;
+
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   const double diGap = MathAbs(indicators.plusDI - indicators.minusDI);
+   const bool adxOk = indicators.adx >= InpStrictHourMinAdx;
+   const bool diGapOk = diGap >= InpStrictHourMinDiGap;
+   const bool vwapOk = !InpStrictHourRequireVwap || vwapPass;
+   const bool emaOk = !InpStrictHourRequireEma || emaPass;
+
+   bool candlePattern = false;
+   bool rsiShift = false;
+   bool microChoCH = false;
+   int checksHit = 0;
+   bool m5Ok = true;
+   int requiredChecks = MathMax(1, MathMin(3, InpStrictHourPullbackChecks));
+   if(InpStrictHourRequireM5Pullback)
+      m5Ok = GoldBotPullbackConfirmed(symbol, zone, direction, InpRsiPeriod, requiredChecks, candlePattern, rsiShift, microChoCH, checksHit);
+
+   if(adxOk && diGapOk && vwapOk && emaOk && m5Ok)
+      return true;
+
+   GoldBotJournal(StringFormat("Strict hour quality blocked dir=%d hour=%d adx=%.2f minAdx=%.2f diGap=%.2f minDiGap=%.2f ema=%s vwap=%s m5Checks=%d required=%d m5=%s score=%.2f confluences=%d/%d",
+      direction,
+      nowParts.hour,
+      indicators.adx,
+      InpStrictHourMinAdx,
+      diGap,
+      InpStrictHourMinDiGap,
+      emaPass ? "yes" : "no",
+      vwapPass ? "yes" : "no",
+      checksHit,
+      requiredChecks,
+      m5Ok ? "yes" : "no",
+      score,
+      confluenceCount,
+      enabledConfluences));
+   return false;
+}
+
+void GoldBotResetEntryZone(EntryZone &zone)
+{
+   zone.valid = false;
+   zone.bottom = 0.0;
+   zone.top = 0.0;
+   zone.midpoint = 0.0;
+   zone.quarterPoint = 0.0;
+}
+
+bool GoldBotBuildContinuationEntryZone(const string symbol, const IndicatorSnapshot &indicators, EntryZone &zone)
+{
+   GoldBotResetEntryZone(zone);
+
+   if(indicators.ema21 <= 0.0 || indicators.vwap <= 0.0 || indicators.atr <= 0.0)
+      return false;
+
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   if(point <= 0.0)
+      point = 0.01;
+
+   double padding = indicators.atr * MathMax(0.0, InpContinuationZoneAtr);
+   if(padding <= 0.0)
+      padding = point * 10.0;
+
+   double bottom = MathMin(indicators.ema21, indicators.vwap) - padding;
+   double top = MathMax(indicators.ema21, indicators.vwap) + padding;
+   if(bottom <= 0.0 || top <= bottom)
+      return false;
+
+   zone.valid = true;
+   zone.bottom = bottom;
+   zone.top = top;
+   zone.midpoint = bottom + (top - bottom) / 2.0;
+   zone.quarterPoint = bottom + (top - bottom) * 0.25;
+   return true;
+}
+
+bool GoldBotBreakoutH1TrendPass(const string symbol, const GoldBotDirection direction)
+{
+   double h1Close = iClose(symbol, PERIOD_H1, 1);
+   double ema21 = GoldBotMA(symbol, PERIOD_H1, 21, 1);
+   double ema50 = GoldBotMA(symbol, PERIOD_H1, 50, 1);
+   if(h1Close <= 0.0 || ema21 == EMPTY_VALUE || ema50 == EMPTY_VALUE || ema21 <= 0.0 || ema50 <= 0.0)
+      return false;
+
+   if(direction == DIR_LONG)
+      return h1Close > ema21 && ema21 > ema50;
+   if(direction == DIR_SHORT)
+      return h1Close < ema21 && ema21 < ema50;
+   return false;
+}
+
+bool GoldBotBuildBreakoutRetestZone(
+   const string symbol,
+   const GoldBotDirection direction,
+   const double breakoutLevel,
+   const IndicatorSnapshot &indicators,
+   EntryZone &zone
+)
+{
+   GoldBotResetEntryZone(zone);
+   if(direction == DIR_NONE || breakoutLevel <= 0.0 || indicators.ema21 <= 0.0 || indicators.vwap <= 0.0 || indicators.atr <= 0.0)
+      return false;
+
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   if(point <= 0.0)
+      point = 0.01;
+
+   double padding = indicators.atr * MathMax(0.0, InpBreakoutZoneAtr);
+   if(padding <= 0.0)
+      padding = point * 10.0;
+
+   double bottom = MathMin(breakoutLevel, MathMin(indicators.ema21, indicators.vwap)) - padding;
+   double top = MathMax(breakoutLevel, MathMax(indicators.ema21, indicators.vwap)) + padding;
+   if(bottom <= 0.0 || top <= bottom)
+      return false;
+
+   double maxWidth = indicators.atr * MathMax(0.10, InpBreakoutMaxZoneAtr);
+   if(maxWidth > 0.0 && top - bottom > maxWidth)
+   {
+      double center = (breakoutLevel + indicators.ema21 + indicators.vwap) / 3.0;
+      bottom = center - maxWidth / 2.0;
+      top = center + maxWidth / 2.0;
+      if(bottom <= 0.0 || top <= bottom)
+         return false;
+   }
+
+   zone.valid = true;
+   zone.bottom = bottom;
+   zone.top = top;
+   zone.midpoint = bottom + (top - bottom) / 2.0;
+   zone.quarterPoint = bottom + (top - bottom) * 0.25;
+   return true;
+}
+
+bool GoldBotBreakoutRetestSetupPass(
+   const string symbol,
+   const IndicatorSnapshot &indicators,
+   GoldBotDirection &direction,
+   double &score,
+   EntryZone &zone
+)
+{
+   direction = DIR_NONE;
+   score = 0.0;
+   GoldBotResetEntryZone(zone);
+
+   if(!InpEnableBreakoutRetestSetup)
+      return false;
+   if(indicators.atr <= 0.0 || !indicators.atrPass)
+      return false;
+
+   int lookback = MathMax(4, InpBreakoutLookbackBars);
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   int copied = CopyRates(symbol, PERIOD_M15, 1, lookback + 1, rates);
+   if(copied < lookback + 1)
+      return false;
+
+   double previousHigh = rates[1].high;
+   double previousLow = rates[1].low;
+   for(int i = 2; i <= lookback; i++)
+   {
+      previousHigh = MathMax(previousHigh, rates[i].high);
+      previousLow = MathMin(previousLow, rates[i].low);
+   }
+
+   double buffer = indicators.atr * MathMax(0.0, InpBreakoutRangeBufferAtr);
+   double body = MathAbs(rates[0].close - rates[0].open);
+   double bodyAtr = body / indicators.atr;
+   bool bodyOk = bodyAtr >= InpBreakoutMinBodyAtr;
+   bool longBreak = rates[0].close > previousHigh + buffer;
+   bool shortBreak = rates[0].close < previousLow - buffer;
+   if(longBreak && shortBreak)
+   {
+      double longDistance = rates[0].close - previousHigh;
+      double shortDistance = previousLow - rates[0].close;
+      shortBreak = shortDistance > longDistance;
+      longBreak = !shortBreak;
+   }
+
+   if(!longBreak && !shortBreak)
+      return false;
+
+   GoldBotDirection candidateDirection = longBreak ? DIR_LONG : DIR_SHORT;
+   double breakoutLevel = longBreak ? previousHigh : previousLow;
+   bool hourOk = GoldBotStrictHourApplies(candidateDirection, InpBreakoutLongHours, InpBreakoutShortHours);
+   double diGap = MathAbs(indicators.plusDI - indicators.minusDI);
+   bool adxOk = indicators.adx >= InpBreakoutMinAdx;
+   bool diOk = diGap >= InpBreakoutMinDiGap
+      && ((candidateDirection == DIR_LONG && indicators.plusDI > indicators.minusDI)
+          || (candidateDirection == DIR_SHORT && indicators.minusDI > indicators.plusDI));
+   bool emaOk = !InpBreakoutRequireEma
+      || (candidateDirection == DIR_LONG ? indicators.emaLong : indicators.emaShort);
+   bool vwapOk = !InpBreakoutRequireVwap
+      || (candidateDirection == DIR_LONG ? indicators.vwapLong : indicators.vwapShort);
+   bool h1Ok = !InpBreakoutRequireH1Trend || GoldBotBreakoutH1TrendPass(symbol, candidateDirection);
+   bool zoneOk = GoldBotBuildBreakoutRetestZone(symbol, candidateDirection, breakoutLevel, indicators, zone);
+
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   if(bodyOk && hourOk && adxOk && diOk && emaOk && vwapOk && h1Ok && zoneOk)
+   {
+      direction = candidateDirection;
+      score = InpBreakoutBaseScore;
+      GoldBotJournal(StringFormat("Breakout retest setup accepted dir=%d hour=%d close=%.2f level=%.2f prevHigh=%.2f prevLow=%.2f bodyAtr=%.2f minBodyAtr=%.2f adx=%.2f minAdx=%.2f diGap=%.2f minDiGap=%.2f ema=%s vwap=%s h1=%s zone=%.2f-%.2f baseScore=%.2f",
+         direction,
+         nowParts.hour,
+         rates[0].close,
+         breakoutLevel,
+         previousHigh,
+         previousLow,
+         bodyAtr,
+         InpBreakoutMinBodyAtr,
+         indicators.adx,
+         InpBreakoutMinAdx,
+         diGap,
+         InpBreakoutMinDiGap,
+         emaOk ? "yes" : "no",
+         vwapOk ? "yes" : "no",
+         h1Ok ? "yes" : "no",
+         zone.bottom,
+         zone.top,
+         score));
+      return true;
+   }
+
+   GoldBotJournal(StringFormat("Breakout retest setup blocked dir=%d hour=%d close=%.2f level=%.2f prevHigh=%.2f prevLow=%.2f bodyAtr=%.2f minBodyAtr=%.2f body=%s hourOk=%s adx=%.2f minAdx=%.2f adxOk=%s diGap=%.2f minDiGap=%.2f diOk=%s ema=%s vwap=%s h1=%s zone=%s",
+      candidateDirection,
+      nowParts.hour,
+      rates[0].close,
+      breakoutLevel,
+      previousHigh,
+      previousLow,
+      bodyAtr,
+      InpBreakoutMinBodyAtr,
+      bodyOk ? "yes" : "no",
+      hourOk ? "yes" : "no",
+      indicators.adx,
+      InpBreakoutMinAdx,
+      adxOk ? "yes" : "no",
+      diGap,
+      InpBreakoutMinDiGap,
+      diOk ? "yes" : "no",
+      emaOk ? "yes" : "no",
+      vwapOk ? "yes" : "no",
+      h1Ok ? "yes" : "no",
+      zoneOk ? "yes" : "no"));
+   return false;
+}
+
+bool GoldBotContinuationSetupPass(
+   const string symbol,
+   const GoldBotDirection direction,
+   const IndicatorSnapshot &indicators,
+   const bool emaPass,
+   const bool vwapPass,
+   const double score,
+   const int confluenceCount,
+   const int enabledConfluences,
+   EntryZone &zone
+)
+{
+   if(!InpEnableContinuationPullbackSetup)
+      return false;
+   if(!GoldBotStrictHourApplies(direction, InpContinuationLongHours, InpContinuationShortHours))
+      return false;
+
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   const double diGap = MathAbs(indicators.plusDI - indicators.minusDI);
+   const bool adxOk = indicators.adx >= InpContinuationMinAdx;
+   const bool diGapOk = diGap >= InpContinuationMinDiGap;
+   const bool vwapOk = !InpContinuationRequireVwap || vwapPass;
+   const bool emaOk = !InpContinuationRequireEma || emaPass;
+
+   bool zoneOk = GoldBotBuildContinuationEntryZone(symbol, indicators, zone);
+   bool candlePattern = false;
+   bool rsiShift = false;
+   bool microChoCH = false;
+   int checksHit = 0;
+   bool m5Ok = true;
+   int requiredChecks = MathMax(1, MathMin(3, InpContinuationPullbackChecks));
+   if(zoneOk && InpContinuationRequireM5Pullback)
+      m5Ok = GoldBotPullbackConfirmed(symbol, zone, direction, InpRsiPeriod, requiredChecks, candlePattern, rsiShift, microChoCH, checksHit);
+
+   if(adxOk && diGapOk && vwapOk && emaOk && zoneOk && m5Ok)
+   {
+      GoldBotJournal(StringFormat("Continuation setup accepted dir=%d hour=%d adx=%.2f minAdx=%.2f diGap=%.2f minDiGap=%.2f ema=%s vwap=%s zone=%.2f-%.2f m5Checks=%d required=%d score=%.2f confluences=%d/%d",
+         direction,
+         nowParts.hour,
+         indicators.adx,
+         InpContinuationMinAdx,
+         diGap,
+         InpContinuationMinDiGap,
+         emaPass ? "yes" : "no",
+         vwapPass ? "yes" : "no",
+         zone.bottom,
+         zone.top,
+         checksHit,
+         requiredChecks,
+         score,
+         confluenceCount,
+         enabledConfluences));
+      return true;
+   }
+
+   GoldBotJournal(StringFormat("Continuation setup blocked dir=%d hour=%d adx=%.2f minAdx=%.2f diGap=%.2f minDiGap=%.2f ema=%s vwap=%s zone=%s m5Checks=%d required=%d m5=%s score=%.2f confluences=%d/%d",
+      direction,
+      nowParts.hour,
+      indicators.adx,
+      InpContinuationMinAdx,
+      diGap,
+      InpContinuationMinDiGap,
+      emaPass ? "yes" : "no",
+      vwapPass ? "yes" : "no",
+      zoneOk ? "yes" : "no",
+      checksHit,
+      requiredChecks,
+      m5Ok ? "yes" : "no",
+      score,
+      confluenceCount,
+      enabledConfluences));
+   return false;
+}
+
+void GoldBotApplyHourSplitGuard(
+   const GoldBotDirection direction,
+   const double score,
+   const int confluenceCount,
+   const int enabledConfluences,
+   int &ladderOrderCount,
+   int &ladderFirstSplit
+)
+{
+   if(!InpEnableHourSplitGuard)
+      return;
+   if(!GoldBotStrictHourApplies(direction, InpSplit1OnlyLongHours, InpSplit1OnlyShortHours))
+      return;
+
+   int originalOrderCount = ladderOrderCount;
+   int originalFirstSplit = ladderFirstSplit;
+   ladderFirstSplit = 1;
+   ladderOrderCount = 1;
+   if(originalOrderCount == ladderOrderCount && originalFirstSplit == ladderFirstSplit)
+      return;
+
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   GoldBotJournal(StringFormat("Hour split guard adjusted dir=%d hour=%d originalFirstSplit=%d originalOrderCount=%d finalFirstSplit=%d finalOrderCount=%d score=%.2f confluences=%d/%d",
+      direction,
+      nowParts.hour,
+      originalFirstSplit,
+      originalOrderCount,
+      ladderFirstSplit,
+      ladderOrderCount,
+      score,
+      confluenceCount,
+      enabledConfluences));
+}
+
+bool GoldBotRegimePass(
+   const string symbol,
+   const GoldBotDirection direction,
+   const SMCResult &smc,
+   const bool enabled,
+   const int slopeBars,
+   const double minSlopeAtr,
+   const double maxExtensionAtr,
+   const bool requireH1Direction,
+   const double score,
+   const int confluenceCount,
+   const int enabledConfluences,
+   double &slopeAtr,
+   double &extensionAtr
+)
+{
+   slopeAtr = 0.0;
+   extensionAtr = 0.0;
+
+   int normalizedSlopeBars = MathMax(1, slopeBars);
+   double emaNow = GoldBotMA(symbol, PERIOD_H1, 21, 1);
+   double emaPast = GoldBotMA(symbol, PERIOD_H1, 21, normalizedSlopeBars + 1);
+   double atr = GoldBotATR(symbol, PERIOD_H1, 14, 1);
+   double h1Close = iClose(symbol, PERIOD_H1, 1);
+
+   bool hasRegimeData = emaNow != EMPTY_VALUE
+      && emaPast != EMPTY_VALUE
+      && atr != EMPTY_VALUE
+      && atr > 0.0
+      && h1Close > 0.0;
+
+   if(hasRegimeData)
+   {
+      slopeAtr = (emaNow - emaPast) / atr;
+      extensionAtr = MathAbs(h1Close - emaNow) / atr;
+   }
+
+   if(!enabled)
+      return true;
+
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+
+   if(!hasRegimeData)
+   {
+      GoldBotJournal(StringFormat("Regime filter blocked reason=unavailable dir=%d slopeAtr=%.2f extensionAtr=%.2f h1Dir=%d score=%.2f confluences=%d/%d hour=%d",
+         direction,
+         slopeAtr,
+         extensionAtr,
+         smc.h1Direction,
+         score,
+         confluenceCount,
+         enabledConfluences,
+         nowParts.hour));
+      return false;
+   }
+
+   string reason = "";
+   if(direction == DIR_LONG)
+   {
+      if(slopeAtr < minSlopeAtr)
+         reason = "weak_long_slope";
+      else if(maxExtensionAtr > 0.0 && extensionAtr > maxExtensionAtr)
+         reason = "long_overextension";
+      else if(requireH1Direction && smc.h1Direction == DIR_SHORT)
+         reason = "h1_direction_conflict";
+   }
+   else if(direction == DIR_SHORT)
+   {
+      if(-slopeAtr < minSlopeAtr)
+         reason = "weak_short_slope";
+      else if(maxExtensionAtr > 0.0 && extensionAtr > maxExtensionAtr)
+         reason = "short_overextension";
+      else if(requireH1Direction && smc.h1Direction == DIR_LONG)
+         reason = "h1_direction_conflict";
+   }
+
+   if(StringLen(reason) <= 0)
+      return true;
+
+   GoldBotJournal(StringFormat("Regime filter blocked reason=%s dir=%d slopeAtr=%.2f extensionAtr=%.2f h1Dir=%d score=%.2f confluences=%d/%d hour=%d",
+      reason,
+      direction,
+      slopeAtr,
+      extensionAtr,
+      smc.h1Direction,
+      score,
+      confluenceCount,
+      enabledConfluences,
+      nowParts.hour));
+   return false;
 }
 
 bool GoldBotIsNewM15Bar(const string symbol)
@@ -855,6 +1493,15 @@ int GoldBotSplitFromComment(const string comment)
    return (int)StringToInteger(StringSubstr(comment, underscore + 1));
 }
 
+string GoldBotSetupName(const int setupCode)
+{
+   if(setupCode == GOLDBOT_SETUP_CONTINUATION)
+      return "continuation";
+   if(setupCode == GOLDBOT_SETUP_BREAKOUT_RETEST)
+      return "breakout_retest";
+   return "smc";
+}
+
 void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long positionId, const string comment, const long dealType)
 {
    if(orderTicket == 0 || positionId <= 0)
@@ -869,6 +1516,7 @@ void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long posi
    GlobalVariableSet(posKey + ".scoreBucket", GoldBotMetadataValue(orderKey, "scoreBucket", -1.0));
    GlobalVariableSet(posKey + ".confluences", GoldBotMetadataValue(orderKey, "confluences", -1.0));
    GlobalVariableSet(posKey + ".enabledConfluences", GoldBotMetadataValue(orderKey, "enabledConfluences", -1.0));
+   GlobalVariableSet(posKey + ".setup", GoldBotMetadataValue(orderKey, "setup", (double)GOLDBOT_SETUP_SMC));
 
    GlobalVariableDel(orderKey + ".dir");
    GlobalVariableDel(orderKey + ".split");
@@ -876,6 +1524,7 @@ void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long posi
    GlobalVariableDel(orderKey + ".scoreBucket");
    GlobalVariableDel(orderKey + ".confluences");
    GlobalVariableDel(orderKey + ".enabledConfluences");
+   GlobalVariableDel(orderKey + ".setup");
 }
 
 void GoldBotDeletePositionMetadata(const long positionId)
@@ -889,6 +1538,7 @@ void GoldBotDeletePositionMetadata(const long positionId)
    GlobalVariableDel(posKey + ".scoreBucket");
    GlobalVariableDel(posKey + ".confluences");
    GlobalVariableDel(posKey + ".enabledConfluences");
+   GlobalVariableDel(posKey + ".setup");
 }
 
 GoldBotDirection GoldBotLegacySignalDirection(const string symbol, const IndicatorSnapshot &indicators)
