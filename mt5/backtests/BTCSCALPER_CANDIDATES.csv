@@ -1,0 +1,5 @@
+name,description,overrides
+baseline,All strategies enabled default params,
+mr-only,Mean Reversion only,InpEnableVwapReversion=false\nInpEnableMomentum=false
+vwap-only,VWAP Reversion only,InpEnableMeanReversion=false\nInpEnableMomentum=false
+aggressive,Higher risk and tighter entries,InpRiskPerTradePct=3.0\nInpMrBbDeviation=1.5\nInpVwapZscoreEntry=1.5\nInpMaxDailyLossPct=8.0

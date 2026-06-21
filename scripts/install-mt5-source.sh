@@ -10,6 +10,8 @@ mkdir -p \
   "$MT5_ROOT/MQL5/Include/GoldBot" \
   "$MT5_ROOT/MQL5/Experts/GoldScalper" \
   "$MT5_ROOT/MQL5/Include/GoldScalper" \
+  "$MT5_ROOT/MQL5/Experts/BTCScalper" \
+  "$MT5_ROOT/MQL5/Include/BTCScalper" \
   "$MT5_ROOT/MQL5/Profiles/Tester"
 
 install_source() {
@@ -29,7 +31,9 @@ install_source "$ROOT_DIR/mt5/Experts/GoldBot/GoldBot.mq5" "$MT5_ROOT/MQL5/Exper
 for source_file in "$ROOT_DIR"/mt5/Include/GoldBot/*.mqh; do
   install_source "$source_file" "$MT5_ROOT/MQL5/Include/GoldBot/$(basename "$source_file")"
 done
-cp "$ROOT_DIR/mt5/Presets/GoldBot.optimized.set" "$MT5_ROOT/MQL5/Profiles/Tester/GoldBot.optimized.set"
+for preset_file in "$ROOT_DIR"/mt5/Presets/GoldBot*.set; do
+  cp "$preset_file" "$MT5_ROOT/MQL5/Profiles/Tester/$(basename "$preset_file")"
+done
 
 # GoldScalper
 if [[ -f "$ROOT_DIR/mt5/Experts/GoldScalper/GoldScalper.mq5" ]]; then
@@ -41,6 +45,18 @@ if [[ -f "$ROOT_DIR/mt5/Experts/GoldScalper/GoldScalper.mq5" ]]; then
     cp "$ROOT_DIR/mt5/Presets/GoldScalper.optimized.set" "$MT5_ROOT/MQL5/Profiles/Tester/GoldScalper.optimized.set"
   fi
   echo "Installed GoldScalper source into $MT5_ROOT/MQL5"
+fi
+
+# BTCScalper
+if [[ -f "$ROOT_DIR/mt5/Experts/BTCScalper/BTCScalper.mq5" ]]; then
+  install_source "$ROOT_DIR/mt5/Experts/BTCScalper/BTCScalper.mq5" "$MT5_ROOT/MQL5/Experts/BTCScalper/BTCScalper.mq5"
+  for source_file in "$ROOT_DIR"/mt5/Include/BTCScalper/*.mqh; do
+    install_source "$source_file" "$MT5_ROOT/MQL5/Include/BTCScalper/$(basename "$source_file")"
+  done
+  if [[ -f "$ROOT_DIR/mt5/Presets/BTCScalper.optimized.set" ]]; then
+    cp "$ROOT_DIR/mt5/Presets/BTCScalper.optimized.set" "$MT5_ROOT/MQL5/Profiles/Tester/BTCScalper.optimized.set"
+  fi
+  echo "Installed BTCScalper source into $MT5_ROOT/MQL5"
 fi
 
 echo "Installed GoldBot source into $MT5_ROOT/MQL5"
