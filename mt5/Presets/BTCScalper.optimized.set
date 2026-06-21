@@ -1,6 +1,6 @@
 ; BTCScalper default preset
 ; Aggressive intraday BTCUSD EA
-InpSymbol=BTCUSD
+InpSymbol=BTC
 InpMagicNumber=26062201
 InpRiskPerTradePct=2.0
 InpMinLot=0.01

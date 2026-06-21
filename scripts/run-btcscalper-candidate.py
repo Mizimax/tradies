@@ -40,7 +40,7 @@ def main() -> int:
     parser.add_argument("--from-date", default="2025.12.22")
     parser.add_argument("--to-date", default="2026.06.22")
     parser.add_argument("--deposit", default="100000")
-    parser.add_argument("--symbol", default="")
+    parser.add_argument("--symbol", default="BTC")
     parser.add_argument("--period", default="M5")
     parser.add_argument("--report-suffix", default="", help="Append a suffix to the MT5 report name")
     parser.add_argument("--dry-run", action="store_true", help="Print the command without running MT5")
@@ -77,11 +77,8 @@ def main() -> int:
         "MT5_EXPERT": "BTCScalper\\BTCScalper.ex5",
         "MT5_PRESET": "BTCScalper.optimized.set",
         "MT5_PERIOD": args.period,
+        "MT5_SYMBOL": args.symbol,
     }
-    if args.symbol:
-        env["MT5_SYMBOL"] = args.symbol
-    if args.period:
-        env["MT5_PERIOD"] = args.period
 
     print(f"# {candidate['name']}: {candidate['description']}")
     print(shell_command(env))

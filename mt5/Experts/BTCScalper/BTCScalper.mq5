@@ -15,7 +15,7 @@
 //+------------------------------------------------------------------+
 
 //--- Core
-input string   InpSymbol              = "BTCUSD";
+input string   InpSymbol              = "BTC";
 input long     InpMagicNumber         = 26062201;    // unique magic
 input double   InpRiskPerTradePct     = 2.0;         // aggressive: 2% per trade
 input double   InpMinLot              = 0.01;
