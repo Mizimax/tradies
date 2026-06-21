@@ -202,6 +202,24 @@ GROWTH_FREQ100G_CANDIDATES = [
     "freq100g-streak-monthly-body",
     "freq100g-breakout-no-vwap-no-long18-jan-guard",
 ]
+GROWTH_FREQ100H_CANDIDATES = [
+    "freq100h-cancel-siblings-sl",
+    "freq100h-ladder-gap4",
+    "freq100h-long-session19",
+    "freq100h-long-session20",
+    "freq100h-gap4-session19",
+    "freq100h-gap4-session20",
+]
+GROWTH_FREQ100I_CANDIDATES = [
+    "freq100i-session20-score60",
+    "freq100i-session20-split123",
+    "freq100i-session20-maxopen5",
+    "freq100i-session20-short12",
+    "freq100i-session20-breakout-short16",
+    "freq100i-session20-breakout-long10",
+    "freq100i-session20-breakout-wide-quality",
+    "freq100i-session20-score60-short12",
+]
 
 
 def load_candidate_names(matrix: Path) -> set[str]:
@@ -340,10 +358,16 @@ def main() -> int:
     parser.add_argument("--freq100e", action="store_true", help="Run only GoldBot breakout-retest frequency-100E candidates unless names are provided.")
     parser.add_argument("--freq100f", action="store_true", help="Run only GoldBot breakout no-VWAP cleanup frequency-100F candidates unless names are provided.")
     parser.add_argument("--freq100g", action="store_true", help="Run only GoldBot January-guard frequency-100G candidates unless names are provided.")
+    parser.add_argument("--freq100h", action="store_true", help="Run only GoldBot ladder/session January recovery frequency-100H candidates unless names are provided.")
+    parser.add_argument("--freq100i", action="store_true", help="Run only GoldBot session20 frequency-restoration frequency-100I candidates unless names are provided.")
     args = parser.parse_args()
 
     known = load_candidate_names(args.matrix)
-    if args.freq100g:
+    if args.freq100i:
+        candidates = args.candidates or GROWTH_FREQ100I_CANDIDATES
+    elif args.freq100h:
+        candidates = args.candidates or GROWTH_FREQ100H_CANDIDATES
+    elif args.freq100g:
         candidates = args.candidates or GROWTH_FREQ100G_CANDIDATES
     elif args.freq100f:
         candidates = args.candidates or GROWTH_FREQ100F_CANDIDATES

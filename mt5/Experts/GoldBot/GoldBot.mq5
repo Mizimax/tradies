@@ -42,6 +42,7 @@ input double          InpMinRR = 2.0;
 input int             InpMaxHoldBars = 48;
 input int             InpCooldownBars = 16;
 input int             InpStreakCooldownBars = 48;
+input int             InpLadderFillGapBars = 4;
 input int             InpMaxOpenTrades = 2;
 input double          InpMaxDailyLossPct = 3.0;
 input double          InpMaxMonthlyLossPct = 5.0;
@@ -133,6 +134,7 @@ input double          InpBreakoutBaseScore = 25.0;
 input string          InpAllowedEntryHours = "";
 input string          InpAllowedLongEntryHours = "";
 input string          InpAllowedShortEntryHours = "";
+input int             InpLongSessionEndHour = 0;
 input bool            InpAllowLong = true;
 input bool            InpAllowShort = true;
 
@@ -201,6 +203,7 @@ void GoldBotDeletePositionMetadata(const long positionId);
 double GoldBotMetadataValue(const string baseKey, const string field, const double fallback);
 int GoldBotSplitFromComment(const string comment);
 string GoldBotSetupName(const int setupCode);
+bool GoldBotLongSessionEndAllowed(const GoldBotDirection direction, const int longSessionEndHour);
 bool GoldBotAllowedEntryHour(const string allowedHours);
 bool GoldBotDirectionAllowedEntryHour(const GoldBotDirection direction, const string allowedLongHours, const string allowedShortHours);
 bool GoldBotHourListContains(const string allowedHours, const int targetHour);
@@ -265,7 +268,25 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    string comment = HistoryDealGetString(trans.deal, DEAL_COMMENT);
 
    if(dealEntry == DEAL_ENTRY_IN || dealEntry == DEAL_ENTRY_INOUT)
+   {
       GoldBotCopyOrderMetadataToPosition(orderTicket, positionId, comment, dealType);
+      if(InpLadderFillGapBars > 0)
+      {
+         long fillSignalCode = GoldBotSignalCodeFromComment(comment);
+         if(fillSignalCode > 0)
+         {
+            string fillKey = StringFormat("GoldBot_LastFill_%I64d_%I64d", InpMagicNumber, fillSignalCode);
+            datetime gapEnd = TimeCurrent() + InpLadderFillGapBars * PeriodSeconds(PERIOD_M15);
+            GlobalVariableSet(fillKey, (double)TimeCurrent());
+            int cancelledOnFill = GoldBotCancelSiblingPendingSplitsBySignalCode(symbol, InpMagicNumber, fillSignalCode, "ladder_gap_cancel", trade);
+            GoldBotJournal(StringFormat("Ladder fill gap processed signalCode=%I64d bars=%d gapEnd=%s cancelled=%d",
+               fillSignalCode,
+               InpLadderFillGapBars,
+               TimeToString(gapEnd, TIME_DATE | TIME_MINUTES),
+               cancelledOnFill));
+         }
+      }
+   }
 
    datetime dealTime = (datetime)HistoryDealGetInteger(trans.deal, DEAL_TIME);
    MqlDateTime dealParts;
@@ -284,6 +305,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    int enabledConfluences = (int)GoldBotMetadataValue(posKey, "enabledConfluences", -1.0);
    double scoreBucket = GoldBotMetadataValue(posKey, "scoreBucket", -1.0);
    int setupCode = (int)GoldBotMetadataValue(posKey, "setup", (double)GOLDBOT_SETUP_SMC);
+   long signalCode = (long)GoldBotMetadataValue(posKey, "signalCode", (double)GoldBotSignalCodeFromComment(comment));
    string setupName = GoldBotSetupName(setupCode);
    double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT) +
                    HistoryDealGetDouble(trans.deal, DEAL_COMMISSION) +
@@ -308,7 +330,19 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
       comment));
 
    if(dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
+   {
+      if((profit < 0.0 || dealReason == DEAL_REASON_SL) && signalCode > 0)
+      {
+         int cancelledOnSl = GoldBotCancelSiblingPendingSplitsBySignalCode(symbol, InpMagicNumber, signalCode, "sibling_sl_cancel", trade);
+         if(cancelledOnSl > 0)
+            GoldBotJournal(StringFormat("Sibling pending splits cancelled on SL signalCode=%I64d cancelled=%d profit=%.2f reason=%d",
+               signalCode,
+               cancelledOnSl,
+               profit,
+               dealReason));
+      }
       GoldBotUpdateLossStreak(profit);
+   }
 
    if((dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY) && positionId > 0 && !PositionSelectByTicket((ulong)positionId))
       GoldBotDeletePositionMetadata(positionId);
@@ -331,6 +365,7 @@ void OnTick()
 
    GoldBotExpirePendingOrders(symbol, InpMagicNumber, trade);
    GoldBotCancelPendingOnStopBreach(symbol, InpMagicNumber, trade);
+   GoldBotCancelLongPendingAfterSessionEnd(symbol, InpMagicNumber, InpLongSessionEndHour, trade);
    GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), InpMaxHoldBars, InpTp1R, InpTp2R, InpTp3R, InpBreakEvenAtR, InpTrailAfterTp1, InpUseHtfTargetsForTp2Tp3, trade);
 
    double pnlPct = 0.0;
@@ -608,6 +643,18 @@ void OnTick()
          direction,
          InpAllowLong ? "yes" : "no",
          InpAllowShort ? "yes" : "no"));
+      return;
+   }
+
+   if(!InpLegacyParityMode && !GoldBotLongSessionEndAllowed(direction, InpLongSessionEndHour))
+   {
+      MqlDateTime nowParts;
+      TimeToStruct(TimeCurrent(), nowParts);
+      GoldBotJournal(StringFormat("Long session end blocked dir=%d hour=%d cutoff=%d score=%.2f",
+         direction,
+         nowParts.hour,
+         InpLongSessionEndHour,
+         score));
       return;
    }
 
@@ -1132,6 +1179,17 @@ bool GoldBotDirectionAllowedEntryHour(const GoldBotDirection direction, const st
    if(direction == DIR_SHORT && StringLen(allowedShortHours) > 0)
       return GoldBotAllowedEntryHour(allowedShortHours);
    return true;
+}
+
+bool GoldBotLongSessionEndAllowed(const GoldBotDirection direction, const int longSessionEndHour)
+{
+   if(direction != DIR_LONG || longSessionEndHour <= 0)
+      return true;
+
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   int cutoff = MathMax(0, MathMin(23, longSessionEndHour));
+   return nowParts.hour < cutoff;
 }
 
 bool GoldBotStrictHourApplies(const GoldBotDirection direction, const string strictLongHours, const string strictShortHours)
@@ -1731,6 +1789,7 @@ void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long posi
    GlobalVariableSet(posKey + ".confluences", GoldBotMetadataValue(orderKey, "confluences", -1.0));
    GlobalVariableSet(posKey + ".enabledConfluences", GoldBotMetadataValue(orderKey, "enabledConfluences", -1.0));
    GlobalVariableSet(posKey + ".setup", GoldBotMetadataValue(orderKey, "setup", (double)GOLDBOT_SETUP_SMC));
+   GlobalVariableSet(posKey + ".signalCode", GoldBotMetadataValue(orderKey, "signalCode", (double)GoldBotSignalCodeFromComment(comment)));
 
    GlobalVariableDel(orderKey + ".dir");
    GlobalVariableDel(orderKey + ".split");
@@ -1739,6 +1798,7 @@ void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long posi
    GlobalVariableDel(orderKey + ".confluences");
    GlobalVariableDel(orderKey + ".enabledConfluences");
    GlobalVariableDel(orderKey + ".setup");
+   GlobalVariableDel(orderKey + ".signalCode");
 }
 
 void GoldBotDeletePositionMetadata(const long positionId)
@@ -1753,6 +1813,7 @@ void GoldBotDeletePositionMetadata(const long positionId)
    GlobalVariableDel(posKey + ".confluences");
    GlobalVariableDel(posKey + ".enabledConfluences");
    GlobalVariableDel(posKey + ".setup");
+   GlobalVariableDel(posKey + ".signalCode");
 }
 
 GoldBotDirection GoldBotLegacySignalDirection(const string symbol, const IndicatorSnapshot &indicators)

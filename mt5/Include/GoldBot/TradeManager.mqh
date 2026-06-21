@@ -113,6 +113,136 @@ void GoldBotCancelPendingOrders(const string symbol, const long magic, CTrade &t
    }
 }
 
+string GoldBotSignalIdFromComment(const string comment)
+{
+   int underscore = -1;
+   int searchFrom = 0;
+   while(true)
+   {
+      int found = StringFind(comment, "_", searchFrom);
+      if(found < 0)
+         break;
+      underscore = found;
+      searchFrom = found + 1;
+   }
+
+   if(underscore <= 0)
+      return comment;
+   return StringSubstr(comment, 0, underscore);
+}
+
+long GoldBotSignalCodeFromComment(const string comment)
+{
+   string signalId = GoldBotSignalIdFromComment(comment);
+   if(StringLen(signalId) <= 0)
+      return 0;
+   if(StringLen(signalId) > 2 && StringSubstr(signalId, 0, 2) == "GB")
+      return (long)StringToInteger(StringSubstr(signalId, 2));
+   return (long)StringToInteger(signalId);
+}
+
+int GoldBotCancelSiblingPendingSplitsBySignalCode(
+   const string symbol,
+   const long magic,
+   const long signalCode,
+   const string reason,
+   CTrade &trade
+)
+{
+   if(signalCode <= 0)
+      return 0;
+
+   int cancelled = 0;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = OrderGetTicket(i);
+      if(ticket == 0 || !OrderSelect(ticket))
+         continue;
+      if(OrderGetString(ORDER_SYMBOL) != symbol || OrderGetInteger(ORDER_MAGIC) != magic)
+         continue;
+
+      long type = OrderGetInteger(ORDER_TYPE);
+      if(type != ORDER_TYPE_BUY_LIMIT && type != ORDER_TYPE_SELL_LIMIT)
+         continue;
+
+      string comment = OrderGetString(ORDER_COMMENT);
+      if(GoldBotSignalCodeFromComment(comment) != signalCode)
+         continue;
+
+      if(trade.OrderDelete(ticket))
+      {
+         cancelled++;
+         GoldBotJournal(StringFormat("%s ticket=%I64u signalCode=%I64d comment=%s",
+            reason,
+            ticket,
+            signalCode,
+            comment));
+      }
+      else
+      {
+         GoldBotJournal(StringFormat("%s failed ticket=%I64u signalCode=%I64d retcode=%d %s",
+            reason,
+            ticket,
+            signalCode,
+            (int)trade.ResultRetcode(),
+            trade.ResultRetcodeDescription()));
+      }
+   }
+
+   return cancelled;
+}
+
+int GoldBotCancelLongPendingAfterSessionEnd(
+   const string symbol,
+   const long magic,
+   const int longSessionEndHour,
+   CTrade &trade
+)
+{
+   if(longSessionEndHour <= 0)
+      return 0;
+
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   int cutoff = MathMax(0, MathMin(23, longSessionEndHour));
+   if(nowParts.hour < cutoff)
+      return 0;
+
+   int cancelled = 0;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = OrderGetTicket(i);
+      if(ticket == 0 || !OrderSelect(ticket))
+         continue;
+      if(OrderGetString(ORDER_SYMBOL) != symbol || OrderGetInteger(ORDER_MAGIC) != magic)
+         continue;
+      if(OrderGetInteger(ORDER_TYPE) != ORDER_TYPE_BUY_LIMIT)
+         continue;
+
+      string comment = OrderGetString(ORDER_COMMENT);
+      if(trade.OrderDelete(ticket))
+      {
+         cancelled++;
+         GoldBotJournal(StringFormat("long_session_pending_cancel ticket=%I64u hour=%d cutoff=%d comment=%s",
+            ticket,
+            nowParts.hour,
+            cutoff,
+            comment));
+      }
+      else
+      {
+         GoldBotJournal(StringFormat("long_session_pending_cancel failed ticket=%I64u hour=%d cutoff=%d retcode=%d %s",
+            ticket,
+            nowParts.hour,
+            cutoff,
+            (int)trade.ResultRetcode(),
+            trade.ResultRetcodeDescription()));
+      }
+   }
+
+   return cancelled;
+}
+
 void GoldBotExpirePendingOrders(const string symbol, const long magic, CTrade &trade)
 {
    for(int i = OrdersTotal() - 1; i >= 0; i--)
@@ -162,6 +292,8 @@ bool GoldBotPlaceLadder(
    const double sl,
    const double score,
    const string signalId,
+   const int setupCode,
+   const string setupName,
    const int ladderOrderCount,
    const int ladderFirstSplit,
    const int confluenceCount,
@@ -238,8 +370,11 @@ bool GoldBotPlaceLadder(
          GlobalVariableSet(orderKey + ".scoreBucket", (double)scoreBucket);
          GlobalVariableSet(orderKey + ".confluences", (double)confluenceCount);
          GlobalVariableSet(orderKey + ".enabledConfluences", (double)enabledConfluences);
-         GoldBotJournal(StringFormat("Pending order placed signalId=%s split=%d dir=%d entry=%.2f sl=%.2f lot=%.2f order=%I64u scoreBucket=%d confluences=%d/%d hour=%d",
+         GlobalVariableSet(orderKey + ".setup", (double)setupCode);
+         GlobalVariableSet(orderKey + ".signalCode", (double)GoldBotSignalCodeFromComment(comment));
+         GoldBotJournal(StringFormat("Pending order placed signalId=%s setup=%s split=%d dir=%d entry=%.2f sl=%.2f lot=%.2f order=%I64u scoreBucket=%d confluences=%d/%d hour=%d",
             signalId,
+            setupName,
             splitNumber,
             direction,
             entries[entryIndex],
@@ -253,8 +388,9 @@ bool GoldBotPlaceLadder(
       }
       else
       {
-         GoldBotJournal(StringFormat("Pending order failed signalId=%s split=%d dir=%d entry=%.2f sl=%.2f lot=%.2f retcode=%d %s",
+         GoldBotJournal(StringFormat("Pending order failed signalId=%s setup=%s split=%d dir=%d entry=%.2f sl=%.2f lot=%.2f retcode=%d %s",
             signalId,
+            setupName,
             splitNumber,
             direction,
             entries[entryIndex],
