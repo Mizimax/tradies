@@ -214,28 +214,44 @@ double GoldScalperPeakEquity()
    return peak;
 }
 
-double GoldScalperDrawdownScaledRisk(const double baseRiskPct)
+void GoldScalperResetTesterRiskState()
+{
+   if(!MQLInfoInteger(MQL_TESTER))
+      return;
+
+   GlobalVariableSet("GoldScalper_peakEquity", AccountInfoDouble(ACCOUNT_EQUITY));
+}
+
+double GoldScalperDrawdownScaledRisk(const double baseRiskPct,
+                                     const double scaleHalfAtPct = 10.0,
+                                     const double scaleQuarterAtPct = 15.0,
+                                     const double stopAtPct = 20.0)
 {
    double peak = GoldScalperPeakEquity();
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
    double dd = (peak > 0) ? (peak - equity) / peak * 100.0 : 0.0;
 
    // Scale down risk as drawdown increases
-   if(dd >= 20.0)
+   if(stopAtPct > 0.0 && dd >= stopAtPct)
    {
-      Print("GoldScalper: DD=", DoubleToString(dd, 2), "% >= 20%. STOP trading.");
+      Print("GoldScalper: DD=", DoubleToString(dd, 2), "% >= ",
+            DoubleToString(stopAtPct, 2), "%. STOP trading.");
       return 0.0;
    }
-   if(dd >= 15.0)
+   if(scaleQuarterAtPct > 0.0 && dd >= scaleQuarterAtPct)
    {
       double scaled = baseRiskPct * 0.25;
-      Print("GoldScalper: DD=", DoubleToString(dd, 2), "% >= 15%. Risk scaled to ", DoubleToString(scaled, 3), "%");
+      Print("GoldScalper: DD=", DoubleToString(dd, 2), "% >= ",
+            DoubleToString(scaleQuarterAtPct, 2), "%. Risk scaled to ",
+            DoubleToString(scaled, 3), "%");
       return scaled;
    }
-   if(dd >= 10.0)
+   if(scaleHalfAtPct > 0.0 && dd >= scaleHalfAtPct)
    {
       double scaled = baseRiskPct * 0.50;
-      Print("GoldScalper: DD=", DoubleToString(dd, 2), "% >= 10%. Risk scaled to ", DoubleToString(scaled, 3), "%");
+      Print("GoldScalper: DD=", DoubleToString(dd, 2), "% >= ",
+            DoubleToString(scaleHalfAtPct, 2), "%. Risk scaled to ",
+            DoubleToString(scaled, 3), "%");
       return scaled;
    }
    return baseRiskPct;

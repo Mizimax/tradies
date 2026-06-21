@@ -42,6 +42,7 @@ def main() -> int:
     parser.add_argument("--deposit", default="100000")
     parser.add_argument("--symbol", default="")
     parser.add_argument("--period", default="")
+    parser.add_argument("--report-suffix", default="", help="Append a suffix to the MT5 report name")
     parser.add_argument("--dry-run", action="store_true", help="Print the command without running MT5")
     parser.add_argument("--list", action="store_true", help="List available candidates")
     args = parser.parse_args()
@@ -65,6 +66,8 @@ def main() -> int:
         return 2
 
     report_name = f"GoldScalper-{candidate['name'].strip()}"
+    if args.report_suffix:
+        report_name = f"{report_name}-{args.report_suffix.strip()}"
     env = {
         "MT5_DEPOSIT": args.deposit,
         "MT5_FROM": args.from_date,

@@ -9,29 +9,157 @@ WINEPATH="$APP/Contents/SharedSupport/wine/bin/winepath"
 METAEDITOR="$PREFIX/drive_c/Program Files/MetaTrader 5/metaeditor64.exe"
 MT5_ROOT="$PREFIX/drive_c/Program Files/MetaTrader 5"
 SOURCE="$MT5_ROOT/MQL5/Experts/GoldScalper/GoldScalper.mq5"
+SOURCE_DIR="$MT5_ROOT/MQL5/Experts/GoldScalper"
+SOURCE_FILE="GoldScalper.mq5"
 EX5="$MT5_ROOT/MQL5/Experts/GoldScalper/GoldScalper.ex5"
 LOG="$MT5_ROOT/MQL5/Experts/GoldScalper/GoldScalper.log"
+TMP_LOG="/tmp/goldscalper-metaeditor-compile.log"
+INCLUDE_ROOT="$MT5_ROOT/MQL5"
+INCLUDE_DIR="$INCLUDE_ROOT/Include"
+STOP_RUNNING="${MT5_STOP_RUNNING:-1}"
+
+require_executable() {
+  local path="$1"
+  local label="$2"
+  if [[ ! -x "$path" ]]; then
+    echo "$label not found or not executable: $path" >&2
+    exit 1
+  fi
+}
+
+require_file() {
+  local path="$1"
+  local label="$2"
+  if [[ ! -f "$path" ]]; then
+    echo "$label not found: $path" >&2
+    exit 1
+  fi
+}
+
+require_dir() {
+  local path="$1"
+  local label="$2"
+  if [[ ! -d "$path" ]]; then
+    echo "$label not found: $path" >&2
+    exit 1
+  fi
+}
+
+print_text_file() {
+  local path="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$path" <<'PY'
+import pathlib
+import sys
+
+data = pathlib.Path(sys.argv[1]).read_bytes()
+for encoding in ("utf-16", "utf-8"):
+    try:
+        print(data.decode(encoding, errors="ignore"), end="")
+        break
+    except Exception:
+        continue
+PY
+  else
+    LC_ALL=C tr -d '\000' < "$path"
+  fi
+}
+
+print_compile_logs() {
+  echo
+  echo "MetaEditor stdout/stderr log: $TMP_LOG"
+  if [[ -f "$TMP_LOG" ]]; then
+    print_text_file "$TMP_LOG"
+  else
+    echo "  missing"
+  fi
+
+  echo
+  echo "MetaEditor compile log: $LOG"
+  if [[ -f "$LOG" ]]; then
+    print_text_file "$LOG"
+  else
+    echo "  missing"
+  fi
+}
+
+mt5_processes() {
+  ps aux | grep -Ei 'terminal64\.exe|metatester64\.exe|metaeditor64\.exe' | grep -v grep || true
+}
+
+require_executable "$WINE" "Wine launcher"
+require_executable "$WINEPATH" "winepath launcher"
+require_file "$METAEDITOR" "MetaEditor"
+
+if [[ "$STOP_RUNNING" == "1" || "$STOP_RUNNING" == "true" || "$STOP_RUNNING" == "TRUE" ]]; then
+  pkill -f "C:\\\\Program Files\\\\MetaTrader 5\\\\terminal64.exe" 2>/dev/null || true
+  pkill -f "C:\\\\Program Files\\\\MetaTrader 5\\\\metatester64.exe" 2>/dev/null || true
+  pkill -f "terminal64.exe" 2>/dev/null || true
+  pkill -f "metatester64.exe" 2>/dev/null || true
+  sleep 2
+fi
 
 "$ROOT_DIR/scripts/install-mt5-source.sh" >/dev/null
 
+require_file "$SOURCE" "GoldScalper source"
+require_dir "$INCLUDE_DIR" "MT5 include directory"
+require_dir "$INCLUDE_DIR/GoldScalper" "GoldScalper include directory"
+for include_file in \
+  AsianBreakout.mqh \
+  MeanReversion.mqh \
+  MomentumContinuation.mqh \
+  NewsFilter.mqh \
+  RegimeDetector.mqh \
+  RiskManager.mqh \
+  SessionTime.mqh; do
+  require_file "$INCLUDE_DIR/GoldScalper/$include_file" "GoldScalper include file"
+done
+
+rm -f "$LOG" "$TMP_LOG"
 before="$(stat -f '%m' "$EX5" 2>/dev/null || echo 0)"
-rm -f "$LOG"
 
-SOURCE_WIN="$(WINEPREFIX="$PREFIX" "$WINEPATH" -w "$SOURCE")"
-INCLUDE_WIN="$(WINEPREFIX="$PREFIX" "$WINEPATH" -w "$MT5_ROOT/MQL5")"
+# install-mt5-source.sh preserves repo mtimes; force MetaEditor to rebuild.
+touch "$SOURCE"
 
-WINEPREFIX="$PREFIX" "$WINE" "$METAEDITOR" "/compile:$SOURCE_WIN" "/include:$INCLUDE_WIN" /log >/tmp/goldscalper-metaeditor-compile.log 2>&1 &
+(
+  cd "$SOURCE_DIR"
+  WINEPREFIX="$PREFIX" "$WINE" "$METAEDITOR" "/compile:$SOURCE_FILE" /log
+) >"$TMP_LOG" 2>&1 &
+metaeditor_pid=$!
 
 echo "Compiling GoldScalper..."
-for _ in $(seq 1 30); do
+for _ in $(seq 1 60); do
   sleep 1
   after="$(stat -f '%m' "$EX5" 2>/dev/null || echo 0)"
-  if [[ "$after" != "$before" ]]; then
+  if [[ "$after" != "0" && "$after" != "$before" && -f "$EX5" ]]; then
     echo "GoldScalper compiled: $EX5"
-    if [[ -f "$LOG" ]]; then cat "$LOG"; fi
+    if [[ -f "$LOG" ]]; then print_text_file "$LOG"; fi
     exit 0
   fi
+  if ! kill -0 "$metaeditor_pid" 2>/dev/null; then
+    echo "MetaEditor exited without updating GoldScalper.ex5." >&2
+    echo "Source:   $SOURCE" >&2
+    echo "Compiled: $EX5" >&2
+    echo "Include:  $INCLUDE_ROOT" >&2
+    running_mt5="$(mt5_processes)"
+    if [[ -n "$running_mt5" ]]; then
+      echo >&2
+      echo "Running MT5 processes detected; close them before command-line compile:" >&2
+      echo "$running_mt5" >&2
+    fi
+    print_compile_logs >&2
+    exit 1
+  fi
 done
-echo "Compile failed."
-if [[ -f "$LOG" ]]; then cat "$LOG"; fi
+echo "MetaEditor command-line compile did not update GoldScalper.ex5." >&2
+echo "Source:   $SOURCE" >&2
+echo "Compiled: $EX5" >&2
+echo "Include:  $INCLUDE_ROOT" >&2
+running_mt5="$(mt5_processes)"
+if [[ -n "$running_mt5" ]]; then
+  echo >&2
+  echo "Running MT5 processes detected; close them before command-line compile:" >&2
+  echo "$running_mt5" >&2
+fi
+print_compile_logs >&2
 exit 1
