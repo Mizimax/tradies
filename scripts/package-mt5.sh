@@ -13,7 +13,7 @@ mkdir -p "$PACKAGE_DIR/MQL5/Presets"
 
 cp "$ROOT_DIR/mt5/Experts/GoldBot/GoldBot.mq5" "$PACKAGE_DIR/MQL5/Experts/GoldBot/GoldBot.mq5"
 cp "$ROOT_DIR/mt5/Include/GoldBot/"*.mqh "$PACKAGE_DIR/MQL5/Include/GoldBot/"
-cp "$ROOT_DIR/mt5/Presets/GoldBot.optimized.set" "$PACKAGE_DIR/MQL5/Presets/GoldBot.optimized.set"
+cp "$ROOT_DIR"/mt5/Presets/GoldBot*.set "$PACKAGE_DIR/MQL5/Presets/"
 cp "$ROOT_DIR/mt5/backtests/README.md" "$PACKAGE_DIR/STRATEGY_TESTER_README.md"
 
 (

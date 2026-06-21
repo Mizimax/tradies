@@ -67,6 +67,50 @@ double GoldBotRSI(const string symbol, const ENUM_TIMEFRAMES tf, const int perio
    return value;
 }
 
+bool GoldBotNearAth(
+   const string symbol,
+   const int lookbackBars,
+   const double proximityPct,
+   double &athHigh,
+   double &currentAsk,
+   double &distancePct
+)
+{
+   athHigh = 0.0;
+   currentAsk = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   distancePct = 0.0;
+   if(lookbackBars <= 0 || proximityPct <= 0.0)
+      return false;
+
+   int highestIdx = iHighest(symbol, PERIOD_M15, MODE_HIGH, lookbackBars, 1);
+   if(highestIdx < 0)
+      return false;
+
+   athHigh = iHigh(symbol, PERIOD_M15, highestIdx);
+   if(athHigh <= 0.0 || currentAsk <= 0.0)
+      return false;
+
+   distancePct = (athHigh - currentAsk) / athHigh * 100.0;
+   return distancePct <= proximityPct;
+}
+
+bool GoldBotH4RsiOverbought(
+   const string symbol,
+   const int rsiPeriod,
+   const double threshold,
+   double &h4Rsi
+)
+{
+   h4Rsi = EMPTY_VALUE;
+   if(threshold <= 0.0 || rsiPeriod <= 0)
+      return false;
+
+   h4Rsi = GoldBotRSI(symbol, PERIOD_H4, rsiPeriod, 1);
+   if(h4Rsi == EMPTY_VALUE)
+      return false;
+   return h4Rsi > threshold;
+}
+
 double GoldBotATR(const string symbol, const ENUM_TIMEFRAMES tf, const int period, const int shift)
 {
    int handle = iATR(symbol, tf, period);

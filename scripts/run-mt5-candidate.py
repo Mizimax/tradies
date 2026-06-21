@@ -42,6 +42,7 @@ def main() -> int:
     parser.add_argument("--deposit", default="100000")
     parser.add_argument("--symbol", default="")
     parser.add_argument("--period", default="")
+    parser.add_argument("--report-suffix", default="", help="Append a suffix to the MT5 report name, e.g. recent-12m")
     parser.add_argument("--dry-run", action="store_true", help="Print the command without running MT5")
     parser.add_argument("--list", action="store_true", help="List available candidates")
     args = parser.parse_args()
@@ -64,7 +65,11 @@ def main() -> int:
             print(f"  {row['name']}", file=sys.stderr)
         return 2
 
-    report_name = f"GoldBot-real-{candidate['name'].strip()}"
+    candidate_name = candidate["name"].strip()
+    report_suffix = args.report_suffix.strip()
+    report_name = f"GoldBot-real-{candidate_name}"
+    if report_suffix:
+        report_name = f"{report_name}-{report_suffix}"
     env = {
         "MT5_DEPOSIT": args.deposit,
         "MT5_FROM": args.from_date,

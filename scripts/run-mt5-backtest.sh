@@ -40,6 +40,7 @@ REPORT_PATH="$REPORT_DIR/$REPORT_NAME"
 MT5_REPORT_PATH="reports\\$REPORT_NAME"
 RUNTIME_SET_NAME="${EXPERT_DIR}.runtime.set"
 RUNTIME_SET="$TESTER_PROFILE_DIR/$RUNTIME_SET_NAME"
+RUN_STAMP="$CONFIG_DIR/$REPORT_NAME.run-stamp"
 
 if [[ ! -x "$WINE" ]]; then
   echo "Wine launcher not found: $WINE" >&2
@@ -173,23 +174,43 @@ else
   CONFIG_ARG="$CONFIG"
 fi
 
+# Prevent malformed-report recovery from copying a stale journal from a previous
+# tester run. The EA normally resets its journal on init, but if MT5 exits early
+# or exports a blank report, stale files under Tester/MQL5/Files can otherwise
+# look like fresh evidence.
+find "$MT5_ROOT/Tester" "$MT5_ROOT/MQL5/Files" -path "*/$EXPERT_DIR/trades.csv" -type f -delete 2>/dev/null || true
+touch "$RUN_STAMP"
+
 if [[ "${MT5_STOP_RUNNING:-1}" == "1" ]]; then
   pkill -f "C:\\\\Program Files\\\\MetaTrader 5\\\\terminal64.exe" 2>/dev/null || true
   pkill -f "terminal64.exe" 2>/dev/null || true
   sleep 2
 fi
 
+set +e
 WINEPREFIX="$PREFIX" "$WINE" "$TERMINAL" "/config:$CONFIG_ARG"
+WINE_STATUS=$?
+set -e
+
+if [[ "$WINE_STATUS" != "0" ]]; then
+  echo "Warning: MT5/Wine exited with status $WINE_STATUS; attempting artifact recovery." >&2
+fi
 
 REPORT_COPIED=0
+ARTIFACT_COPIED=0
+COPIED_REPORT=""
 if [[ -f "$MT5_ROOT/reports/$REPORT_NAME.htm" ]]; then
   cp "$MT5_ROOT/reports/$REPORT_NAME.htm" "$REPORT_DIR/$REPORT_NAME.htm"
   REPORT_COPIED=1
+  ARTIFACT_COPIED=1
+  COPIED_REPORT="$REPORT_DIR/$REPORT_NAME.htm"
 fi
 
 if [[ -f "$MT5_ROOT/reports/$REPORT_NAME.xml" ]]; then
   cp "$MT5_ROOT/reports/$REPORT_NAME.xml" "$REPORT_DIR/$REPORT_NAME.xml"
   REPORT_COPIED=1
+  ARTIFACT_COPIED=1
+  COPIED_REPORT="${COPIED_REPORT:-$REPORT_DIR/$REPORT_NAME.xml}"
 fi
 
 if [[ "$REPORT_COPIED" == "0" ]]; then
@@ -198,7 +219,7 @@ if [[ "$REPORT_COPIED" == "0" ]]; then
 fi
 
 LATEST_TRADES_CSV="$(
-  find "$MT5_ROOT/Tester" "$MT5_ROOT/MQL5/Files" -path "*/$EXPERT_DIR/trades.csv" -type f -print0 2>/dev/null \
+  find "$MT5_ROOT/Tester" "$MT5_ROOT/MQL5/Files" -path "*/$EXPERT_DIR/trades.csv" -type f -newer "$RUN_STAMP" -print0 2>/dev/null \
     | xargs -0 ls -t 2>/dev/null \
     | head -1 || true
 )"
@@ -206,4 +227,41 @@ LATEST_TRADES_CSV="$(
 if [[ -n "$LATEST_TRADES_CSV" && -f "$LATEST_TRADES_CSV" ]]; then
   cp "$LATEST_TRADES_CSV" "$REPORT_DIR/$REPORT_NAME.trades.csv"
   echo "Copied journal: $REPORT_DIR/$REPORT_NAME.trades.csv"
+  ARTIFACT_COPIED=1
+fi
+
+if [[ "$REPORT_COPIED" == "1" && "${MT5_FAIL_ON_MALFORMED_REPORT:-1}" == "1" ]]; then
+  if ! python3 - "$COPIED_REPORT" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = path.read_bytes()
+if data.startswith((b"\xff\xfe", b"\xfe\xff")) or data.count(b"\x00") > 100:
+    text = data.decode("utf-16", errors="ignore")
+else:
+    text = data.decode("utf-8", errors="ignore")
+
+compact = re.sub(r"\s+", " ", text)
+malformed = (
+    "1970.01.01" in compact
+    or "Period: M0" in compact
+    or ">M0<" in compact
+    or "Initial Deposit: 0" in compact
+)
+if malformed:
+    print(f"Malformed MT5 report exported: {path}", file=sys.stderr)
+    print("Report has blank/default tester markers such as M0/1970/deposit 0.", file=sys.stderr)
+    raise SystemExit(1)
+PY
+  then
+    echo "MT5 exported a malformed report for $REPORT_NAME." >&2
+    echo "Inspect terminal and tester logs under: $MT5_ROOT/logs and $MT5_ROOT/Tester/logs" >&2
+    exit 1
+  fi
+fi
+
+if [[ "$WINE_STATUS" != "0" && "$ARTIFACT_COPIED" == "0" ]]; then
+  exit "$WINE_STATUS"
 fi

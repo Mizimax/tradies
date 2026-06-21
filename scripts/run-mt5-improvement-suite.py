@@ -220,6 +220,30 @@ GROWTH_FREQ100I_CANDIDATES = [
     "freq100i-session20-breakout-wide-quality",
     "freq100i-session20-score60-short12",
 ]
+GROWTH_FREQ100J_CANDIDATES = [
+    "freq100j-ath15",
+    "freq100j-ath10",
+    "freq100j-ath20",
+    "freq100j-h4rsi72",
+    "freq100j-h4rsi75",
+    "freq100j-ath15-h4rsi72",
+    "freq100j-ath15-h4rsi72-freqfloor",
+    "freq100j-ath20-h4rsi75-freqfloor",
+]
+GROWTH_FREQ100K_CANDIDATES = [
+    "freq100k-breakout-only",
+    "freq100k-breakout-only-score60",
+    "freq100k-breakout-plus-smc-short7",
+    "freq100k-breakout-plus-smc-short7-long12-18",
+    "freq100k-breakout-plus-smc-no-hour8",
+    "freq100k-breakout-plus-smc-htf-context",
+    "freq100k-breakout-plus-smc-score75",
+]
+GROWTH_FREQ100L_CANDIDATES = [
+    "freq100l-no-breakout-short10",
+    "freq100l-no-breakout-long7",
+    "freq100l-no-breakout-short10-long7",
+]
 
 
 def load_candidate_names(matrix: Path) -> set[str]:
@@ -360,10 +384,19 @@ def main() -> int:
     parser.add_argument("--freq100g", action="store_true", help="Run only GoldBot January-guard frequency-100G candidates unless names are provided.")
     parser.add_argument("--freq100h", action="store_true", help="Run only GoldBot ladder/session January recovery frequency-100H candidates unless names are provided.")
     parser.add_argument("--freq100i", action="store_true", help="Run only GoldBot session20 frequency-restoration frequency-100I candidates unless names are provided.")
+    parser.add_argument("--freq100j", action="store_true", help="Run only GoldBot contextual-regime frequency-100J candidates unless names are provided.")
+    parser.add_argument("--freq100k", action="store_true", help="Run only GoldBot setup-allocation frequency-100K candidates unless names are provided.")
+    parser.add_argument("--freq100l", action="store_true", help="Run only GoldBot weak-breakout-slice frequency-100L candidates unless names are provided.")
     args = parser.parse_args()
 
     known = load_candidate_names(args.matrix)
-    if args.freq100i:
+    if args.freq100l:
+        candidates = args.candidates or GROWTH_FREQ100L_CANDIDATES
+    elif args.freq100k:
+        candidates = args.candidates or GROWTH_FREQ100K_CANDIDATES
+    elif args.freq100j:
+        candidates = args.candidates or GROWTH_FREQ100J_CANDIDATES
+    elif args.freq100i:
         candidates = args.candidates or GROWTH_FREQ100I_CANDIDATES
     elif args.freq100h:
         candidates = args.candidates or GROWTH_FREQ100H_CANDIDATES

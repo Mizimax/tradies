@@ -41,6 +41,8 @@ EVENTS = {
     "smc_displacement_blocks": "smc displacement blocked",
     "smc_overlap_blocks": "smc ob/fvg overlap blocked",
     "htf_smc_context_blocks": "htf smc context blocked",
+    "regime_blocks": "regime filter blocked",
+    "strict_hour_quality_blocks": "strict hour quality blocked",
     "htf_tp_targets": "htf tp targets set",
     "signals_accepted": "signal accepted",
     "signal_skips": "signal skipped",
@@ -147,15 +149,21 @@ def attribution_rows(path: Path) -> list[dict[str, str]]:
         if entry not in {"1", "2", "3"}:
             continue
         profit = as_float(fields.get("profit"))
+        setup = fields.get("setup", "unknown")
         direction = fields.get("dir", "unknown")
         split = fields.get("split", "unknown")
         hour = fields.get("hour", "unknown")
         confluences = fields.get("confluences", "unknown").split("/", 1)[0]
         for group_type, group_value in (
+            ("setup", setup),
             ("direction", direction),
             ("split", split),
             ("session_hour", hour),
+            ("setup_direction", f"{compact_value('setup', setup)}_{compact_value('dir', direction)}"),
+            ("setup_direction_hour", f"{compact_value('setup', setup)}_{compact_value('dir', direction)}_{compact_value('hour', hour)}"),
+            ("setup_direction_hour_split", f"{compact_value('setup', setup)}_{compact_value('dir', direction)}_{compact_value('hour', hour)}_{compact_value('split', split)}"),
             ("direction_hour", f"{compact_value('dir', direction)}_{compact_value('hour', hour)}"),
+            ("direction_hour_split", f"{compact_value('dir', direction)}_{compact_value('hour', hour)}_{compact_value('split', split)}"),
             ("direction_split", f"{compact_value('dir', direction)}_{compact_value('split', split)}"),
             ("hour_split", f"{compact_value('hour', hour)}_{compact_value('split', split)}"),
             ("score_bucket", fields.get("scoreBucket", "unknown")),
@@ -189,7 +197,7 @@ def attribution_rows(path: Path) -> list[dict[str, str]]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("journals", nargs="+", type=Path, help="GoldBot trades.csv paths")
-    parser.add_argument("--attribution", action="store_true", help="Group closed deal PnL by direction, split, hour, direction/hour, direction/split, hour/split, score, confluence, and exit reason")
+    parser.add_argument("--attribution", action="store_true", help="Group closed deal PnL by setup, direction, split, hour, setup/direction/hour/split, direction/hour/split, score, confluence, and exit reason")
     args = parser.parse_args()
 
     if args.attribution:

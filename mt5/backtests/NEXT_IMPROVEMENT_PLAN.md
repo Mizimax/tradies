@@ -747,3 +747,103 @@ mt5/backtests/reports/improvement-stability.csv
 - **Layer 2 trigger**: at least one Layer 1 candidate must have positive net profit over the full window.
 - **Max ladders cap**: `growth-open-cooldown8` uses `InpMaxLaddersPerDay=10` (safety cap; functionally uncapped with cooldown 8).
 - **Test window**: 2024.06.01 to 2026.05.31 (same 24-month range, shifted to current date).
+
+## Phase 8: Recent-Year Frequency Validation
+
+Recent GoldBot research now prioritizes the most recent complete 12 months because gold behavior can change quickly. The official recent-year window is:
+
+```text
+2025.06.01 to 2026.05.31
+```
+
+### Recent-Year Candidate Layer
+
+Run these with `--report-suffix recent-12m` so 12-month artifacts do not overwrite the 24-month reports:
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py recent-l12-14-16-18-split1-cd8 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-l12-14-16-18-split12-cd8 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-l12-14-16-18-split1-cd6 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-l12-14-16-18-split1-cd4 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-l12-14-16-18-split1-maxopen3 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-l12-14-16-18-split1-maxladder20 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-dir-l12-14-16-18-s7-8-10-21-split12-cd8 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-dir-l12-14-16-18-s7-8-10-21-split1-cd8 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-12m --clean
+```
+
+### Recent-Year Gate
+
+- Research pass: trades `>=100`, PF `>=1.20`, DD `<=25%`, positive full-window daily growth, no malformed report.
+- Strong pass: trades `>=120`, PF `>=1.50`, DD `<=20%`, active-day positive rate `>=55%`.
+- If no model reaches `100+` trades, use the best `75+` trade model as the next frequency-restoration seed.
+
+## Phase 9: Recent Top-Model Frequency Expansion
+
+Seed this phase from the best recent-year model:
+
+```text
+recent-dir-l12-14-16-18-s7-8-10-21-split12-cd8
+Trades: 76/year
+PF: 3.17
+DD: 23.55%
+```
+
+The goal is to reach `100+` trades/year over `2025.06.01` to `2026.05.31` while keeping real-mode PF and drawdown acceptable.
+
+### Candidate Layer
+
+Run these one by one with the `recent-freq-12m` suffix:
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py recent-freq-dir-split12-cd4 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-freq-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-freq-dir-split12-maxladder20 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-freq-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-freq-dir-split12-maxopen3 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-freq-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-freq-dir-split123-cd8 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-freq-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-freq-dir-split123-maxopen3 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-freq-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-freq-dir-long7-split12-cd8 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-freq-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-freq-dir-long7-split123-cd8 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-freq-12m --clean
+python3 scripts/run-mt5-growth-candidate.py recent-freq-dir-score60-split12-cd8 --from-date 2025.06.01 --to-date 2026.05.31 --report-suffix recent-freq-12m --clean
+```
+
+### Frequency Gate
+
+- Pass: trades `>=100`, PF `>=1.50`, DD `<=30%`, positive full-window daily growth.
+- Strong pass: trades `>=100`, PF `>=2.00`, DD `<=25%`, stability `STABLE`.
+- If none reach `100+`, use the best `85+` trade model as the next seed.
+
+## Phase 10: January Regime Recovery
+
+January 2026 exposed a concentrated failure pattern in `recent-freq-dir-long7-split12-cd8`: weak long continuation entries during fragile H1 conditions, mostly around hours 16 and 18. This phase adds an optional H1 regime filter instead of hard-coding a January blackout.
+
+### Regime Candidates
+
+These candidates keep the current forward-demo seed unchanged except for enabling the H1 regime gate:
+
+```bash
+python3 scripts/run-mt5-growth-candidate.py recent-regime-ext3 --from-date 2026.01.01 --to-date 2026.01.31 --report-suffix 2026-01-regime --clean
+python3 scripts/run-mt5-growth-candidate.py recent-regime-ext25 --from-date 2026.01.01 --to-date 2026.01.31 --report-suffix 2026-01-regime --clean
+python3 scripts/run-mt5-growth-candidate.py recent-regime-slope015-ext3 --from-date 2026.01.01 --to-date 2026.01.31 --report-suffix 2026-01-regime --clean
+python3 scripts/run-mt5-growth-candidate.py recent-regime-slope015-ext25 --from-date 2026.01.01 --to-date 2026.01.31 --report-suffix 2026-01-regime --clean
+python3 scripts/run-mt5-growth-candidate.py recent-regime-h1dir-ext3 --from-date 2026.01.01 --to-date 2026.01.31 --report-suffix 2026-01-regime --clean
+```
+
+### Validation Windows
+
+Only promote a regime candidate after January improves and the existing winners survive:
+
+```text
+2026.01.01 to 2026.01.31
+2026.03.01 to 2026.03.31
+2026.04.01 to 2026.04.30
+2026.01.01 to 2026.05.31
+2025.01.01 to 2025.05.31
+2025.06.01 to 2026.05.31
+```
+
+### Regime Gate
+
+- January net loss should improve from about `-14,949` to better than `-5,000`, or turn positive.
+- January DD should improve from `21.76%` to `<=12%`.
+- March and April must stay net positive, with April PF `>=2.0`.
+- Full 2026-H1 target: PF `>=1.80`, DD `<=20%`, trades `>=25`.
+- Recent 12M target: PF `>=1.80`, trades `>=70`, and no malformed `report-status.csv`.
