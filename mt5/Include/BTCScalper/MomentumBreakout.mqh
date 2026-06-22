@@ -67,19 +67,25 @@ int BTCScalperMomSignal(
    //--- 5. Get M15 Close (shift = 1)
    double m15Close = iClose(symbol, PERIOD_M15, 1);
 
+   //--- 6. Get H1 Trend Alignment (shift = 1)
+   double h1Close = iClose(symbol, PERIOD_H1, 1);
+   double h1Ema   = BTCScalperGetBufferValue(g_btcH1EmaHandle, 0, 1);
+   bool h1Up = (h1Ema != EMPTY_VALUE && h1Close > h1Ema);
+   bool h1Down = (h1Ema != EMPTY_VALUE && h1Close < h1Ema);
+
    //--- Evaluate Signals
-   if(emaFast > emaSlow && m15Close > ema50 && m15Close > vwap && rsi >= rsiLow && rsi <= rsiHigh)
+   if(emaFast > emaSlow && m15Close > ema50 && m15Close > vwap && rsi >= rsiLow && h1Up)
    {
       Print("[Mom-Signal] BUY signal on M15: Close=", DoubleToString(m15Close, 2),
             " EMA9=", DoubleToString(emaFast, 2), " EMA21=", DoubleToString(emaSlow, 2), 
-            " EMA50=", DoubleToString(ema50, 2), " VWAP=", DoubleToString(vwap, 2), " RSI=", DoubleToString(rsi, 2));
+            " EMA50=", DoubleToString(ema50, 2), " VWAP=", DoubleToString(vwap, 2), " RSI=", DoubleToString(rsi, 2), " H1Up=1");
       return +1;
    }
-   if(emaFast < emaSlow && m15Close < ema50 && m15Close < vwap && rsi >= rsiLow && rsi <= rsiHigh)
+   if(emaFast < emaSlow && m15Close < ema50 && m15Close < vwap && rsi <= rsiHigh && h1Down)
    {
       Print("[Mom-Signal] SELL signal on M15: Close=", DoubleToString(m15Close, 2),
             " EMA9=", DoubleToString(emaFast, 2), " EMA21=", DoubleToString(emaSlow, 2), 
-            " EMA50=", DoubleToString(ema50, 2), " VWAP=", DoubleToString(vwap, 2), " RSI=", DoubleToString(rsi, 2));
+            " EMA50=", DoubleToString(ema50, 2), " VWAP=", DoubleToString(vwap, 2), " RSI=", DoubleToString(rsi, 2), " H1Down=1");
       return -1;
    }
 
@@ -92,6 +98,7 @@ bool BTCScalperMomEntry(
    const long magic,
    CTrade &trade,
    const int signal,
+   const double slAtrMult,
    const double rewardRiskRatio,
    const double riskPct,
    const double minLot,
@@ -117,10 +124,10 @@ bool BTCScalperMomEntry(
       Print("[Mom-Entry] ATR is empty or <= 0");
       return false;
    }
-   double twoAtr = atr * 2.0;
+   double baseSl = atr * slAtrMult;
 
    // Find recent swing high/low of last 5 M15 bars (shift 1 to 5)
-   double slDistance = twoAtr;
+   double slDistance = baseSl;
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
    double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
    double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
@@ -134,7 +141,7 @@ bool BTCScalperMomEntry(
          double swingDist = ask - swingLow;
          if(swingDist > 0.0)
          {
-            slDistance = MathMin(swingDist, twoAtr);
+            slDistance = MathMin(swingDist, baseSl);
          }
       }
    }
@@ -147,14 +154,14 @@ bool BTCScalperMomEntry(
          double swingDist = swingHigh - bid;
          if(swingDist > 0.0)
          {
-            slDistance = MathMin(swingDist, twoAtr);
+            slDistance = MathMin(swingDist, baseSl);
          }
       }
    }
 
-   // Floor SL distance at 0.5 * ATR to prevent extremely tight stops
-   if(slDistance < atr * 0.5)
-      slDistance = atr * 0.5;
+   // Floor SL distance at 1.5 * ATR to prevent extremely tight stops
+   if(slDistance < atr * 1.5)
+      slDistance = atr * 1.5;
 
    trade.SetExpertMagicNumber(magic);
 

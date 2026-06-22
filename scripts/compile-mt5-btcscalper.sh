@@ -110,7 +110,8 @@ for include_file in \
   Indicators.mqh \
   MeanReversion.mqh \
   VwapReversion.mqh \
-  MomentumBreakout.mqh; do
+  MomentumBreakout.mqh \
+  Allocator.mqh; do
   require_file "$INCLUDE_DIR/BTCScalper/$include_file" "BTCScalper include file"
 done
 

@@ -70,17 +70,23 @@ int BTCScalperVwapSignal(
       return 0;
    }
 
+   //--- 4. Get H1 Trend Alignment (shift = 1)
+   double h1Close = iClose(symbol, PERIOD_H1, 1);
+   double h1Ema   = BTCScalperGetBufferValue(g_btcH1EmaHandle, 0, 1);
+   bool h1Up = (h1Ema != EMPTY_VALUE && h1Close > h1Ema);
+   bool h1Down = (h1Ema != EMPTY_VALUE && h1Close < h1Ema);
+
    //--- Evaluate Signals
-   if(zscoreShift1 < -zscoreEntry && rsi < 35.0)
+   if(zscoreShift1 < -zscoreEntry && rsi < 35.0 && h1Up)
    {
-      Print("[VWAP-Signal] BUY signal on M5: Close=", DoubleToString(m5Close, 2),
-            " VWAP=", DoubleToString(s_vwap, 2), " Z-score=", DoubleToString(zscoreShift1, 2), " RSI=", DoubleToString(rsi, 2));
+      Print("[VWAP-Signal] BUY signal on M5 (Trend Aligned): Close=", DoubleToString(m5Close, 2),
+            " VWAP=", DoubleToString(s_vwap, 2), " Z-score=", DoubleToString(zscoreShift1, 2), " RSI=", DoubleToString(rsi, 2), " H1Up=1");
       return +1;
    }
-   if(zscoreShift1 > zscoreEntry && rsi > 65.0)
+   if(zscoreShift1 > zscoreEntry && rsi > 65.0 && h1Down)
    {
-      Print("[VWAP-Signal] SELL signal on M5: Close=", DoubleToString(m5Close, 2),
-            " VWAP=", DoubleToString(s_vwap, 2), " Z-score=", DoubleToString(zscoreShift1, 2), " RSI=", DoubleToString(rsi, 2));
+      Print("[VWAP-Signal] SELL signal on M5 (Trend Aligned): Close=", DoubleToString(m5Close, 2),
+            " VWAP=", DoubleToString(s_vwap, 2), " Z-score=", DoubleToString(zscoreShift1, 2), " RSI=", DoubleToString(rsi, 2), " H1Down=1");
       return -1;
    }
 
@@ -182,7 +188,8 @@ bool BTCScalperVwapEntry(
 void BTCScalperVwapManage(
    const string symbol,
    const long magic,
-   CTrade &trade
+   CTrade &trade,
+   const int maxHoldBars
 )
 {
    double vwap = BTCScalperVwapValue();
@@ -213,6 +220,18 @@ void BTCScalperVwapManage(
       if(StringFind(comment, "BTC_VWAP_") < 0)
          continue;
 
+      // 1. Time-in-trade exit check
+      if(maxHoldBars > 0)
+      {
+         datetime openTime = (datetime)PositionGetInteger(POSITION_TIME);
+         if(TimeCurrent() - openTime >= maxHoldBars * 300) // 5 minutes per bar
+         {
+            Print("[VWAP-Manage] Max hold time reached (", maxHoldBars, " bars). Closing position ticket=", ticket);
+            trade.PositionClose(ticket);
+            continue;
+         }
+      }
+
       long type = PositionGetInteger(POSITION_TYPE);
       double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
       double currentSl = PositionGetDouble(POSITION_SL);
@@ -223,7 +242,7 @@ void BTCScalperVwapManage(
       double newSl = currentSl;
       bool modify = false;
 
-      // 1. Update TP to live VWAP
+      // 2. Update TP to live VWAP
       if(MathAbs(newTp - currentTp) > point * 2.0)
       {
          if((type == POSITION_TYPE_BUY && newTp > openPrice) ||
@@ -234,7 +253,7 @@ void BTCScalperVwapManage(
          }
       }
 
-      // 2. Trailing Breakeven at 1.0 * ATR
+      // 3. Trailing Breakeven at 1.0 * ATR
       if(hasAtr)
       {
          double triggerDist = atr * 1.0;

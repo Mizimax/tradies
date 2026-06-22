@@ -3,3 +3,21 @@ baseline,All strategies enabled default params,
 mr-only,Mean Reversion only,InpEnableVwapReversion=false\nInpEnableMomentum=false
 vwap-only,VWAP Reversion only,InpEnableMeanReversion=false\nInpEnableMomentum=false
 aggressive,Higher risk and tighter entries,InpRiskPerTradePct=3.0\nInpMrBbDeviation=1.5\nInpVwapZscoreEntry=1.5\nInpMaxDailyLossPct=8.0
+vwap-wide,VWAP with wider Stop Loss and entry thresholds,InpEnableMeanReversion=false\nInpEnableMomentum=false\nInpVwapSlAtrMult=3.0\nInpVwapZscoreEntry=2.5
+mr-wide,Mean Reversion with wider Stop Loss and deviation,InpEnableVwapReversion=false\nInpEnableMomentum=false\nInpMrSlAtrMult=3.0\nInpMrBbDeviation=2.5
+mom-trend,Momentum strategy with lower Risk-Reward for earlier exits,InpEnableMeanReversion=false\nInpEnableVwapReversion=false\nInpMomRR=1.5
+tuned-baseline,All strategies with wider stops and tuned entries,InpMrSlAtrMult=3.0\nInpMrBbDeviation=2.5\nInpVwapSlAtrMult=3.0\nInpVwapZscoreEntry=2.5\nInpMomRR=1.5
+tuned-v2,Disable MR and tighten Momentum RSI entry thresholds,InpEnableMeanReversion=false\nInpMomRsiLow=55\nInpMomRsiHigh=45\nInpMrSlAtrMult=3.0\nInpMrBbDeviation=2.5\nInpVwapSlAtrMult=3.0\nInpVwapZscoreEntry=2.5\nInpMomRR=1.5
+vwap-tight-sl,VWAP selective with tighter Stop Loss,InpEnableMeanReversion=false\nInpEnableMomentum=false\nInpVwapSlAtrMult=1.5\nInpVwapZscoreEntry=2.5
+vwap-long-hold,VWAP with longer hold time,InpEnableMeanReversion=false\nInpEnableMomentum=false\nInpVwapSlAtrMult=3.0\nInpVwapZscoreEntry=2.5\nInpVwapMaxHoldBars=24
+vwap-z30,VWAP with extreme Z-score entry threshold,InpEnableMeanReversion=false\nInpEnableMomentum=false\nInpVwapSlAtrMult=1.5\nInpVwapZscoreEntry=3.0
+vwap-z25-hold6,VWAP with shorter hold time (30m),InpEnableMeanReversion=false\nInpEnableMomentum=false\nInpVwapSlAtrMult=1.5\nInpVwapZscoreEntry=2.5\nInpVwapMaxHoldBars=6
+tuned-v3,Tight Momentum and tight VWAP with MR disabled,InpEnableMeanReversion=false\nInpVwapSlAtrMult=1.5\nInpVwapZscoreEntry=2.5\nInpMomRsiLow=60\nInpMomRsiHigh=40\nInpMomSlAtrMult=1.5\nInpMomRR=1.5
+vwap-z24,VWAP with Z-score threshold 2.4,InpEnableMeanReversion=false\nInpEnableMomentum=false\nInpVwapSlAtrMult=1.5\nInpVwapZscoreEntry=2.4
+vwap-z26,VWAP with Z-score threshold 2.6,InpEnableMeanReversion=false\nInpEnableMomentum=false\nInpVwapSlAtrMult=1.5\nInpVwapZscoreEntry=2.6
+perf-off,All three strategies allocation OFF ablation control,InpEnableMeanReversion=true\nInpEnableVwapReversion=true\nInpEnableMomentum=true\nInpEnablePerfAllocation=false
+perf-on,All three strategies allocation ON default tiers,InpEnableMeanReversion=true\nInpEnableVwapReversion=true\nInpEnableMomentum=true\nInpEnablePerfAllocation=true\nInpPerfWindowN=30\nInpPerfMinSample=8\nInpPerfPfFloor=0.85\nInpPerfProbationMult=0.0\nInpPerfBoostMult=1.0
+perf-on-soft,Allocation ON with soft probation 0.25 keeps trade count up,InpEnableMeanReversion=true\nInpEnableVwapReversion=true\nInpEnableMomentum=true\nInpEnablePerfAllocation=true\nInpPerfProbationMult=0.25
+perf-on-boost,Allocation ON with boost tier enabled,InpEnableMeanReversion=true\nInpEnableVwapReversion=true\nInpEnableMomentum=true\nInpEnablePerfAllocation=true\nInpPerfBoostMult=1.25\nInpPerfPfBoost=1.50
+perf-on-fast,Allocation ON shorter window faster adaptation,InpEnableMeanReversion=true\nInpEnableVwapReversion=true\nInpEnableMomentum=true\nInpEnablePerfAllocation=true\nInpPerfWindowN=20\nInpPerfMinSample=6
+perf-on-strict,Allocation ON stricter probation floor,InpEnableMeanReversion=true\nInpEnableVwapReversion=true\nInpEnableMomentum=true\nInpEnablePerfAllocation=true\nInpPerfPfFloor=1.00\nInpPerfProbationMult=0.0

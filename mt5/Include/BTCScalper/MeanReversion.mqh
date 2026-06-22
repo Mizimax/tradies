@@ -58,20 +58,23 @@ int BTCScalperMRSignal(
       return 0;
    }
 
-   //--- 4. Get M15 Close (shift = 1)
+   //--- 4. Get M15 Close, Open, Low, High (shift = 1)
    double m15Close = iClose(symbol, PERIOD_M15, 1);
+   double m15Open  = iOpen(symbol, PERIOD_M15, 1);
+   double m15Low   = iLow(symbol, PERIOD_M15, 1);
+   double m15High  = iHigh(symbol, PERIOD_M15, 1);
 
    //--- Evaluate Signals
-   if(m15Close < bbLower && rsi < rsiOversold)
+   if(m15Low < bbLower && m15Close > m15Open && rsi < rsiOversold)
    {
-      Print("[MR-Signal] BUY signal on M15: Close=", DoubleToString(m15Close, 2), 
-            " LowerBB=", DoubleToString(bbLower, 2), " RSI=", DoubleToString(rsi, 2));
+      Print("[MR-Signal] BUY signal with confirmation on M15: Low=", DoubleToString(m15Low, 2),
+            " Close=", DoubleToString(m15Close, 2), " LowerBB=", DoubleToString(bbLower, 2), " RSI=", DoubleToString(rsi, 2));
       return +1;
    }
-   if(m15Close > bbUpper && rsi > rsiOverbought)
+   if(m15High > bbUpper && m15Close < m15Open && rsi > rsiOverbought)
    {
-      Print("[MR-Signal] SELL signal on M15: Close=", DoubleToString(m15Close, 2), 
-            " UpperBB=", DoubleToString(bbUpper, 2), " RSI=", DoubleToString(rsi, 2));
+      Print("[MR-Signal] SELL signal with confirmation on M15: High=", DoubleToString(m15High, 2),
+            " Close=", DoubleToString(m15Close, 2), " UpperBB=", DoubleToString(bbUpper, 2), " RSI=", DoubleToString(rsi, 2));
       return -1;
    }
 

@@ -9,6 +9,7 @@
 #include <BTCScalper/MeanReversion.mqh>
 #include <BTCScalper/VwapReversion.mqh>
 #include <BTCScalper/MomentumBreakout.mqh>
+#include <BTCScalper/Allocator.mqh>
 
 //+------------------------------------------------------------------+
 //| Input parameters                                                  |
@@ -48,6 +49,7 @@ input int      InpVwapPeriod          = 0;           // 0 = auto session VWAP
 input double   InpVwapZscoreEntry     = 2.0;         // enter when Z > ±2.0
 input double   InpVwapSlAtrMult       = 1.5;
 input int      InpVwapMaxTrades       = 4;
+input int      InpVwapMaxHoldBars     = 12;          // exit VWAP trades after 12 bars (60m)
 
 //--- Strategy 3: Momentum Breakout (EMA crossover on M15)
 input bool     InpEnableMomentum      = true;
@@ -57,6 +59,7 @@ input int      InpMomRsiPeriod        = 14;
 input int      InpMomRsiLow           = 40;          // only enter when RSI 40-60
 input int      InpMomRsiHigh          = 60;
 input double   InpMomRR               = 2.0;         // R:R for momentum trades
+input double   InpMomSlAtrMult        = 2.0;         // SL ATR multiplier for Momentum
 input int      InpMomMaxTrades        = 2;
 
 //--- Regime Gatekeeper
@@ -69,6 +72,18 @@ input double   InpDdScaleHalfAtPct    = 12.0;        // halve risk at 12% DD
 input double   InpDdScaleQuarterAtPct = 18.0;        // quarter risk at 18% DD
 input double   InpDdStopAtPct         = 25.0;        // stop trading at 25% DD
 input int      InpMaxConsecLoss       = 3;           // cooldown after 3 consecutive losses
+
+//--- Performance-Feedback Allocation
+input bool     InpEnablePerfAllocation = false;      // master switch; false = exact current baseline
+input int      InpPerfWindowN          = 30;         // rolling window of last-N closed trades / strategy
+input int      InpPerfMinSample        = 8;          // warmup: behave like baseline until N trades seen
+input double   InpPerfPfFloor          = 0.85;       // PF below this -> probation
+input double   InpPerfProbationMult    = 0.0;        // risk multiplier on probation (0 = disable)
+input double   InpPerfPfBoost          = 1.50;       // PF at/above this -> boost tier
+input double   InpPerfBoostMult        = 1.0;        // boost multiplier (1.0 = off / de-risk only)
+input bool     InpPerfParoleEnabled    = true;       // allow 1 reduced trade/day for probation strategies
+input double   InpPerfParoleMult       = 0.10;       // risk multiplier for the daily parole trade
+input bool     InpPerfPersistLive      = false;      // mirror rings to GlobalVariables (live only; tester stub)
 
 //--- Debug
 input bool     InpDebugOnly           = false;
@@ -86,6 +101,33 @@ double BTCScalperEffectiveRisk()
    return InpEnableDdScaling
       ? BTCScalperDrawdownScaledRisk(InpRiskPerTradePct, InpDdScaleHalfAtPct, InpDdScaleQuarterAtPct, InpDdStopAtPct)
       : InpRiskPerTradePct;
+}
+
+//--- Per-strategy performance-feedback risk multiplier
+//    Returns 1.0 (baseline) when allocation is off or during warmup.
+//    Consumes one daily parole credit when granting a probation strategy a trade.
+double BTCScalperStrategyRiskMult(const BTCStrategyId sid)
+{
+   if(!InpEnablePerfAllocation)
+      return 1.0;
+
+   double m = BTCScalperAllocMultiplier(sid, InpPerfMinSample, InpPerfPfFloor,
+                                        InpPerfPfBoost, InpPerfProbationMult, InpPerfBoostMult);
+
+   // Parole: keep a probation strategy's window alive with one reduced trade/day.
+   if(m <= 0.0 && InpPerfParoleEnabled && BTCScalperPerfParoleAvailable(sid))
+   {
+      BTCScalperPerfParoleConsume(sid);
+      m = InpPerfParoleMult;
+   }
+   return m;
+}
+
+//--- Final per-strategy risk, clamped so it never exceeds the configured base
+double BTCScalperStrategyRisk(const BTCStrategyId sid, const double baseEffectiveRisk)
+{
+   double r = baseEffectiveRisk * BTCScalperStrategyRiskMult(sid);
+   return MathMin(r, InpRiskPerTradePct);
 }
 
 //--- Global Risk Gate
@@ -175,6 +217,7 @@ int OnInit()
 
    BTCScalperResetTesterRiskState();
    BTCScalperVwapReset();
+   BTCScalperPerfReset();
 
    // Initialize indicators
    if(!BTCScalperIndicatorsInit(symbol, InpMrBbPeriod, InpMrBbDeviation, 
@@ -208,7 +251,7 @@ void OnTick()
    if(InpEnableMeanReversion)
       BTCScalperMRManage(symbol, InpMagicNumber, trade, InpMrTrailBE, InpMrTrailBETrigger);
    if(InpEnableVwapReversion)
-      BTCScalperVwapManage(symbol, InpMagicNumber, trade);
+      BTCScalperVwapManage(symbol, InpMagicNumber, trade, InpVwapMaxHoldBars);
    if(InpEnableMomentum)
       BTCScalperMomManage(symbol, InpMagicNumber, trade);
 
@@ -242,7 +285,14 @@ void OnTick()
                int mrSig = BTCScalperMRSignal(symbol, InpMrRsiOverbought, InpMrRsiOversold, InpBestSessionStart, InpBestSessionEnd);
                if(mrSig != 0)
                {
-                  BTCScalperMREntry(symbol, InpMagicNumber, trade, mrSig, InpMrSlAtrMult, risk, InpMinLot, InpMaxLot, InpMrMaxTrades);
+                  double mrRisk = BTCScalperStrategyRisk(BTC_STRAT_MR, risk);
+                  if(mrRisk > 0.0)
+                  {
+                     if(InpEnablePerfAllocation)
+                        BTCScalperJournal(StringFormat("AllocDecision strategy=mean_reversion regime=range mult=%.3f risk=%.4f",
+                           mrRisk / MathMax(risk, 1e-9), mrRisk));
+                     BTCScalperMREntry(symbol, InpMagicNumber, trade, mrSig, InpMrSlAtrMult, mrRisk, InpMinLot, InpMaxLot, InpMrMaxTrades);
+                  }
                }
             }
 
@@ -251,7 +301,14 @@ void OnTick()
                int momSig = BTCScalperMomSignal(symbol, InpMomRsiLow, InpMomRsiHigh, InpTradingEndHour);
                if(momSig != 0)
                {
-                  BTCScalperMomEntry(symbol, InpMagicNumber, trade, momSig, InpMomRR, risk, InpMinLot, InpMaxLot, InpMomMaxTrades);
+                  double momRisk = BTCScalperStrategyRisk(BTC_STRAT_MOM, risk);
+                  if(momRisk > 0.0)
+                  {
+                     if(InpEnablePerfAllocation)
+                        BTCScalperJournal(StringFormat("AllocDecision strategy=momentum regime=trend mult=%.3f risk=%.4f",
+                           momRisk / MathMax(risk, 1e-9), momRisk));
+                     BTCScalperMomEntry(symbol, InpMagicNumber, trade, momSig, InpMomSlAtrMult, InpMomRR, momRisk, InpMinLot, InpMaxLot, InpMomMaxTrades);
+                  }
                }
             }
          }
@@ -285,7 +342,14 @@ void OnTick()
                int vwapSig = BTCScalperVwapSignal(symbol, InpVwapZscoreEntry, InpTradingEndHour);
                if(vwapSig != 0)
                {
-                  BTCScalperVwapEntry(symbol, InpMagicNumber, trade, vwapSig, InpVwapSlAtrMult, risk, InpMinLot, InpMaxLot, InpVwapMaxTrades);
+                  double vwapRisk = BTCScalperStrategyRisk(BTC_STRAT_VWAP, risk);
+                  if(vwapRisk > 0.0)
+                  {
+                     if(InpEnablePerfAllocation)
+                        BTCScalperJournal(StringFormat("AllocDecision strategy=vwap_reversion regime=range mult=%.3f risk=%.4f",
+                           vwapRisk / MathMax(risk, 1e-9), vwapRisk));
+                     BTCScalperVwapEntry(symbol, InpMagicNumber, trade, vwapSig, InpVwapSlAtrMult, vwapRisk, InpMinLot, InpMaxLot, InpVwapMaxTrades);
+                  }
                }
             }
          }
@@ -342,6 +406,19 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    if(dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
    {
       BTCScalperRecordTradeResult(profit > 0.0);
+
+      if(InpEnablePerfAllocation)
+      {
+         BTCStrategyId sid = BTCScalperStrategyIdFromName(strategy);
+         if(sid != BTC_STRAT_COUNT)
+         {
+            BTCScalperPerfRecord(sid, profit, InpPerfWindowN);
+            BTCPerfMetrics m = BTCScalperPerfMetrics(sid);
+            double pfLog = (m.profitFactor == DBL_MAX) ? 9999.0 : m.profitFactor;
+            BTCScalperJournal(StringFormat("PerfRecord strategy=%s profit=%.2f n=%d winrate=%.3f pf=%.3f net=%.2f",
+               strategy, profit, m.n, m.winRate, pfLog, m.netPnl));
+         }
+      }
 
       if(!BTCScalperDailyLossAllowed(InpMaxDailyLossPct))
          BTCScalperCancelPendingOrders(symbol, InpMagicNumber);
