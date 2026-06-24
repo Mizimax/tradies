@@ -244,6 +244,81 @@ GROWTH_FREQ100L_CANDIDATES = [
     "freq100l-no-breakout-long7",
     "freq100l-no-breakout-short10-long7",
 ]
+SCALP_M5_CANDIDATES = [
+    "scalp-m5-core",
+    "scalp-m5-split12",
+    "scalp-m5-loose-adx",
+    "scalp-m5-tight-spread30",
+    "scalp-m5-expanded-hours",
+    "scalp-m5-lot075",
+    "scalp-m5-lot100",
+    "scalp-m5-fast-exit",
+]
+SCALP_M5_QUALITY_CANDIDATES = [
+    "scalp-m5-quality-fast-exit-merge",
+    "scalp-m5-quality-no-breakout",
+    "scalp-m5-quality-no-long12",
+    "scalp-m5-quality-long10-18-short7-10",
+    "scalp-m5-quality-long7-10-18-short7-10",
+]
+SCALP_SHORTTERM_CANDIDATES = [
+    "scalp-shortterm-freq100i-m5-core",
+    "scalp-shortterm-m5-short-only",
+    "scalp-shortterm-m5-long10-18-short7-8-10",
+    "scalp-shortterm-m5-sweep-reclaim",
+    "scalp-shortterm-m5-session-breakout",
+    "scalp-shortterm-m5-costguard",
+    "scalp-shortterm-m5-losslock",
+    "scalp-shortterm-m5-combo",
+]
+SCALP_SHORTTERM_REPAIR_CANDIDATES = [
+    "scalp-repair-no-smc-long14",
+    "scalp-repair-no-smc-short10",
+    "scalp-repair-no-breakout-long10",
+    "scalp-repair-hour10-split1",
+    "scalp-repair-core-clean",
+    "scalp-repair-core-clean-split1",
+    "scalp-repair-april-guard",
+    "scalp-repair-maxquality",
+]
+SCALP_DD_REPAIR_CANDIDATES = [
+    "scalp-dd-maxquality-risk008",
+    "scalp-dd-maxquality-risk007",
+    "scalp-dd-maxquality-risk006",
+    "scalp-dd-maxquality-monthly8",
+    "scalp-dd-maxquality-monthly6",
+    "scalp-dd-maxquality-streak12",
+    "scalp-dd-maxquality-risk008-monthly8",
+    "scalp-dd-maxquality-risk008-maxopen3",
+    "scalp-dd-no-smc-long14-risk008",
+]
+SCALP_COMPOUND_CANDIDATES = [
+    "scalp-compound-maxquality-governor30",
+    "scalp-compound-maxquality-risk008-governor30",
+    "scalp-compound-maxquality-governor30-monthlock25",
+    "scalp-compound-maxquality-governor30-daily2",
+    "scalp-compound-maxquality-smooth",
+]
+SCALP_ROBUST_CANDIDATES = [
+    "scalp-robust-long12-split1",
+    "scalp-robust-no-m5-short10",
+    "scalp-robust-no-breakout-long12",
+    "scalp-robust-monthloss5",
+    "scalp-robust-streak12",
+    "scalp-robust-h1-regime",
+    "scalp-robust-h1-regime-monthloss5",
+    "scalp-robust-quality-combo",
+]
+SCALP_ROBUST_V2_CANDIDATES = [
+    "scalp-robust-v2-no-m5-short10",
+    "scalp-robust-v2-no-m5-short10-monthloss3",
+    "scalp-robust-v2-no-m5-short10-monththrottle",
+    "scalp-robust-v2-no-m5-short10-no-smc",
+    "scalp-robust-v2-smc-no-long7",
+    "scalp-robust-v2-no-m5-long10",
+    "scalp-robust-v2-long12-split2only",
+    "scalp-robust-v2-quality-combo",
+]
 
 
 def load_candidate_names(matrix: Path) -> set[str]:
@@ -387,10 +462,34 @@ def main() -> int:
     parser.add_argument("--freq100j", action="store_true", help="Run only GoldBot contextual-regime frequency-100J candidates unless names are provided.")
     parser.add_argument("--freq100k", action="store_true", help="Run only GoldBot setup-allocation frequency-100K candidates unless names are provided.")
     parser.add_argument("--freq100l", action="store_true", help="Run only GoldBot weak-breakout-slice frequency-100L candidates unless names are provided.")
+    parser.add_argument("--scalp-m5", action="store_true", help="Run only GoldBot M5 daytime scalping candidates unless names are provided.")
+    parser.add_argument("--scalp-m5-quality", action="store_true", help="Run only GoldBot max-quality M5 merge candidates unless names are provided.")
+    parser.add_argument("--scalp-shortterm", action="store_true", help="Run only GoldBot short-term M5 scalping candidates unless names are provided.")
+    parser.add_argument("--scalp-shortterm-repair", action="store_true", help="Run only GoldBot short-term bad-slice repair candidates unless names are provided.")
+    parser.add_argument("--scalp-dd", action="store_true", help="Run only GoldBot scalp DD repair candidates unless names are provided.")
+    parser.add_argument("--scalp-compound", action="store_true", help="Run only GoldBot risk-governed compound scalping candidates unless names are provided.")
+    parser.add_argument("--scalp-robust", action="store_true", help="Run only GoldBot 2Y+recent robust scalping candidates unless names are provided.")
+    parser.add_argument("--scalp-robust-v2", action="store_true", help="Run only GoldBot robust-v2 slice cleanup candidates unless names are provided.")
     args = parser.parse_args()
 
     known = load_candidate_names(args.matrix)
-    if args.freq100l:
+    if args.scalp_robust_v2:
+        candidates = args.candidates or SCALP_ROBUST_V2_CANDIDATES
+    elif args.scalp_robust:
+        candidates = args.candidates or SCALP_ROBUST_CANDIDATES
+    elif args.scalp_compound:
+        candidates = args.candidates or SCALP_COMPOUND_CANDIDATES
+    elif args.scalp_dd:
+        candidates = args.candidates or SCALP_DD_REPAIR_CANDIDATES
+    elif args.scalp_shortterm_repair:
+        candidates = args.candidates or SCALP_SHORTTERM_REPAIR_CANDIDATES
+    elif args.scalp_shortterm:
+        candidates = args.candidates or SCALP_SHORTTERM_CANDIDATES
+    elif args.scalp_m5_quality:
+        candidates = args.candidates or SCALP_M5_QUALITY_CANDIDATES
+    elif args.scalp_m5:
+        candidates = args.candidates or SCALP_M5_CANDIDATES
+    elif args.freq100l:
         candidates = args.candidates or GROWTH_FREQ100L_CANDIDATES
     elif args.freq100k:
         candidates = args.candidates or GROWTH_FREQ100K_CANDIDATES

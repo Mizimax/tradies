@@ -294,6 +294,7 @@ bool GoldBotPlaceLadder(
    const string signalId,
    const int setupCode,
    const string setupName,
+   const int setupVariantCode,
    const int ladderOrderCount,
    const int ladderFirstSplit,
    const int confluenceCount,
@@ -304,6 +305,15 @@ bool GoldBotPlaceLadder(
    const double highConvictionScore,
    const double minRR,
    const int maxHoldBars,
+   const int pendingExpirySeconds,
+   const int maxHoldSeconds,
+   const double positionTp1R,
+   const double positionTp2R,
+   const double positionTp3R,
+   const int positionTrailAfterTp1,
+   const double positionBreakEvenAtR,
+   const double positionTrailStartR,
+   const double lotMultiplier,
    CTrade &trade
 )
 {
@@ -326,7 +336,8 @@ bool GoldBotPlaceLadder(
       entries[2] = zone.top;
    }
 
-   datetime expiration = TimeCurrent() + maxHoldBars * PeriodSeconds(PERIOD_M15);
+   int expirySeconds = pendingExpirySeconds > 0 ? pendingExpirySeconds : maxHoldBars * PeriodSeconds(PERIOD_M15);
+   datetime expiration = TimeCurrent() + expirySeconds;
    bool anyPlaced = false;
    int ordersToPlace = ladderOrderCount;
    int startSplit = ladderFirstSplit;
@@ -346,10 +357,16 @@ bool GoldBotPlaceLadder(
    {
       int splitNumber = startSplit + i;
       int entryIndex = splitNumber - 1;
-      double lot = GoldBotSplitLot(symbol, equity, score, entryIndex, lotPer100Usd, minLot, maxLot, highConvictionScore);
+      double lot = GoldBotSplitLot(symbol, equity, score, entryIndex, lotPer100Usd * MathMax(0.01, lotMultiplier), minLot, maxLot, highConvictionScore);
       double risk = MathAbs(entries[entryIndex] - sl);
       if(risk <= 0.0 || lot <= 0.0)
          continue;
+
+      double riskCash = 0.0;
+      double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+      double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+      if(tickSize > 0.0 && tickValue > 0.0)
+         riskCash = (risk / tickSize) * tickValue * lot;
 
       string comment = StringFormat("%s_%d", signalId, splitNumber);
       double brokerTp = 0.0; // TP is managed by the EA so TP1 can be a partial close.
@@ -371,7 +388,24 @@ bool GoldBotPlaceLadder(
          GlobalVariableSet(orderKey + ".confluences", (double)confluenceCount);
          GlobalVariableSet(orderKey + ".enabledConfluences", (double)enabledConfluences);
          GlobalVariableSet(orderKey + ".setup", (double)setupCode);
+         GlobalVariableSet(orderKey + ".scalpVariant", (double)setupVariantCode);
          GlobalVariableSet(orderKey + ".signalCode", (double)GoldBotSignalCodeFromComment(comment));
+         if(maxHoldSeconds > 0)
+            GlobalVariableSet(orderKey + ".maxHoldSeconds", (double)maxHoldSeconds);
+         if(positionTp1R > 0.0)
+            GlobalVariableSet(orderKey + ".tp1R", positionTp1R);
+         if(positionTp2R > 0.0)
+            GlobalVariableSet(orderKey + ".tp2R", positionTp2R);
+         if(positionTp3R > 0.0)
+            GlobalVariableSet(orderKey + ".tp3R", positionTp3R);
+         if(positionTrailAfterTp1 >= 0)
+            GlobalVariableSet(orderKey + ".trailAfterTp1Setting", (double)positionTrailAfterTp1);
+         if(positionBreakEvenAtR > 0.0)
+            GlobalVariableSet(orderKey + ".breakEvenAtR", positionBreakEvenAtR);
+         if(positionTrailStartR > 0.0)
+            GlobalVariableSet(orderKey + ".trailStartR", positionTrailStartR);
+         if(riskCash > 0.0)
+            GlobalVariableSet(orderKey + ".riskCash", riskCash);
          GoldBotJournal(StringFormat("Pending order placed signalId=%s setup=%s split=%d dir=%d entry=%.2f sl=%.2f lot=%.2f order=%I64u scoreBucket=%d confluences=%d/%d hour=%d",
             signalId,
             setupName,
@@ -509,11 +543,14 @@ void GoldBotManagePositions(
       long type = PositionGetInteger(POSITION_TYPE);
       datetime openTime = (datetime)PositionGetInteger(POSITION_TIME);
       string baseKey = StringFormat("GoldBot.%I64u", ticket);
-      if(maxHoldBars > 0 && openTime > 0 && TimeCurrent() - openTime >= maxHoldBars * PeriodSeconds(PERIOD_M15))
+      int effectiveMaxHoldSeconds = maxHoldBars > 0 ? maxHoldBars * PeriodSeconds(PERIOD_M15) : 0;
+      if(GlobalVariableCheck(baseKey + ".maxHoldSeconds"))
+         effectiveMaxHoldSeconds = (int)GlobalVariableGet(baseKey + ".maxHoldSeconds");
+      if(effectiveMaxHoldSeconds > 0 && openTime > 0 && TimeCurrent() - openTime >= effectiveMaxHoldSeconds)
       {
          if(trade.PositionClose(ticket))
          {
-            GoldBotJournal("Position closed after max hold bars");
+            GoldBotJournal(StringFormat("Position closed after max hold seconds=%d", effectiveMaxHoldSeconds));
             GlobalVariableDel(baseKey + ".risk");
             GlobalVariableDel(baseKey + ".tp1");
             GlobalVariableDel(baseKey + ".tp2");
@@ -521,6 +558,14 @@ void GoldBotManagePositions(
             GlobalVariableDel(baseKey + ".trailAfterTp1");
             GlobalVariableDel(baseKey + ".tp2Price");
             GlobalVariableDel(baseKey + ".tp3Price");
+            GlobalVariableDel(baseKey + ".maxHoldSeconds");
+            GlobalVariableDel(baseKey + ".tp1R");
+            GlobalVariableDel(baseKey + ".tp2R");
+            GlobalVariableDel(baseKey + ".tp3R");
+            GlobalVariableDel(baseKey + ".trailAfterTp1Setting");
+            GlobalVariableDel(baseKey + ".breakEvenAtR");
+            GlobalVariableDel(baseKey + ".trailStartR");
+            GlobalVariableDel(baseKey + ".riskCash");
          }
          else
             GoldBotJournal(StringFormat("Position max-hold close failed ticket=%I64u retcode=%d %s",
@@ -537,9 +582,15 @@ void GoldBotManagePositions(
       if(!GlobalVariableCheck(baseKey + ".risk"))
          GlobalVariableSet(baseKey + ".risk", risk);
 
-      double effectiveTp1R = MathMax(tp1R, 0.1);
-      double effectiveTp2R = MathMax(tp2R, effectiveTp1R);
-      double effectiveTp3R = MathMax(tp3R, effectiveTp2R);
+      double configuredTp1R = GlobalVariableCheck(baseKey + ".tp1R") ? GlobalVariableGet(baseKey + ".tp1R") : tp1R;
+      double configuredTp2R = GlobalVariableCheck(baseKey + ".tp2R") ? GlobalVariableGet(baseKey + ".tp2R") : tp2R;
+      double configuredTp3R = GlobalVariableCheck(baseKey + ".tp3R") ? GlobalVariableGet(baseKey + ".tp3R") : tp3R;
+      double configuredBreakEvenAtR = GlobalVariableCheck(baseKey + ".breakEvenAtR") ? GlobalVariableGet(baseKey + ".breakEvenAtR") : breakEvenAtR;
+      double configuredTrailStartR = GlobalVariableCheck(baseKey + ".trailStartR") ? GlobalVariableGet(baseKey + ".trailStartR") : 0.0;
+      bool effectiveTrailAfterTp1 = GlobalVariableCheck(baseKey + ".trailAfterTp1Setting") ? GlobalVariableGet(baseKey + ".trailAfterTp1Setting") > 0.5 : trailAfterTp1;
+      double effectiveTp1R = MathMax(configuredTp1R, 0.1);
+      double effectiveTp2R = MathMax(configuredTp2R, effectiveTp1R);
+      double effectiveTp3R = MathMax(configuredTp3R, effectiveTp2R);
       double tp1 = type == POSITION_TYPE_BUY ? openPrice + risk * effectiveTp1R : openPrice - risk * effectiveTp1R;
       double tp2 = type == POSITION_TYPE_BUY ? openPrice + risk * effectiveTp2R : openPrice - risk * effectiveTp2R;
       double tp3 = type == POSITION_TYPE_BUY ? openPrice + risk * effectiveTp3R : openPrice - risk * effectiveTp3R;
@@ -583,9 +634,9 @@ void GoldBotManagePositions(
       bool hitTp2 = type == POSITION_TYPE_BUY ? price >= tp2 : price <= tp2;
       bool hitTp3 = type == POSITION_TYPE_BUY ? price >= tp3 : price <= tp3;
 
-      if(!breakEvenMoved && breakEvenAtR > 0.0)
+      if(!breakEvenMoved && configuredBreakEvenAtR > 0.0)
       {
-         double breakEvenTrigger = type == POSITION_TYPE_BUY ? openPrice + risk * breakEvenAtR : openPrice - risk * breakEvenAtR;
+         double breakEvenTrigger = type == POSITION_TYPE_BUY ? openPrice + risk * configuredBreakEvenAtR : openPrice - risk * configuredBreakEvenAtR;
          bool hitBreakEvenTrigger = type == POSITION_TYPE_BUY ? price >= breakEvenTrigger : price <= breakEvenTrigger;
          bool improvesToBreakEven = type == POSITION_TYPE_BUY ? openPrice > sl + point : (sl <= 0.0 || openPrice < sl - point);
          if(hitBreakEvenTrigger && improvesToBreakEven && trade.PositionModify(ticket, openPrice, 0.0))
@@ -593,7 +644,26 @@ void GoldBotManagePositions(
             GlobalVariableSet(baseKey + ".be", 1.0);
             breakEvenMoved = true;
             sl = openPrice;
-            GoldBotJournal(StringFormat("Breakeven moved r=%.2f ticket=%I64u price=%.2f sl=%.2f", breakEvenAtR, ticket, price, openPrice));
+            GoldBotJournal(StringFormat("Breakeven moved r=%.2f ticket=%I64u price=%.2f sl=%.2f", configuredBreakEvenAtR, ticket, price, openPrice));
+         }
+      }
+
+      if(effectiveTrailAfterTp1 && configuredTrailStartR > 0.0 && !trailLogged && atr > 0.0)
+      {
+         double trailTrigger = type == POSITION_TYPE_BUY ? openPrice + risk * configuredTrailStartR : openPrice - risk * configuredTrailStartR;
+         bool hitTrailTrigger = type == POSITION_TYPE_BUY ? price >= trailTrigger : price <= trailTrigger;
+         if(hitTrailTrigger)
+         {
+            double trailSl = type == POSITION_TYPE_BUY ? price - atr : price + atr;
+            double protectedSl = type == POSITION_TYPE_BUY ? MathMax(openPrice, trailSl) : MathMin(openPrice, trailSl);
+            bool improves = type == POSITION_TYPE_BUY ? protectedSl > sl + point : (sl <= 0.0 || protectedSl < sl - point);
+            if(improves && trade.PositionModify(ticket, protectedSl, 0.0))
+            {
+               GlobalVariableSet(baseKey + ".trailAfterTp1", 1.0);
+               trailLogged = true;
+               sl = protectedSl;
+               GoldBotJournal(StringFormat("Trailing activated by setup trail start r=%.2f ticket=%I64u sl=%.2f price=%.2f", configuredTrailStartR, ticket, protectedSl, price));
+            }
          }
       }
 
@@ -601,7 +671,7 @@ void GoldBotManagePositions(
       {
          trade.PositionClosePartial(ticket, GoldBotNormalizeLot(symbol, volume * 0.5, SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN), volume));
          double nextSl = openPrice;
-         if(trailAfterTp1 && atr > 0.0)
+         if(effectiveTrailAfterTp1 && atr > 0.0)
          {
             double trailSl = type == POSITION_TYPE_BUY ? price - atr : price + atr;
             nextSl = type == POSITION_TYPE_BUY ? MathMax(openPrice, trailSl) : MathMin(openPrice, trailSl);
@@ -609,7 +679,7 @@ void GoldBotManagePositions(
          trade.PositionModify(ticket, nextSl, 0.0);
          GlobalVariableSet(baseKey + ".tp1", 1.0);
          tp1Hit = true;
-         if(trailAfterTp1)
+         if(effectiveTrailAfterTp1)
          {
             GlobalVariableSet(baseKey + ".trailAfterTp1", 1.0);
             trailLogged = true;
@@ -639,10 +709,13 @@ void GoldBotManagePositions(
             GlobalVariableDel(baseKey + ".trailAfterTp1");
             GlobalVariableDel(baseKey + ".tp2Price");
             GlobalVariableDel(baseKey + ".tp3Price");
+            GlobalVariableDel(baseKey + ".breakEvenAtR");
+            GlobalVariableDel(baseKey + ".trailStartR");
+            GlobalVariableDel(baseKey + ".riskCash");
          }
       }
 
-      if(trailAfterTp1 && tp1Hit && !tp2Hit && atr > 0.0)
+      if(effectiveTrailAfterTp1 && tp1Hit && !tp2Hit && atr > 0.0)
       {
          double trailSl = type == POSITION_TYPE_BUY ? price - atr : price + atr;
          double protectedSl = type == POSITION_TYPE_BUY ? MathMax(openPrice, trailSl) : MathMin(openPrice, trailSl);

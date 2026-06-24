@@ -12,6 +12,7 @@
 #define GOLDBOT_SETUP_SMC 1
 #define GOLDBOT_SETUP_CONTINUATION 2
 #define GOLDBOT_SETUP_BREAKOUT_RETEST 3
+#define GOLDBOT_SETUP_M5_SCALP 4
 
 input string          InpSymbol = "XAUUSD";
 input long            InpMagicNumber = 26053101;
@@ -47,6 +48,19 @@ input int             InpMaxOpenTrades = 2;
 input double          InpMaxDailyLossPct = 3.0;
 input double          InpMaxMonthlyLossPct = 5.0;
 input double          InpDailyTargetPct = 5.0;
+input bool            InpEnableCompoundGovernor = false;
+input double          InpCompoundMaxDrawdownPct = 30.0;
+input double          InpCompoundSoftDrawdownPct = 10.0;
+input double          InpCompoundHardThrottleDrawdownPct = 20.0;
+input double          InpCompoundSoftRiskMultiplier = 0.75;
+input double          InpCompoundHardRiskMultiplier = 0.50;
+input double          InpCompoundMonthlyProfitLockPct = 0.0;
+input double          InpCompoundMonthlyProfitLockMultiplier = 0.50;
+input bool            InpEnableMonthlyLossThrottle = false;
+input double          InpMonthlyLossSoftPct = 1.5;
+input double          InpMonthlyLossHardPct = 4.0;
+input double          InpMonthlyLossSoftRiskMultiplier = 0.50;
+input bool            InpMonthlyLossHardBlock = true;
 input int             InpAthLookbackBars = 0;
 input double          InpAthProximityPct = 0.0;
 input int             InpMinMonthlyTrades = 0;
@@ -103,6 +117,14 @@ input int             InpRegimeSlopeBars = 24;
 input double          InpRegimeMinSlopeAtr = 0.0;
 input double          InpRegimeMaxExtensionAtr = 3.0;
 input bool            InpRegimeRequireH1Direction = false;
+input bool            InpEnableRobustRegimeFilter = false;
+input bool            InpRobustApplyToM5 = true;
+input bool            InpRobustApplyToM15 = true;
+input double          InpRobustMinH1Adx = 18.0;
+input double          InpRobustMinH1AtrRatio = 0.75;
+input double          InpRobustMaxH1AtrRatio = 1.80;
+input double          InpRobustMinH1EmaSlopeAtr = 0.03;
+input double          InpRobustBlockIfMonthlyLossPct = 0.0;
 input bool            InpEnableStrictHourQuality = false;
 input string          InpStrictLongHours = "";
 input string          InpStrictShortHours = "";
@@ -115,6 +137,8 @@ input int             InpStrictHourPullbackChecks = 2;
 input bool            InpEnableHourSplitGuard = false;
 input string          InpSplit1OnlyLongHours = "";
 input string          InpSplit1OnlyShortHours = "";
+input string          InpSplit2OnlyLongHours = "";
+input string          InpSplit2OnlyShortHours = "";
 input bool            InpEnableContinuationPullbackSetup = false;
 input string          InpContinuationLongHours = "";
 input string          InpContinuationShortHours = "";
@@ -143,6 +167,42 @@ input bool            InpBreakoutRequireH1Trend = true;
 input double          InpBreakoutZoneAtr = 0.25;
 input double          InpBreakoutMaxZoneAtr = 0.80;
 input double          InpBreakoutBaseScore = 25.0;
+input bool            InpEnableM5ScalpSetup = false;
+input string          InpScalpLongHours = "7;10;12;18";
+input string          InpScalpShortHours = "7;10";
+input double          InpScalpMinAdx = 18.0;
+input double          InpScalpMinDiGap = 4.0;
+input bool            InpScalpRequireH1Trend = true;
+input bool            InpScalpRequireM15Direction = true;
+input double          InpScalpMaxSpreadPrice = 0.50;
+input int             InpScalpPendingExpiryMinutes = 15;
+input int             InpScalpMaxHoldMinutes = 90;
+input double          InpScalpSlAtr = 0.35;
+input double          InpScalpTp1R = 0.5;
+input double          InpScalpTp2R = 0.8;
+input double          InpScalpTp3R = 1.2;
+input int             InpScalpLadderOrderCount = 1;
+input double          InpScalpLotMultiplier = 0.50;
+input int             InpScalpMaxTradesPerDay = 8;
+input bool            InpEnableShortTermScalp = false;
+input string          InpShortTermBaseMode = "freq100i";
+input double          InpShortTermMaxDailyLossR = 2.5;
+input int             InpShortTermMaxConsecutiveScalpLosses = 3;
+input int             InpShortTermPauseAfterLossMinutes = 90;
+input double          InpScalpMaxSpreadToTp1Pct = 25.0;
+input bool            InpScalpEnableVolatilityRegime = true;
+input int             InpScalpAtrLookbackBars = 96;
+input double          InpScalpMinAtrRatio = 0.70;
+input double          InpScalpMaxAtrRatio = 1.80;
+input bool            InpScalpEnableClassicPullback = true;
+input bool            InpScalpEnableLiquiditySweepReclaim = false;
+input bool            InpScalpEnableSessionBreakoutRetest = false;
+input int             InpScalpSweepLookbackBars = 12;
+input int             InpScalpBreakoutLookbackBars = 16;
+input double          InpScalpBreakoutBufferAtr = 0.05;
+input double          InpScalpBreakEvenAtR = 0.35;
+input double          InpScalpTrailStartR = 0.70;
+input int             InpScalpTimeStopMinutes = 45;
 input string          InpAllowedEntryHours = "";
 input string          InpAllowedLongEntryHours = "";
 input string          InpAllowedShortEntryHours = "";
@@ -152,6 +212,7 @@ input bool            InpAllowShort = true;
 
 CTrade trade;
 datetime lastM15Bar = 0;
+datetime lastM5Bar = 0;
 datetime lastParityClosedBar = 0;
 datetime parityStartTime = 0;
 
@@ -231,10 +292,28 @@ bool GoldBotBreakoutH1TrendPass(const string symbol, const GoldBotDirection dire
 bool GoldBotBuildBreakoutRetestZone(const string symbol, const GoldBotDirection direction, const double breakoutLevel, const IndicatorSnapshot &indicators, EntryZone &zone);
 bool GoldBotBreakoutRetestSetupPass(const string symbol, const IndicatorSnapshot &indicators, GoldBotDirection &direction, double &score, EntryZone &zone);
 bool GoldBotBreakoutVolumePass(const string symbol, const double multiplier, long &volume, double &averageVolume, double &requiredVolume);
+bool GoldBotIsNewM5Bar(const string symbol);
+bool GoldBotM5ScalpAllowedToday(int &currentCount);
+void GoldBotMarkM5ScalpPlaced();
+bool GoldBotShortTermScalpAllowed(double &dailyR, int &losses, datetime &pauseUntil);
+void GoldBotUpdateShortTermScalpState(const double profit, const double riskCash);
+bool GoldBotM15DirectionPass(const string symbol, const GoldBotDirection direction, bool &longAligned, bool &shortAligned);
+bool GoldBotBuildM5ScalpZone(const GoldBotDirection direction, const double ema21, const double vwap, const double atr, EntryZone &zone);
+bool GoldBotBuildM5LevelScalpZone(const GoldBotDirection direction, const double level, const double ema21, const double vwap, const double atr, EntryZone &zone);
+bool GoldBotM5RecentRange(MqlRates &rates[], const int count, const int startIndex, const int lookbackBars, double &rangeHigh, double &rangeLow);
+bool GoldBotM5VolatilityRegimePass(MqlRates &rates[], const int count, const double currentAtr, double &averageAtr, double &atrRatio);
+bool GoldBotM5LiquiditySweepReclaimPass(MqlRates &rates[], const int count, const GoldBotDirection direction, const double ema21, const double vwap, const double atr, double &sweepLevel);
+bool GoldBotM5SessionBreakoutRetestPass(MqlRates &rates[], const int count, const GoldBotDirection direction, const double ema21, const double vwap, const double atr, double &breakoutLevel);
+bool GoldBotScalpDynamicCostPass(const GoldBotDirection direction, const double spread, const double risk, const double tp1R, double &tp1Distance, double &spreadToTpPct);
+bool GoldBotTryM5Scalp(const string symbol);
 void GoldBotApplyHourSplitGuard(const GoldBotDirection direction, const double score, const int confluenceCount, const int enabledConfluences, int &ladderOrderCount, int &ladderFirstSplit);
 bool GoldBotRegimePass(const string symbol, const GoldBotDirection direction, const SMCResult &smc, const bool enabled, const int slopeBars, const double minSlopeAtr, const double maxExtensionAtr, const bool requireH1Direction, const double score, const int confluenceCount, const int enabledConfluences, double &slopeAtr, double &extensionAtr);
+double GoldBotAverageATR(const string symbol, const ENUM_TIMEFRAMES tf, const int period, const int startShift, const int bars);
+bool GoldBotRobustMonthlyRiskAllowed(double &monthlyPnlPct, bool &monthlyBlocked);
+bool GoldBotRobustRegimePass(const string symbol, const string setupName, const GoldBotDirection direction, const bool isM5Setup, const double score, const int confluenceCount, const int enabledConfluences);
 string GoldBotMagicKey(const string suffix);
 int GoldBotMonthCode(const datetime timeValue);
+bool GoldBotCompoundGovernorPass(const string symbol, const string setupName, const GoldBotDirection direction, const int entryHour, double &effectiveLotPer100Usd);
 void GoldBotResetMonthlyTradeCounterIfNeeded(const datetime timeValue);
 int GoldBotMonthlyCompletedTradeCount(const datetime timeValue);
 void GoldBotIncrementMonthlyCompletedTrades(const datetime timeValue);
@@ -257,6 +336,21 @@ int OnInit()
       GoldBotPythonParityReset();
    else if(InpResetJournalOnInit)
       GoldBotResetJournal();
+   if((InpEnableCompoundGovernor || InpEnableMonthlyLossThrottle) && (bool)MQLInfoInteger(MQL_TESTER))
+   {
+      GlobalVariableDel(GoldBotMagicKey("CompoundPeakEquity"));
+      GlobalVariableDel(GoldBotMagicKey("CompoundMonth"));
+      GlobalVariableDel(GoldBotMagicKey("CompoundMonthStartEquity"));
+      GlobalVariableDel(GoldBotMagicKey("CompoundMonthProfitLock"));
+      GoldBotJournal("Compound governor tester state reset");
+   }
+   if(InpEnableRobustRegimeFilter && (bool)MQLInfoInteger(MQL_TESTER))
+   {
+      GlobalVariableDel(GoldBotMagicKey("RobustMonth"));
+      GlobalVariableDel(GoldBotMagicKey("RobustMonthStartEquity"));
+      GlobalVariableDel(GoldBotMagicKey("RobustMonthlyHalt"));
+      GoldBotJournal("Robust regime tester state reset");
+   }
    Print("GoldBot initialized for ", symbol, " magic=", InpMagicNumber);
    return INIT_SUCCEEDED;
 }
@@ -324,13 +418,14 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    int enabledConfluences = (int)GoldBotMetadataValue(posKey, "enabledConfluences", -1.0);
    double scoreBucket = GoldBotMetadataValue(posKey, "scoreBucket", -1.0);
    int setupCode = (int)GoldBotMetadataValue(posKey, "setup", (double)GOLDBOT_SETUP_SMC);
+   int scalpVariantCode = (int)GoldBotMetadataValue(posKey, "scalpVariant", 0.0);
    long signalCode = (long)GoldBotMetadataValue(posKey, "signalCode", (double)GoldBotSignalCodeFromComment(comment));
    string setupName = GoldBotSetupName(setupCode);
    double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT) +
                    HistoryDealGetDouble(trans.deal, DEAL_COMMISSION) +
                    HistoryDealGetDouble(trans.deal, DEAL_SWAP);
 
-   GoldBotJournal(StringFormat("Deal event deal=%I64u position=%I64d entry=%d type=%d reason=%d price=%.2f volume=%.2f profit=%.2f dir=%d split=%d hour=%d scoreBucket=%.0f confluences=%d/%d setup=%s comment=%s",
+   GoldBotJournal(StringFormat("Deal event deal=%I64u position=%I64d entry=%d type=%d reason=%d price=%.2f volume=%.2f profit=%.2f dir=%d split=%d hour=%d scoreBucket=%.0f confluences=%d/%d setup=%s scalpVariant=%d comment=%s",
       trans.deal,
       positionId,
       dealEntry,
@@ -346,6 +441,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
       confluences,
       enabledConfluences,
       setupName,
+      scalpVariantCode,
       comment));
 
    if(dealEntry == DEAL_ENTRY_OUT || dealEntry == DEAL_ENTRY_OUT_BY)
@@ -362,6 +458,11 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
                dealReason));
       }
       GoldBotUpdateLossStreak(profit);
+      if(setupCode == GOLDBOT_SETUP_M5_SCALP)
+      {
+         double riskCash = GoldBotMetadataValue(posKey, "riskCash", 0.0);
+         GoldBotUpdateShortTermScalpState(profit, riskCash);
+      }
       if(finalPositionClose)
          GoldBotIncrementMonthlyCompletedTrades(dealTime);
    }
@@ -379,7 +480,9 @@ void OnTick()
       return;
    }
 
-   if(!GoldBotIsNewM15Bar(symbol))
+   bool newM15Bar = GoldBotIsNewM15Bar(symbol);
+   bool newM5Bar = GoldBotIsNewM5Bar(symbol);
+   if(!newM15Bar && !newM5Bar)
    {
       GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), InpMaxHoldBars, InpTp1R, InpTp2R, InpTp3R, InpBreakEvenAtR, InpTrailAfterTp1, InpUseHtfTargetsForTp2Tp3, trade);
       return;
@@ -429,6 +532,12 @@ void OnTick()
    if(GoldBotCountManagedPositions(symbol, InpMagicNumber) >= InpMaxOpenTrades)
    {
       GoldBotLog("Max open trades gate blocked new entries.");
+      return;
+   }
+
+   if(!newM15Bar)
+   {
+      GoldBotTryM5Scalp(symbol);
       return;
    }
 
@@ -971,6 +1080,9 @@ void OnTick()
       return;
    }
 
+   if(!InpLegacyParityMode && !GoldBotRobustRegimePass(symbol, setupName, direction, false, score, confluenceCount, enabledConfluences))
+      return;
+
    string signalId = GoldBotNewSignalId(direction);
    GoldBotLog(StringFormat("Signal score=%.2f dir=%d zone=%.2f-%.2f sl=%.2f confluences=%d/%d", score, direction, zone.bottom, zone.top, sl, confluenceCount, enabledConfluences));
    GoldBotJournal(StringFormat("Signal accepted signalId=%s setup=%s score=%.2f dir=%d confluences=%d/%d emaPass=%s rsiPass=%s vwapPass=%s atrPass=%s adxPass=%s macdPass=%s bbPass=%s stochPass=%s zone=%.2f-%.2f sl=%.2f rsi=%.2f adx=%.2f plusDI=%.2f minusDI=%.2f atr=%.2f ema21=%.2f ema50=%.2f ema200=%.2f vwap=%.2f regimeSlopeAtr=%.2f regimeExtensionAtr=%.2f",
@@ -1030,10 +1142,24 @@ void OnTick()
 
    GoldBotApplyHourSplitGuard(direction, score, confluenceCount, enabledConfluences, ladderOrderCount, ladderFirstSplit);
 
-   if(GoldBotPlaceLadder(symbol, InpMagicNumber, direction, zone, sl, score, signalId, setupCode, setupName, ladderOrderCount, ladderFirstSplit, confluenceCount, enabledConfluences, InpLotPer100Usd, InpMinLot, InpMaxLot, InpHighConvictionScore, InpMinRR, InpMaxHoldBars, trade))
+   MqlDateTime compoundNow;
+   TimeToStruct(TimeCurrent(), compoundNow);
+   double effectiveLotPer100Usd = InpLotPer100Usd;
+   if(!GoldBotCompoundGovernorPass(symbol, setupName, direction, compoundNow.hour, effectiveLotPer100Usd))
+   {
+      GoldBotLog("Compound governor blocked new M15 entry.");
+      return;
+   }
+
+   bool m15Placed = GoldBotPlaceLadder(symbol, InpMagicNumber, direction, zone, sl, score, signalId, setupCode, setupName, 0, ladderOrderCount, ladderFirstSplit, confluenceCount, enabledConfluences, effectiveLotPer100Usd, InpMinLot, InpMaxLot, InpHighConvictionScore, InpMinRR, InpMaxHoldBars, 0, 0, 0.0, 0.0, 0.0, -1, 0.0, 0.0, 1.0, trade);
+   if(m15Placed)
    {
       GoldBotMarkLadderPlaced();
       GoldBotJournal(StringFormat("Pending ladder placed signalId=%s setup=%s orderCount=%d firstSplit=%d", signalId, setupName, ladderOrderCount, ladderFirstSplit));
+   }
+   else if(newM5Bar)
+   {
+      GoldBotTryM5Scalp(symbol);
    }
 }
 
@@ -1052,6 +1178,166 @@ int GoldBotMonthCode(const datetime timeValue)
    MqlDateTime parts;
    TimeToStruct(timeValue, parts);
    return parts.year * 100 + parts.mon;
+}
+
+bool GoldBotCompoundGovernorPass(const string symbol, const string setupName, const GoldBotDirection direction, const int entryHour, double &effectiveLotPer100Usd)
+{
+   effectiveLotPer100Usd = InpLotPer100Usd;
+   if(!InpEnableCompoundGovernor && !InpEnableMonthlyLossThrottle)
+      return true;
+
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   if(equity <= 0.0)
+   {
+      GoldBotJournal(StringFormat("Compound governor blocked setup=%s dir=%d hour=%d reason=invalid_equity equity=%.2f",
+         setupName,
+         direction,
+         entryHour,
+         equity));
+      return false;
+   }
+
+   double multiplier = 1.0;
+   string reason = "normal";
+   bool allowed = true;
+
+   string peakKey = GoldBotMagicKey("CompoundPeakEquity");
+   double peakEquity = GlobalVariableCheck(peakKey) ? GlobalVariableGet(peakKey) : 0.0;
+   if(peakEquity <= 0.0 || equity > peakEquity)
+   {
+      peakEquity = equity;
+      GlobalVariableSet(peakKey, peakEquity);
+   }
+
+   double drawdownPct = peakEquity > 0.0 ? ((peakEquity - equity) / peakEquity) * 100.0 : 0.0;
+
+   int currentMonth = GoldBotMonthCode(TimeCurrent());
+   string monthKey = GoldBotMagicKey("CompoundMonth");
+   string monthStartKey = GoldBotMagicKey("CompoundMonthStartEquity");
+   string monthLockKey = GoldBotMagicKey("CompoundMonthProfitLock");
+   int storedMonth = GlobalVariableCheck(monthKey) ? (int)GlobalVariableGet(monthKey) : 0;
+   if(storedMonth != currentMonth || !GlobalVariableCheck(monthStartKey))
+   {
+      GlobalVariableSet(monthKey, (double)currentMonth);
+      GlobalVariableSet(monthStartKey, equity);
+      GlobalVariableSet(monthLockKey, 0.0);
+      GoldBotJournal(StringFormat("Compound governor monthly baseline reset month=%d equity=%.2f",
+         currentMonth,
+         equity));
+   }
+
+   double monthStartEquity = GlobalVariableGet(monthStartKey);
+   if(monthStartEquity <= 0.0)
+   {
+      monthStartEquity = equity;
+      GlobalVariableSet(monthStartKey, equity);
+   }
+   double monthlyPnlPct = monthStartEquity > 0.0 ? ((equity - monthStartEquity) / monthStartEquity) * 100.0 : 0.0;
+
+   if(InpEnableCompoundGovernor)
+   {
+      double softThreshold = MathMax(0.0, InpCompoundSoftDrawdownPct);
+      double hardThreshold = MathMax(softThreshold, InpCompoundHardThrottleDrawdownPct);
+      double maxDrawdown = MathMax(hardThreshold, InpCompoundMaxDrawdownPct);
+
+      if(InpCompoundMaxDrawdownPct > 0.0 && drawdownPct >= maxDrawdown)
+      {
+         allowed = false;
+         multiplier = 0.0;
+         reason = "max_drawdown_halt";
+      }
+      else
+      {
+         if(softThreshold > 0.0 && drawdownPct >= softThreshold)
+         {
+            multiplier = MathMin(multiplier, MathMax(0.0, InpCompoundSoftRiskMultiplier));
+            reason = "soft_drawdown_throttle";
+         }
+         if(hardThreshold > 0.0 && drawdownPct >= hardThreshold)
+         {
+            multiplier = MathMin(multiplier, MathMax(0.0, InpCompoundHardRiskMultiplier));
+            reason = "hard_drawdown_throttle";
+         }
+
+         bool monthlyLocked = false;
+         int lockedMonth = GlobalVariableCheck(monthLockKey) ? (int)GlobalVariableGet(monthLockKey) : 0;
+         if(InpCompoundMonthlyProfitLockPct > 0.0 && lockedMonth == currentMonth)
+            monthlyLocked = true;
+         else if(InpCompoundMonthlyProfitLockPct > 0.0 && monthlyPnlPct >= InpCompoundMonthlyProfitLockPct)
+         {
+            monthlyLocked = true;
+            GlobalVariableSet(monthLockKey, (double)currentMonth);
+         }
+         else if(InpCompoundMonthlyProfitLockPct <= 0.0 && lockedMonth != 0)
+         {
+            GlobalVariableSet(monthLockKey, 0.0);
+         }
+
+         if(monthlyLocked)
+         {
+            multiplier = MathMin(multiplier, MathMax(0.0, InpCompoundMonthlyProfitLockMultiplier));
+            reason = reason + "+monthly_profit_lock";
+         }
+
+         if(multiplier <= 0.0)
+         {
+            allowed = false;
+            reason = reason + "+zero_multiplier";
+         }
+      }
+   }
+
+   double monthlyLossPct = monthlyPnlPct < 0.0 ? -monthlyPnlPct : 0.0;
+   if(allowed && InpEnableMonthlyLossThrottle)
+   {
+      double monthlySoftPct = MathMax(0.0, InpMonthlyLossSoftPct);
+      double monthlyHardPct = MathMax(monthlySoftPct, InpMonthlyLossHardPct);
+      if(InpMonthlyLossHardBlock && monthlyHardPct > 0.0 && monthlyLossPct >= monthlyHardPct)
+      {
+         allowed = false;
+         multiplier = 0.0;
+         reason = reason + "+monthly_loss_hard_block";
+      }
+      else if(monthlySoftPct > 0.0 && monthlyLossPct >= monthlySoftPct)
+      {
+         multiplier = MathMin(multiplier, MathMax(0.0, InpMonthlyLossSoftRiskMultiplier));
+         reason = reason + "+monthly_loss_soft_throttle";
+      }
+
+      if(multiplier <= 0.0)
+      {
+         allowed = false;
+         reason = reason + "+monthly_loss_zero_multiplier";
+      }
+   }
+
+   effectiveLotPer100Usd = InpLotPer100Usd * multiplier;
+   GoldBotJournal(StringFormat("Compound governor decision setup=%s dir=%d hour=%d equity=%.2f peakEquity=%.2f drawdownPct=%.2f monthlyPnlPct=%.2f monthlyLossPct=%.2f monthlyThrottle=%s multiplier=%.2f effectiveLotPer100=%.5f allowed=%s reason=%s",
+      setupName,
+      direction,
+      entryHour,
+      equity,
+      peakEquity,
+      drawdownPct,
+      monthlyPnlPct,
+      monthlyLossPct,
+      InpEnableMonthlyLossThrottle ? "yes" : "no",
+      multiplier,
+      effectiveLotPer100Usd,
+      allowed ? "yes" : "no",
+      reason));
+
+   if(!allowed)
+   {
+      GoldBotCancelPendingOrders(symbol, InpMagicNumber, trade);
+      GoldBotJournal(StringFormat("Compound governor cancelled pending orders setup=%s dir=%d hour=%d reason=%s",
+         setupName,
+         direction,
+         entryHour,
+         reason));
+   }
+
+   return allowed;
 }
 
 void GoldBotResetMonthlyTradeCounterIfNeeded(const datetime timeValue)
@@ -1804,12 +2090,14 @@ void GoldBotApplyHourSplitGuard(
 {
    if(!InpEnableHourSplitGuard)
       return;
-   if(!GoldBotStrictHourApplies(direction, InpSplit1OnlyLongHours, InpSplit1OnlyShortHours))
+   bool split2Only = GoldBotStrictHourApplies(direction, InpSplit2OnlyLongHours, InpSplit2OnlyShortHours);
+   bool split1Only = GoldBotStrictHourApplies(direction, InpSplit1OnlyLongHours, InpSplit1OnlyShortHours);
+   if(!split2Only && !split1Only)
       return;
 
    int originalOrderCount = ladderOrderCount;
    int originalFirstSplit = ladderFirstSplit;
-   ladderFirstSplit = 1;
+   ladderFirstSplit = split2Only ? 2 : 1;
    ladderOrderCount = 1;
    if(originalOrderCount == ladderOrderCount && originalFirstSplit == ladderFirstSplit)
       return;
@@ -1921,6 +2209,177 @@ bool GoldBotRegimePass(
    return false;
 }
 
+double GoldBotAverageATR(const string symbol, const ENUM_TIMEFRAMES tf, const int period, const int startShift, const int bars)
+{
+   int normalizedBars = MathMax(10, bars);
+   int handle = iATR(symbol, tf, period);
+   if(handle == INVALID_HANDLE)
+      return EMPTY_VALUE;
+
+   double values[];
+   ArraySetAsSeries(values, true);
+   int copied = CopyBuffer(handle, 0, MathMax(1, startShift), normalizedBars, values);
+   IndicatorRelease(handle);
+   if(copied < 10)
+      return EMPTY_VALUE;
+
+   double sum = 0.0;
+   int count = 0;
+   for(int i = 0; i < copied; i++)
+   {
+      if(values[i] == EMPTY_VALUE || values[i] <= 0.0)
+         continue;
+      sum += values[i];
+      count++;
+   }
+
+   return count > 0 ? sum / count : EMPTY_VALUE;
+}
+
+bool GoldBotRobustMonthlyRiskAllowed(double &monthlyPnlPct, bool &monthlyBlocked)
+{
+   monthlyPnlPct = 0.0;
+   monthlyBlocked = false;
+
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   if(equity <= 0.0)
+      return true;
+
+   int currentMonth = GoldBotMonthCode(TimeCurrent());
+   string monthKey = GoldBotMagicKey("RobustMonth");
+   string startKey = GoldBotMagicKey("RobustMonthStartEquity");
+   string haltKey = GoldBotMagicKey("RobustMonthlyHalt");
+
+   int storedMonth = GlobalVariableCheck(monthKey) ? (int)GlobalVariableGet(monthKey) : 0;
+   if(storedMonth != currentMonth || !GlobalVariableCheck(startKey))
+   {
+      GlobalVariableSet(monthKey, (double)currentMonth);
+      GlobalVariableSet(startKey, equity);
+      GlobalVariableSet(haltKey, 0.0);
+      GoldBotJournal(StringFormat("Robust monthly baseline reset month=%d equity=%.2f",
+         currentMonth,
+         equity));
+      return true;
+   }
+
+   double startEquity = GlobalVariableGet(startKey);
+   if(startEquity <= 0.0)
+   {
+      startEquity = equity;
+      GlobalVariableSet(startKey, equity);
+   }
+
+   monthlyPnlPct = ((equity - startEquity) / startEquity) * 100.0;
+   if(InpRobustBlockIfMonthlyLossPct <= 0.0)
+      return true;
+
+   int haltedMonth = GlobalVariableCheck(haltKey) ? (int)GlobalVariableGet(haltKey) : 0;
+   if(haltedMonth == currentMonth)
+   {
+      monthlyBlocked = true;
+      return false;
+   }
+
+   double lossPct = ((startEquity - equity) / startEquity) * 100.0;
+   if(lossPct >= InpRobustBlockIfMonthlyLossPct)
+   {
+      GlobalVariableSet(haltKey, (double)currentMonth);
+      monthlyBlocked = true;
+      return false;
+   }
+
+   return true;
+}
+
+bool GoldBotRobustRegimePass(
+   const string symbol,
+   const string setupName,
+   const GoldBotDirection direction,
+   const bool isM5Setup,
+   const double score,
+   const int confluenceCount,
+   const int enabledConfluences
+)
+{
+   if(!InpEnableRobustRegimeFilter)
+      return true;
+   if(isM5Setup && !InpRobustApplyToM5)
+      return true;
+   if(!isM5Setup && !InpRobustApplyToM15)
+      return true;
+
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+
+   double h1Adx = 0.0;
+   double plusDI = 0.0;
+   double minusDI = 0.0;
+   bool hasAdx = GoldBotADX(symbol, PERIOD_H1, 14, 1, h1Adx, plusDI, minusDI);
+   double h1Atr = GoldBotATR(symbol, PERIOD_H1, 14, 1);
+   double h1AverageAtr = GoldBotAverageATR(symbol, PERIOD_H1, 14, 1, 96);
+   double atrRatio = (h1AverageAtr != EMPTY_VALUE && h1AverageAtr > 0.0 && h1Atr != EMPTY_VALUE && h1Atr > 0.0) ? h1Atr / h1AverageAtr : 0.0;
+   double emaNow = GoldBotMA(symbol, PERIOD_H1, 21, 1);
+   double emaPast = GoldBotMA(symbol, PERIOD_H1, 21, 25);
+   double slopeAtr = (emaNow != EMPTY_VALUE && emaPast != EMPTY_VALUE && h1Atr != EMPTY_VALUE && h1Atr > 0.0) ? (emaNow - emaPast) / h1Atr : 0.0;
+
+   bool monthlyBlocked = false;
+   double monthlyPnlPct = 0.0;
+   bool monthlyAllowed = GoldBotRobustMonthlyRiskAllowed(monthlyPnlPct, monthlyBlocked);
+
+   bool hasRegimeData = hasAdx
+      && h1Atr != EMPTY_VALUE
+      && h1Atr > 0.0
+      && h1AverageAtr != EMPTY_VALUE
+      && h1AverageAtr > 0.0
+      && emaNow != EMPTY_VALUE
+      && emaPast != EMPTY_VALUE;
+
+   string reason = "";
+   if(!monthlyAllowed)
+      reason = "monthly_loss";
+   else if(!hasRegimeData)
+      reason = "unavailable";
+   else if(InpRobustMinH1Adx > 0.0 && h1Adx < InpRobustMinH1Adx)
+      reason = "h1_adx_low";
+   else if(InpRobustMinH1AtrRatio > 0.0 && atrRatio < InpRobustMinH1AtrRatio)
+      reason = "h1_atr_ratio_low";
+   else if(InpRobustMaxH1AtrRatio > 0.0 && atrRatio > InpRobustMaxH1AtrRatio)
+      reason = "h1_atr_ratio_high";
+   else if(InpRobustMinH1EmaSlopeAtr > 0.0 && direction == DIR_LONG && slopeAtr < InpRobustMinH1EmaSlopeAtr)
+      reason = "h1_long_slope_low";
+   else if(InpRobustMinH1EmaSlopeAtr > 0.0 && direction == DIR_SHORT && -slopeAtr < InpRobustMinH1EmaSlopeAtr)
+      reason = "h1_short_slope_low";
+
+   if(StringLen(reason) <= 0)
+      return true;
+
+   if(monthlyBlocked)
+      GoldBotCancelPendingOrders(symbol, InpMagicNumber, trade);
+
+   GoldBotJournal(StringFormat("Robust regime filter blocked setup=%s isM5=%s reason=%s dir=%d hour=%d h1Adx=%.2f minAdx=%.2f atr=%.2f avgAtr=%.2f atrRatio=%.2f minAtrRatio=%.2f maxAtrRatio=%.2f emaSlopeAtr=%.4f minSlopeAtr=%.4f monthlyPnlPct=%.2f monthlyLossLimit=%.2f score=%.2f confluences=%d/%d cancelledPending=%s",
+      setupName,
+      isM5Setup ? "yes" : "no",
+      reason,
+      direction,
+      nowParts.hour,
+      h1Adx,
+      InpRobustMinH1Adx,
+      h1Atr,
+      h1AverageAtr,
+      atrRatio,
+      InpRobustMinH1AtrRatio,
+      InpRobustMaxH1AtrRatio,
+      slopeAtr,
+      InpRobustMinH1EmaSlopeAtr,
+      monthlyPnlPct,
+      InpRobustBlockIfMonthlyLossPct,
+      score,
+      confluenceCount,
+      enabledConfluences,
+      monthlyBlocked ? "yes" : "no"));
+   return false;
+}
+
 bool GoldBotIsNewM15Bar(const string symbol)
 {
    datetime barTime = iTime(symbol, PERIOD_M15, 0);
@@ -1928,6 +2387,675 @@ bool GoldBotIsNewM15Bar(const string symbol)
       return false;
    lastM15Bar = barTime;
    return true;
+}
+
+bool GoldBotIsNewM5Bar(const string symbol)
+{
+   datetime barTime = iTime(symbol, PERIOD_M5, 0);
+   if(barTime == 0 || barTime == lastM5Bar)
+      return false;
+   lastM5Bar = barTime;
+   return true;
+}
+
+bool GoldBotM5ScalpAllowedToday(int &currentCount)
+{
+   currentCount = 0;
+   if(InpScalpMaxTradesPerDay <= 0)
+      return true;
+
+   string key = GoldBotDayKey(StringFormat("m5ScalpCount.%I64d", InpMagicNumber));
+   if(GlobalVariableCheck(key))
+      currentCount = (int)GlobalVariableGet(key);
+   return currentCount < InpScalpMaxTradesPerDay;
+}
+
+void GoldBotMarkM5ScalpPlaced()
+{
+   string key = GoldBotDayKey(StringFormat("m5ScalpCount.%I64d", InpMagicNumber));
+   int currentCount = GlobalVariableCheck(key) ? (int)GlobalVariableGet(key) : 0;
+   GlobalVariableSet(key, (double)(currentCount + 1));
+}
+
+bool GoldBotShortTermScalpAllowed(double &dailyR, int &losses, datetime &pauseUntil)
+{
+   dailyR = 0.0;
+   losses = 0;
+   pauseUntil = 0;
+   if(!InpEnableShortTermScalp)
+      return true;
+
+   string dailyRKey = GoldBotDayKey(StringFormat("shortTermScalpR.%I64d", InpMagicNumber));
+   string lossesKey = GoldBotDayKey(StringFormat("shortTermScalpLosses.%I64d", InpMagicNumber));
+   string pauseKey = GoldBotDayKey(StringFormat("shortTermScalpPause.%I64d", InpMagicNumber));
+   if(GlobalVariableCheck(dailyRKey))
+      dailyR = GlobalVariableGet(dailyRKey);
+   if(GlobalVariableCheck(lossesKey))
+      losses = (int)GlobalVariableGet(lossesKey);
+   if(GlobalVariableCheck(pauseKey))
+      pauseUntil = (datetime)GlobalVariableGet(pauseKey);
+
+   if(InpShortTermMaxDailyLossR > 0.0 && dailyR <= -InpShortTermMaxDailyLossR)
+      return false;
+   if(pauseUntil > TimeCurrent())
+      return false;
+   return true;
+}
+
+void GoldBotUpdateShortTermScalpState(const double profit, const double riskCash)
+{
+   if(!InpEnableShortTermScalp || riskCash <= 0.0)
+      return;
+
+   string dailyRKey = GoldBotDayKey(StringFormat("shortTermScalpR.%I64d", InpMagicNumber));
+   string lossesKey = GoldBotDayKey(StringFormat("shortTermScalpLosses.%I64d", InpMagicNumber));
+   string pauseKey = GoldBotDayKey(StringFormat("shortTermScalpPause.%I64d", InpMagicNumber));
+   double dailyR = GlobalVariableCheck(dailyRKey) ? GlobalVariableGet(dailyRKey) : 0.0;
+   int losses = GlobalVariableCheck(lossesKey) ? (int)GlobalVariableGet(lossesKey) : 0;
+   double rr = profit / riskCash;
+   dailyR += rr;
+
+   if(profit < 0.0)
+      losses++;
+   else if(profit > 0.0)
+      losses = 0;
+
+   GlobalVariableSet(dailyRKey, dailyR);
+   GlobalVariableSet(lossesKey, (double)losses);
+
+   if(InpShortTermMaxConsecutiveScalpLosses > 0 && losses >= InpShortTermMaxConsecutiveScalpLosses)
+   {
+      int pauseMinutes = InpShortTermPauseAfterLossMinutes < 1 ? 1 : InpShortTermPauseAfterLossMinutes;
+      datetime pauseUntil = TimeCurrent() + pauseMinutes * 60;
+      GlobalVariableSet(pauseKey, (double)pauseUntil);
+      GoldBotJournal(StringFormat("Short-term scalp pause activated losses=%d rr=%.2f dailyR=%.2f pauseUntil=%s",
+         losses,
+         rr,
+         dailyR,
+         TimeToString(pauseUntil, TIME_DATE | TIME_MINUTES)));
+   }
+   else
+   {
+      GoldBotJournal(StringFormat("Short-term scalp state updated profit=%.2f rr=%.2f dailyR=%.2f losses=%d",
+         profit,
+         rr,
+         dailyR,
+         losses));
+   }
+}
+
+bool GoldBotM15DirectionPass(const string symbol, const GoldBotDirection direction, bool &longAligned, bool &shortAligned)
+{
+   longAligned = false;
+   shortAligned = false;
+
+   double close = iClose(symbol, PERIOD_M15, 1);
+   double ema21 = GoldBotMA(symbol, PERIOD_M15, 21, 1);
+   double ema50 = GoldBotMA(symbol, PERIOD_M15, 50, 1);
+   if(close <= 0.0 || ema21 == EMPTY_VALUE || ema50 == EMPTY_VALUE || ema21 <= 0.0 || ema50 <= 0.0)
+      return false;
+
+   longAligned = close > ema21 && ema21 >= ema50;
+   shortAligned = close < ema21 && ema21 <= ema50;
+   if(direction == DIR_LONG)
+      return longAligned;
+   if(direction == DIR_SHORT)
+      return shortAligned;
+   return false;
+}
+
+bool GoldBotBuildM5ScalpZone(const GoldBotDirection direction, const double ema21, const double vwap, const double atr, EntryZone &zone)
+{
+   GoldBotResetEntryZone(zone);
+   if(direction == DIR_NONE || ema21 <= 0.0 || vwap <= 0.0 || atr <= 0.0)
+      return false;
+
+   double point = SymbolInfoDouble(GoldBotSymbol(), SYMBOL_POINT);
+   if(point <= 0.0)
+      point = 0.01;
+
+   double padding = MathMax(point * 10.0, atr * MathMax(0.05, InpScalpSlAtr * 0.5));
+   double bottom = MathMin(ema21, vwap) - padding;
+   double top = MathMax(ema21, vwap) + padding;
+   if(bottom <= 0.0 || top <= bottom)
+      return false;
+
+   zone.valid = true;
+   zone.bottom = bottom;
+   zone.top = top;
+   zone.midpoint = bottom + (top - bottom) / 2.0;
+   zone.quarterPoint = bottom + (top - bottom) * 0.25;
+   return true;
+}
+
+bool GoldBotBuildM5LevelScalpZone(const GoldBotDirection direction, const double level, const double ema21, const double vwap, const double atr, EntryZone &zone)
+{
+   GoldBotResetEntryZone(zone);
+   if(direction == DIR_NONE || level <= 0.0 || ema21 <= 0.0 || vwap <= 0.0 || atr <= 0.0)
+      return false;
+
+   double point = SymbolInfoDouble(GoldBotSymbol(), SYMBOL_POINT);
+   if(point <= 0.0)
+      point = 0.01;
+
+   double anchor = (level + ema21 + vwap) / 3.0;
+   double padding = MathMax(point * 10.0, atr * 0.18);
+   double bottom = MathMin(anchor, level) - padding;
+   double top = MathMax(anchor, level) + padding;
+   if(bottom <= 0.0 || top <= bottom)
+      return false;
+
+   zone.valid = true;
+   zone.bottom = bottom;
+   zone.top = top;
+   zone.midpoint = bottom + (top - bottom) / 2.0;
+   zone.quarterPoint = bottom + (top - bottom) * 0.25;
+   return true;
+}
+
+bool GoldBotM5RecentRange(MqlRates &rates[], const int count, const int startIndex, const int lookbackBars, double &rangeHigh, double &rangeLow)
+{
+   rangeHigh = 0.0;
+   rangeLow = 0.0;
+   int lookback = MathMax(3, lookbackBars);
+   if(count <= startIndex + lookback)
+      return false;
+
+   for(int i = startIndex; i < startIndex + lookback; i++)
+   {
+      if(i == startIndex)
+      {
+         rangeHigh = rates[i].high;
+         rangeLow = rates[i].low;
+      }
+      else
+      {
+         rangeHigh = MathMax(rangeHigh, rates[i].high);
+         rangeLow = MathMin(rangeLow, rates[i].low);
+      }
+   }
+   return rangeHigh > rangeLow && rangeLow > 0.0;
+}
+
+bool GoldBotM5VolatilityRegimePass(MqlRates &rates[], const int count, const double currentAtr, double &averageAtr, double &atrRatio)
+{
+   averageAtr = 0.0;
+   atrRatio = 0.0;
+   if(!InpEnableShortTermScalp || !InpScalpEnableVolatilityRegime)
+      return true;
+   if(currentAtr <= 0.0)
+      return false;
+
+   int lookback = MathMax(20, InpScalpAtrLookbackBars);
+   if(count <= lookback + 1)
+      return false;
+
+   double total = 0.0;
+   for(int i = 0; i < lookback; i++)
+   {
+      double prevClose = rates[i + 1].close;
+      double tr = MathMax(rates[i].high - rates[i].low, MathMax(MathAbs(rates[i].high - prevClose), MathAbs(rates[i].low - prevClose)));
+      total += tr;
+   }
+   averageAtr = total / lookback;
+   if(averageAtr <= 0.0)
+      return false;
+
+   atrRatio = currentAtr / averageAtr;
+   double minRatio = MathMax(0.0, InpScalpMinAtrRatio);
+   double maxRatio = MathMax(minRatio, InpScalpMaxAtrRatio);
+   return atrRatio >= minRatio && (maxRatio <= 0.0 || atrRatio <= maxRatio);
+}
+
+bool GoldBotM5LiquiditySweepReclaimPass(MqlRates &rates[], const int count, const GoldBotDirection direction, const double ema21, const double vwap, const double atr, double &sweepLevel)
+{
+   sweepLevel = 0.0;
+   if(direction == DIR_NONE || ema21 <= 0.0 || vwap <= 0.0 || atr <= 0.0)
+      return false;
+
+   double rangeHigh = 0.0;
+   double rangeLow = 0.0;
+   if(!GoldBotM5RecentRange(rates, count, 1, MathMax(4, InpScalpSweepLookbackBars), rangeHigh, rangeLow))
+      return false;
+
+   double reclaimLine = direction == DIR_LONG ? MathMax(ema21, vwap) : MathMin(ema21, vwap);
+   if(direction == DIR_LONG)
+   {
+      bool swept = rates[0].low < rangeLow - atr * 0.02;
+      bool reclaimed = rates[0].close > reclaimLine && rates[0].close > rates[0].open;
+      if(swept && reclaimed)
+      {
+         sweepLevel = rangeLow;
+         return true;
+      }
+   }
+   else if(direction == DIR_SHORT)
+   {
+      bool swept = rates[0].high > rangeHigh + atr * 0.02;
+      bool reclaimed = rates[0].close < reclaimLine && rates[0].close < rates[0].open;
+      if(swept && reclaimed)
+      {
+         sweepLevel = rangeHigh;
+         return true;
+      }
+   }
+   return false;
+}
+
+bool GoldBotM5SessionBreakoutRetestPass(MqlRates &rates[], const int count, const GoldBotDirection direction, const double ema21, const double vwap, const double atr, double &breakoutLevel)
+{
+   breakoutLevel = 0.0;
+   if(direction == DIR_NONE || ema21 <= 0.0 || vwap <= 0.0 || atr <= 0.0)
+      return false;
+
+   double rangeHigh = 0.0;
+   double rangeLow = 0.0;
+   if(!GoldBotM5RecentRange(rates, count, 1, MathMax(6, InpScalpBreakoutLookbackBars), rangeHigh, rangeLow))
+      return false;
+
+   double buffer = atr * MathMax(0.0, InpScalpBreakoutBufferAtr);
+   double retestPad = MathMax(atr * 0.20, SymbolInfoDouble(GoldBotSymbol(), SYMBOL_POINT) * 10.0);
+   if(direction == DIR_LONG)
+   {
+      bool broke = rates[0].close > rangeHigh + buffer;
+      bool retested = rates[0].low <= rangeHigh + retestPad;
+      bool aligned = rates[0].close > ema21 && rates[0].close > vwap;
+      if(broke && retested && aligned)
+      {
+         breakoutLevel = rangeHigh;
+         return true;
+      }
+   }
+   else if(direction == DIR_SHORT)
+   {
+      bool broke = rates[0].close < rangeLow - buffer;
+      bool retested = rates[0].high >= rangeLow - retestPad;
+      bool aligned = rates[0].close < ema21 && rates[0].close < vwap;
+      if(broke && retested && aligned)
+      {
+         breakoutLevel = rangeLow;
+         return true;
+      }
+   }
+   return false;
+}
+
+bool GoldBotScalpDynamicCostPass(const GoldBotDirection direction, const double spread, const double risk, const double tp1R, double &tp1Distance, double &spreadToTpPct)
+{
+   tp1Distance = 0.0;
+   spreadToTpPct = 0.0;
+   if(!InpEnableShortTermScalp || InpScalpMaxSpreadToTp1Pct <= 0.0)
+      return true;
+   if(direction == DIR_NONE || spread < 0.0 || risk <= 0.0 || tp1R <= 0.0)
+      return false;
+
+   tp1Distance = risk * tp1R;
+   if(tp1Distance <= 0.0)
+      return false;
+   spreadToTpPct = (spread / tp1Distance) * 100.0;
+   return spreadToTpPct <= InpScalpMaxSpreadToTp1Pct;
+}
+
+bool GoldBotTryM5Scalp(const string symbol)
+{
+   if(!InpEnableM5ScalpSetup)
+      return false;
+
+   double shortTermDailyR = 0.0;
+   int shortTermLosses = 0;
+   datetime shortTermPauseUntil = 0;
+   if(!GoldBotShortTermScalpAllowed(shortTermDailyR, shortTermLosses, shortTermPauseUntil))
+   {
+      GoldBotJournal(StringFormat("M5 scalp blocked shortTermControl base=%s dailyR=%.2f maxDailyLossR=%.2f losses=%d maxLosses=%d pauseUntil=%s",
+         InpShortTermBaseMode,
+         shortTermDailyR,
+         InpShortTermMaxDailyLossR,
+         shortTermLosses,
+         InpShortTermMaxConsecutiveScalpLosses,
+         TimeToString(shortTermPauseUntil, TIME_DATE | TIME_MINUTES)));
+      return false;
+   }
+
+   int scalpCount = 0;
+   if(!GoldBotM5ScalpAllowedToday(scalpCount))
+   {
+      GoldBotJournal(StringFormat("M5 scalp blocked dailyCap current=%d max=%d",
+         scalpCount,
+         InpScalpMaxTradesPerDay));
+      return false;
+   }
+
+   double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
+   double spread = ask - bid;
+   if(ask <= 0.0 || bid <= 0.0 || spread < 0.0)
+      return false;
+   if(InpScalpMaxSpreadPrice > 0.0 && spread > InpScalpMaxSpreadPrice)
+   {
+      GoldBotJournal(StringFormat("M5 scalp blocked spread=%.2f max=%.2f",
+         spread,
+         InpScalpMaxSpreadPrice));
+      return false;
+   }
+
+   MqlRates m5[];
+   ArraySetAsSeries(m5, true);
+   int barsToCopy = 80;
+   int requiredAtrBars = InpScalpAtrLookbackBars + 4;
+   int requiredBreakoutBars = InpScalpBreakoutLookbackBars + 4;
+   int requiredSweepBars = InpScalpSweepLookbackBars + 4;
+   if(requiredAtrBars > barsToCopy)
+      barsToCopy = requiredAtrBars;
+   if(requiredBreakoutBars > barsToCopy)
+      barsToCopy = requiredBreakoutBars;
+   if(requiredSweepBars > barsToCopy)
+      barsToCopy = requiredSweepBars;
+   int copied = CopyRates(symbol, PERIOD_M5, 1, barsToCopy, m5);
+   if(copied < 60)
+      return false;
+
+   double ema21 = GoldBotMA(symbol, PERIOD_M5, 21, 1);
+   double ema50 = GoldBotMA(symbol, PERIOD_M5, 50, 1);
+   double atr = GoldBotATR(symbol, PERIOD_M5, 14, 1);
+   double vwap = 0.0;
+   double vwapUpper = 0.0;
+   double vwapLower = 0.0;
+   double adx = 0.0;
+   double plusDI = 0.0;
+   double minusDI = 0.0;
+   if(ema21 == EMPTY_VALUE || ema50 == EMPTY_VALUE || atr == EMPTY_VALUE || ema21 <= 0.0 || ema50 <= 0.0 || atr <= 0.0)
+      return false;
+   if(!GoldBotSessionVWAP(symbol, PERIOD_M5, 144, vwap, vwapUpper, vwapLower))
+      return false;
+   if(!GoldBotADX(symbol, PERIOD_M5, 14, 1, adx, plusDI, minusDI))
+      return false;
+
+   double averageAtr = 0.0;
+   double atrRatio = 0.0;
+   if(!GoldBotM5VolatilityRegimePass(m5, copied, atr, averageAtr, atrRatio))
+   {
+      MqlDateTime blockedParts;
+      TimeToStruct(TimeCurrent(), blockedParts);
+      GoldBotJournal(StringFormat("M5 scalp blocked volatilityRegime hour=%d atr=%.2f avgAtr=%.2f atrRatio=%.2f min=%.2f max=%.2f",
+         blockedParts.hour,
+         atr,
+         averageAtr,
+         atrRatio,
+         InpScalpMinAtrRatio,
+         InpScalpMaxAtrRatio));
+      return false;
+   }
+
+   EntryZone zone;
+   bool zoneLongOk = GoldBotBuildM5ScalpZone(DIR_LONG, ema21, vwap, atr, zone);
+   EntryZone longZone = zone;
+   bool zoneShortOk = GoldBotBuildM5ScalpZone(DIR_SHORT, ema21, vwap, atr, zone);
+   EntryZone shortZone = zone;
+
+   double zonePad = MathMax(atr * MathMax(0.05, InpScalpSlAtr * 0.5), SymbolInfoDouble(symbol, SYMBOL_POINT) * 10.0);
+   bool longPullback = InpScalpEnableClassicPullback && zoneLongOk && m5[0].close > ema21 && m5[0].close > vwap && m5[0].low <= longZone.top + zonePad;
+   bool shortPullback = InpScalpEnableClassicPullback && zoneShortOk && m5[0].close < ema21 && m5[0].close < vwap && m5[0].high >= shortZone.bottom - zonePad;
+
+   double longSweepLevel = 0.0;
+   double shortSweepLevel = 0.0;
+   bool longSweep = InpScalpEnableLiquiditySweepReclaim && zoneLongOk && GoldBotM5LiquiditySweepReclaimPass(m5, copied, DIR_LONG, ema21, vwap, atr, longSweepLevel);
+   bool shortSweep = InpScalpEnableLiquiditySweepReclaim && zoneShortOk && GoldBotM5LiquiditySweepReclaimPass(m5, copied, DIR_SHORT, ema21, vwap, atr, shortSweepLevel);
+
+   double longBreakoutLevel = 0.0;
+   double shortBreakoutLevel = 0.0;
+   EntryZone longBreakoutZone;
+   EntryZone shortBreakoutZone;
+   GoldBotResetEntryZone(longBreakoutZone);
+   GoldBotResetEntryZone(shortBreakoutZone);
+   bool longBreakout = InpScalpEnableSessionBreakoutRetest
+      && GoldBotM5SessionBreakoutRetestPass(m5, copied, DIR_LONG, ema21, vwap, atr, longBreakoutLevel)
+      && GoldBotBuildM5LevelScalpZone(DIR_LONG, longBreakoutLevel, ema21, vwap, atr, longBreakoutZone);
+   bool shortBreakout = InpScalpEnableSessionBreakoutRetest
+      && GoldBotM5SessionBreakoutRetestPass(m5, copied, DIR_SHORT, ema21, vwap, atr, shortBreakoutLevel)
+      && GoldBotBuildM5LevelScalpZone(DIR_SHORT, shortBreakoutLevel, ema21, vwap, atr, shortBreakoutZone);
+
+   GoldBotDirection direction = DIR_NONE;
+   bool longCandidate = longPullback || longSweep || longBreakout;
+   bool shortCandidate = shortPullback || shortSweep || shortBreakout;
+   if(longCandidate && !shortCandidate)
+      direction = DIR_LONG;
+   else if(shortCandidate && !longCandidate)
+      direction = DIR_SHORT;
+   else if(longCandidate && shortCandidate)
+      direction = plusDI >= minusDI ? DIR_LONG : DIR_SHORT;
+
+   MqlDateTime nowParts;
+   TimeToStruct(TimeCurrent(), nowParts);
+   if(direction == DIR_NONE)
+   {
+      GoldBotJournal(StringFormat("M5 scalp blocked reason=no_setup hour=%d close=%.2f ema21=%.2f vwap=%.2f low=%.2f high=%.2f spread=%.2f classicLong=%s classicShort=%s sweepLong=%s sweepShort=%s breakoutLong=%s breakoutShort=%s",
+         nowParts.hour,
+         m5[0].close,
+         ema21,
+         vwap,
+         m5[0].low,
+         m5[0].high,
+         spread,
+         longPullback ? "yes" : "no",
+         shortPullback ? "yes" : "no",
+         longSweep ? "yes" : "no",
+         shortSweep ? "yes" : "no",
+         longBreakout ? "yes" : "no",
+         shortBreakout ? "yes" : "no"));
+      return false;
+   }
+
+   bool hourOk = GoldBotOptionalDirectionHourPass(direction, InpScalpLongHours, InpScalpShortHours);
+   double diGap = MathAbs(plusDI - minusDI);
+   bool adxOk = adx >= InpScalpMinAdx;
+   bool diOk = diGap >= InpScalpMinDiGap
+      && ((direction == DIR_LONG && plusDI > minusDI) || (direction == DIR_SHORT && minusDI > plusDI));
+   bool h1Ok = !InpScalpRequireH1Trend || GoldBotBreakoutH1TrendPass(symbol, direction);
+   bool m15Long = false;
+   bool m15Short = false;
+   bool m15Ok = !InpScalpRequireM15Direction || GoldBotM15DirectionPass(symbol, direction, m15Long, m15Short);
+   bool atrOk = atr > spread * 2.0;
+   EntryZone selectedZone = direction == DIR_LONG ? longZone : shortZone;
+   string scalpVariant = "classic_pullback";
+   int scalpVariantCode = 1;
+   double techniqueLevel = 0.0;
+   if(direction == DIR_LONG)
+   {
+      if(longSweep)
+      {
+         scalpVariant = "liquidity_sweep_reclaim";
+         scalpVariantCode = 2;
+         selectedZone = longZone;
+         techniqueLevel = longSweepLevel;
+      }
+      else if(longBreakout)
+      {
+         scalpVariant = "session_breakout_retest";
+         scalpVariantCode = 3;
+         selectedZone = longBreakoutZone;
+         techniqueLevel = longBreakoutLevel;
+      }
+      else
+      {
+         selectedZone = longZone;
+      }
+   }
+   else
+   {
+      if(shortSweep)
+      {
+         scalpVariant = "liquidity_sweep_reclaim";
+         scalpVariantCode = 2;
+         selectedZone = shortZone;
+         techniqueLevel = shortSweepLevel;
+      }
+      else if(shortBreakout)
+      {
+         scalpVariant = "session_breakout_retest";
+         scalpVariantCode = 3;
+         selectedZone = shortBreakoutZone;
+         techniqueLevel = shortBreakoutLevel;
+      }
+      else
+      {
+         selectedZone = shortZone;
+      }
+   }
+
+   if(!hourOk || !adxOk || !diOk || !h1Ok || !m15Ok || !atrOk || !selectedZone.valid)
+   {
+      GoldBotJournal(StringFormat("M5 scalp blocked dir=%d setupVariant=%s hour=%d spread=%.2f adx=%.2f minAdx=%.2f adxOk=%s diGap=%.2f minDiGap=%.2f diOk=%s h1=%s m15=%s m15Long=%s m15Short=%s atr=%.2f atrRatio=%.2f atrOk=%s zone=%s hourOk=%s",
+         direction,
+         scalpVariant,
+         nowParts.hour,
+         spread,
+         adx,
+         InpScalpMinAdx,
+         adxOk ? "yes" : "no",
+         diGap,
+         InpScalpMinDiGap,
+         diOk ? "yes" : "no",
+         h1Ok ? "yes" : "no",
+         m15Ok ? "yes" : "no",
+         m15Long ? "yes" : "no",
+         m15Short ? "yes" : "no",
+         atr,
+         atrRatio,
+         atrOk ? "yes" : "no",
+         selectedZone.valid ? "yes" : "no",
+         hourOk ? "yes" : "no"));
+      return false;
+   }
+
+   double entryReference = m5[0].close;
+   double sl = direction == DIR_LONG ? MathMin(selectedZone.bottom, entryReference - atr * MathMax(0.05, InpScalpSlAtr))
+                                     : MathMax(selectedZone.top, entryReference + atr * MathMax(0.05, InpScalpSlAtr));
+   double risk = MathAbs(entryReference - sl);
+   if(risk <= spread * 2.0)
+   {
+      GoldBotJournal(StringFormat("M5 scalp blocked reason=risk_too_small dir=%d risk=%.2f spread=%.2f zone=%.2f-%.2f",
+         direction,
+         risk,
+         spread,
+         selectedZone.bottom,
+         selectedZone.top));
+      return false;
+   }
+
+   double tp1Distance = 0.0;
+   double spreadToTpPct = 0.0;
+   if(!GoldBotScalpDynamicCostPass(direction, spread, risk, InpScalpTp1R, tp1Distance, spreadToTpPct))
+   {
+      GoldBotJournal(StringFormat("M5 scalp blocked dynamicCost dir=%d setupVariant=%s hour=%d spread=%.2f tp1Distance=%.2f spreadToTpPct=%.2f maxPct=%.2f risk=%.2f",
+         direction,
+         scalpVariant,
+         nowParts.hour,
+         spread,
+         tp1Distance,
+         spreadToTpPct,
+         InpScalpMaxSpreadToTp1Pct,
+         risk));
+      return false;
+   }
+
+   int orderCount = MathMax(1, MathMin(3, InpScalpLadderOrderCount));
+   double score = MathMax(62.5, MathMax(InpScoreThreshold, InpMinRealModeScore));
+   int confluenceCount = 6;
+   int enabledConfluences = 6;
+   if(!GoldBotRobustRegimePass(symbol, GoldBotSetupName(GOLDBOT_SETUP_M5_SCALP), direction, true, score, confluenceCount, enabledConfluences))
+      return false;
+
+   string signalId = GoldBotNewSignalId(direction);
+   GoldBotJournal(StringFormat("Signal accepted signalId=%s setup=m5_scalp setupVariant=%s shortTermBase=%s score=%.2f dir=%d confluences=%d/%d hour=%d spread=%.2f spreadToTpPct=%.2f adx=%.2f diGap=%.2f ema21=%.2f ema50=%.2f vwap=%.2f atr=%.2f atrRatio=%.2f techniqueLevel=%.2f zone=%.2f-%.2f sl=%.2f tpR=%.2f/%.2f/%.2f beAtR=%.2f trailStartR=%.2f timeStopMin=%d lotMultiplier=%.2f",
+      signalId,
+      scalpVariant,
+      InpShortTermBaseMode,
+      score,
+      direction,
+      confluenceCount,
+      enabledConfluences,
+      nowParts.hour,
+      spread,
+      spreadToTpPct,
+      adx,
+      diGap,
+      ema21,
+      ema50,
+      vwap,
+      atr,
+      atrRatio,
+      techniqueLevel,
+      selectedZone.bottom,
+      selectedZone.top,
+      sl,
+      InpScalpTp1R,
+      InpScalpTp2R,
+      InpScalpTp3R,
+      InpScalpBreakEvenAtR,
+      InpScalpTrailStartR,
+      InpScalpTimeStopMinutes,
+      InpScalpLotMultiplier));
+
+   if(InpDebugOnly)
+      return false;
+
+   double effectiveLotPer100Usd = InpLotPer100Usd;
+   if(!GoldBotCompoundGovernorPass(symbol, GoldBotSetupName(GOLDBOT_SETUP_M5_SCALP), direction, nowParts.hour, effectiveLotPer100Usd))
+   {
+      GoldBotLog("Compound governor blocked new M5 scalp entry.");
+      return false;
+   }
+
+   int holdSeconds = (InpScalpMaxHoldMinutes < 1 ? 1 : InpScalpMaxHoldMinutes) * 60;
+   if(InpEnableShortTermScalp && InpScalpTimeStopMinutes > 0)
+   {
+      int scalpTimeStopSeconds = (InpScalpTimeStopMinutes < 1 ? 1 : InpScalpTimeStopMinutes) * 60;
+      if(scalpTimeStopSeconds < holdSeconds)
+         holdSeconds = scalpTimeStopSeconds;
+   }
+   int pendingExpirySeconds = (InpScalpPendingExpiryMinutes < 1 ? 1 : InpScalpPendingExpiryMinutes) * 60;
+
+   bool placed = GoldBotPlaceLadder(
+      symbol,
+      InpMagicNumber,
+      direction,
+      selectedZone,
+      sl,
+      score,
+      signalId,
+      GOLDBOT_SETUP_M5_SCALP,
+      GoldBotSetupName(GOLDBOT_SETUP_M5_SCALP),
+      scalpVariantCode,
+      orderCount,
+      1,
+      confluenceCount,
+      enabledConfluences,
+      effectiveLotPer100Usd,
+      InpMinLot,
+      InpMaxLot,
+      InpHighConvictionScore,
+      InpMinRR,
+      InpMaxHoldBars,
+      pendingExpirySeconds,
+      holdSeconds,
+      InpScalpTp1R,
+      InpScalpTp2R,
+      InpScalpTp3R,
+      InpTrailAfterTp1 ? 1 : 0,
+      InpEnableShortTermScalp ? InpScalpBreakEvenAtR : 0.0,
+      InpEnableShortTermScalp ? InpScalpTrailStartR : 0.0,
+      InpScalpLotMultiplier,
+      trade);
+   if(placed)
+   {
+      GoldBotMarkLadderPlaced();
+      GoldBotMarkM5ScalpPlaced();
+      GoldBotJournal(StringFormat("Pending ladder placed signalId=%s setup=m5_scalp orderCount=%d firstSplit=1 dailyScalpsBefore=%d",
+         signalId,
+         orderCount,
+         scalpCount));
+   }
+   return placed;
 }
 
 void GoldBotLog(const string message)
@@ -1973,6 +3101,8 @@ string GoldBotSetupName(const int setupCode)
       return "continuation";
    if(setupCode == GOLDBOT_SETUP_BREAKOUT_RETEST)
       return "breakout_retest";
+   if(setupCode == GOLDBOT_SETUP_M5_SCALP)
+      return "m5_scalp";
    return "smc";
 }
 
@@ -1991,7 +3121,24 @@ void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long posi
    GlobalVariableSet(posKey + ".confluences", GoldBotMetadataValue(orderKey, "confluences", -1.0));
    GlobalVariableSet(posKey + ".enabledConfluences", GoldBotMetadataValue(orderKey, "enabledConfluences", -1.0));
    GlobalVariableSet(posKey + ".setup", GoldBotMetadataValue(orderKey, "setup", (double)GOLDBOT_SETUP_SMC));
+   GlobalVariableSet(posKey + ".scalpVariant", GoldBotMetadataValue(orderKey, "scalpVariant", 0.0));
    GlobalVariableSet(posKey + ".signalCode", GoldBotMetadataValue(orderKey, "signalCode", (double)GoldBotSignalCodeFromComment(comment)));
+   if(GlobalVariableCheck(orderKey + ".maxHoldSeconds"))
+      GlobalVariableSet(posKey + ".maxHoldSeconds", GoldBotMetadataValue(orderKey, "maxHoldSeconds", 0.0));
+   if(GlobalVariableCheck(orderKey + ".tp1R"))
+      GlobalVariableSet(posKey + ".tp1R", GoldBotMetadataValue(orderKey, "tp1R", 0.0));
+   if(GlobalVariableCheck(orderKey + ".tp2R"))
+      GlobalVariableSet(posKey + ".tp2R", GoldBotMetadataValue(orderKey, "tp2R", 0.0));
+   if(GlobalVariableCheck(orderKey + ".tp3R"))
+      GlobalVariableSet(posKey + ".tp3R", GoldBotMetadataValue(orderKey, "tp3R", 0.0));
+   if(GlobalVariableCheck(orderKey + ".trailAfterTp1Setting"))
+      GlobalVariableSet(posKey + ".trailAfterTp1Setting", GoldBotMetadataValue(orderKey, "trailAfterTp1Setting", -1.0));
+   if(GlobalVariableCheck(orderKey + ".breakEvenAtR"))
+      GlobalVariableSet(posKey + ".breakEvenAtR", GoldBotMetadataValue(orderKey, "breakEvenAtR", 0.0));
+   if(GlobalVariableCheck(orderKey + ".trailStartR"))
+      GlobalVariableSet(posKey + ".trailStartR", GoldBotMetadataValue(orderKey, "trailStartR", 0.0));
+   if(GlobalVariableCheck(orderKey + ".riskCash"))
+      GlobalVariableSet(posKey + ".riskCash", GoldBotMetadataValue(orderKey, "riskCash", 0.0));
 
    GlobalVariableDel(orderKey + ".dir");
    GlobalVariableDel(orderKey + ".split");
@@ -2000,7 +3147,16 @@ void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long posi
    GlobalVariableDel(orderKey + ".confluences");
    GlobalVariableDel(orderKey + ".enabledConfluences");
    GlobalVariableDel(orderKey + ".setup");
+   GlobalVariableDel(orderKey + ".scalpVariant");
    GlobalVariableDel(orderKey + ".signalCode");
+   GlobalVariableDel(orderKey + ".maxHoldSeconds");
+   GlobalVariableDel(orderKey + ".tp1R");
+   GlobalVariableDel(orderKey + ".tp2R");
+   GlobalVariableDel(orderKey + ".tp3R");
+   GlobalVariableDel(orderKey + ".trailAfterTp1Setting");
+   GlobalVariableDel(orderKey + ".breakEvenAtR");
+   GlobalVariableDel(orderKey + ".trailStartR");
+   GlobalVariableDel(orderKey + ".riskCash");
 }
 
 void GoldBotDeletePositionMetadata(const long positionId)
@@ -2015,7 +3171,16 @@ void GoldBotDeletePositionMetadata(const long positionId)
    GlobalVariableDel(posKey + ".confluences");
    GlobalVariableDel(posKey + ".enabledConfluences");
    GlobalVariableDel(posKey + ".setup");
+   GlobalVariableDel(posKey + ".scalpVariant");
    GlobalVariableDel(posKey + ".signalCode");
+   GlobalVariableDel(posKey + ".maxHoldSeconds");
+   GlobalVariableDel(posKey + ".tp1R");
+   GlobalVariableDel(posKey + ".tp2R");
+   GlobalVariableDel(posKey + ".tp3R");
+   GlobalVariableDel(posKey + ".trailAfterTp1Setting");
+   GlobalVariableDel(posKey + ".breakEvenAtR");
+   GlobalVariableDel(posKey + ".trailStartR");
+   GlobalVariableDel(posKey + ".riskCash");
 }
 
 GoldBotDirection GoldBotLegacySignalDirection(const string symbol, const IndicatorSnapshot &indicators)

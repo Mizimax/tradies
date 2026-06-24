@@ -6,6 +6,10 @@ APP="${MT5_APP:-$HOME/Applications/MetaTrader 5.app}"
 PREFIX="${MT5_PREFIX:-$HOME/Library/Application Support/net.metaquotes.wine.metatrader5}"
 WINE="$APP/Contents/SharedSupport/wine/bin/wine"
 WINEPATH="$APP/Contents/SharedSupport/wine/bin/winepath"
+# Fallback to wine64 if wine doesn't exist
+if [[ ! -f "$WINE" && -f "$APP/Contents/SharedSupport/wine/bin/wine64" ]]; then
+  WINE="$APP/Contents/SharedSupport/wine/bin/wine64"
+fi
 TERMINAL="$PREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
 MT5_ROOT="$PREFIX/drive_c/Program Files/MetaTrader 5"
 TESTER_PROFILE_DIR="$MT5_ROOT/MQL5/Profiles/Tester"
@@ -18,6 +22,7 @@ TO_DATE="${MT5_TO:-2026.05.31}"
 DEPOSIT="${MT5_DEPOSIT:-1000}"
 LEVERAGE="${MT5_LEVERAGE:-100}"
 MODEL="${MT5_MODEL:-4}"
+AGENT_PORT="${MT5_AGENT_PORT:-3000}"
 LOGIN="${MT5_LOGIN:-}"
 SERVER="${MT5_SERVER:-}"
 PASSWORD="${MT5_PASSWORD:-}"
@@ -35,7 +40,7 @@ CONFIG_DIR="$PWD/mt5/backtests/config"
 REPORT_DIR="$PWD/mt5/backtests/reports"
 mkdir -p "$CONFIG_DIR" "$REPORT_DIR"
 
-CONFIG="$CONFIG_DIR/goldbot-${SYMBOL}-${PERIOD}.ini"
+CONFIG="$CONFIG_DIR/${EXPERT_DIR}-${SYMBOL}-${PERIOD}.ini"
 REPORT_PATH="$REPORT_DIR/$REPORT_NAME"
 MT5_REPORT_PATH="reports\\$REPORT_NAME"
 RUNTIME_SET_NAME="${EXPERT_DIR}.runtime.set"
@@ -182,9 +187,45 @@ find "$MT5_ROOT/Tester" "$MT5_ROOT/MQL5/Files" -path "*/$EXPERT_DIR/trades.csv" 
 touch "$RUN_STAMP"
 
 if [[ "${MT5_STOP_RUNNING:-1}" == "1" ]]; then
+  # Kill the terminal only. If a valid MetaTester listener is already present,
+  # the guard below will reuse it; otherwise the terminal starts its local tester agent.
   pkill -f "C:\\\\Program Files\\\\MetaTrader 5\\\\terminal64.exe" 2>/dev/null || true
   pkill -f "terminal64.exe" 2>/dev/null || true
   sleep 2
+fi
+
+# Guard the local tester agent port before launching MT5. The terminal owns
+# starting its registered local MetaTester agent; if another process has this
+# port, MT5 can connect Core 1 to the wrong listener and export a blank report.
+metatester_listener_pids() {
+  lsof -nP -iTCP:"$AGENT_PORT" -sTCP:LISTEN -t 2>/dev/null || true
+}
+
+is_metatester_pid() {
+  local pid="$1"
+  ps -p "$pid" -o command= 2>/dev/null | grep -qi 'metatester64\.exe'
+}
+
+LISTENER_PIDS="$(metatester_listener_pids)"
+if [[ -n "$LISTENER_PIDS" ]]; then
+  NON_MT5_LISTENER=0
+  while IFS= read -r pid; do
+    [[ -z "$pid" ]] && continue
+    if ! is_metatester_pid "$pid"; then
+      NON_MT5_LISTENER=1
+    fi
+  done <<< "$LISTENER_PIDS"
+
+  if [[ "$NON_MT5_LISTENER" == "1" ]]; then
+    echo "Port $AGENT_PORT is already used by a non-MetaTester process:" >&2
+    lsof -nP -iTCP:"$AGENT_PORT" -sTCP:LISTEN >&2 || true
+    echo "Stop that process before running MT5; the terminal needs this port for its local tester agent." >&2
+    exit 1
+  fi
+
+  echo "MetaTester already running on port $AGENT_PORT — reusing session"
+else
+  echo "MetaTester port $AGENT_PORT is free; MT5 terminal will start its local tester agent"
 fi
 
 set +e

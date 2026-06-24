@@ -27,6 +27,37 @@ def find_candidate(rows: list[dict[str, str]], name: str) -> dict[str, str] | No
     return None
 
 
+def expanded_overrides(rows: list[dict[str, str]], candidate: dict[str, str], seen: set[str] | None = None) -> str:
+    if seen is None:
+        seen = set()
+
+    name = candidate["name"].strip()
+    if name in seen:
+        raise ValueError(f"Candidate override cycle detected at {name}")
+    seen.add(name)
+
+    overrides = candidate["overrides"].replace("\\n", "\n").strip()
+    if not overrides:
+        return ""
+
+    lines = overrides.splitlines()
+    first = lines[0].strip()
+    if first.startswith("@"):
+        base_name = first[1:].strip()
+        if not base_name:
+            raise ValueError(f"Candidate {name} has an empty base override reference")
+        base = find_candidate(rows, base_name)
+        if base is None:
+            raise ValueError(f"Candidate {name} references unknown base candidate {base_name}")
+        base_overrides = expanded_overrides(rows, base, seen).strip()
+        child_overrides = "\n".join(line for line in lines[1:] if line.strip()).strip()
+        if base_overrides and child_overrides:
+            return base_overrides + "\n" + child_overrides
+        return base_overrides or child_overrides
+
+    return overrides
+
+
 def shell_command(env: dict[str, str]) -> str:
     parts = [f"{key}={shlex.quote(value)}" for key, value in env.items()]
     parts.append("bash scripts/run-mt5-backtest.sh")
@@ -70,12 +101,18 @@ def main() -> int:
     report_name = f"GoldBot-real-{candidate_name}"
     if report_suffix:
         report_name = f"{report_name}-{report_suffix}"
+    try:
+        overrides = expanded_overrides(rows, candidate)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     env = {
         "MT5_DEPOSIT": args.deposit,
         "MT5_FROM": args.from_date,
         "MT5_TO": args.to_date,
         "MT5_REPORT": report_name,
-        "MT5_INPUT_OVERRIDES": candidate["overrides"].replace("\\n", "\n").strip(),
+        "MT5_INPUT_OVERRIDES": overrides,
     }
     if args.symbol:
         env["MT5_SYMBOL"] = args.symbol

@@ -153,15 +153,19 @@ def attribution_rows(path: Path) -> list[dict[str, str]]:
         direction = fields.get("dir", "unknown")
         split = fields.get("split", "unknown")
         hour = fields.get("hour", "unknown")
+        scalp_variant = fields.get("scalpVariant", "unknown")
         confluences = fields.get("confluences", "unknown").split("/", 1)[0]
         for group_type, group_value in (
             ("setup", setup),
+            ("scalp_variant", scalp_variant),
             ("direction", direction),
             ("split", split),
             ("session_hour", hour),
             ("setup_direction", f"{compact_value('setup', setup)}_{compact_value('dir', direction)}"),
             ("setup_direction_hour", f"{compact_value('setup', setup)}_{compact_value('dir', direction)}_{compact_value('hour', hour)}"),
             ("setup_direction_hour_split", f"{compact_value('setup', setup)}_{compact_value('dir', direction)}_{compact_value('hour', hour)}_{compact_value('split', split)}"),
+            ("setup_scalp_variant", f"{compact_value('setup', setup)}_{compact_value('variant', scalp_variant)}"),
+            ("scalp_variant_direction_hour", f"{compact_value('variant', scalp_variant)}_{compact_value('dir', direction)}_{compact_value('hour', hour)}"),
             ("direction_hour", f"{compact_value('dir', direction)}_{compact_value('hour', hour)}"),
             ("direction_hour_split", f"{compact_value('dir', direction)}_{compact_value('hour', hour)}_{compact_value('split', split)}"),
             ("direction_split", f"{compact_value('dir', direction)}_{compact_value('split', split)}"),

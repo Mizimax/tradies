@@ -203,6 +203,81 @@ FREQ100L = [
     "freq100l-no-breakout-long7",
     "freq100l-no-breakout-short10-long7",
 ]
+SCALP_M5 = [
+    "scalp-m5-core",
+    "scalp-m5-split12",
+    "scalp-m5-loose-adx",
+    "scalp-m5-tight-spread30",
+    "scalp-m5-expanded-hours",
+    "scalp-m5-lot075",
+    "scalp-m5-lot100",
+    "scalp-m5-fast-exit",
+]
+SCALP_M5_QUALITY = [
+    "scalp-m5-quality-fast-exit-merge",
+    "scalp-m5-quality-no-breakout",
+    "scalp-m5-quality-no-long12",
+    "scalp-m5-quality-long10-18-short7-10",
+    "scalp-m5-quality-long7-10-18-short7-10",
+]
+SCALP_SHORTTERM = [
+    "scalp-shortterm-freq100i-m5-core",
+    "scalp-shortterm-m5-short-only",
+    "scalp-shortterm-m5-long10-18-short7-8-10",
+    "scalp-shortterm-m5-sweep-reclaim",
+    "scalp-shortterm-m5-session-breakout",
+    "scalp-shortterm-m5-costguard",
+    "scalp-shortterm-m5-losslock",
+    "scalp-shortterm-m5-combo",
+]
+SCALP_SHORTTERM_REPAIR = [
+    "scalp-repair-no-smc-long14",
+    "scalp-repair-no-smc-short10",
+    "scalp-repair-no-breakout-long10",
+    "scalp-repair-hour10-split1",
+    "scalp-repair-core-clean",
+    "scalp-repair-core-clean-split1",
+    "scalp-repair-april-guard",
+    "scalp-repair-maxquality",
+]
+SCALP_DD_REPAIR = [
+    "scalp-dd-maxquality-risk008",
+    "scalp-dd-maxquality-risk007",
+    "scalp-dd-maxquality-risk006",
+    "scalp-dd-maxquality-monthly8",
+    "scalp-dd-maxquality-monthly6",
+    "scalp-dd-maxquality-streak12",
+    "scalp-dd-maxquality-risk008-monthly8",
+    "scalp-dd-maxquality-risk008-maxopen3",
+    "scalp-dd-no-smc-long14-risk008",
+]
+SCALP_COMPOUND = [
+    "scalp-compound-maxquality-governor30",
+    "scalp-compound-maxquality-risk008-governor30",
+    "scalp-compound-maxquality-governor30-monthlock25",
+    "scalp-compound-maxquality-governor30-daily2",
+    "scalp-compound-maxquality-smooth",
+]
+SCALP_ROBUST = [
+    "scalp-robust-long12-split1",
+    "scalp-robust-no-m5-short10",
+    "scalp-robust-no-breakout-long12",
+    "scalp-robust-monthloss5",
+    "scalp-robust-streak12",
+    "scalp-robust-h1-regime",
+    "scalp-robust-h1-regime-monthloss5",
+    "scalp-robust-quality-combo",
+]
+SCALP_ROBUST_V2 = [
+    "scalp-robust-v2-no-m5-short10",
+    "scalp-robust-v2-no-m5-short10-monthloss3",
+    "scalp-robust-v2-no-m5-short10-monththrottle",
+    "scalp-robust-v2-no-m5-short10-no-smc",
+    "scalp-robust-v2-smc-no-long7",
+    "scalp-robust-v2-no-m5-long10",
+    "scalp-robust-v2-long12-split2only",
+    "scalp-robust-v2-quality-combo",
+]
 
 
 def load_candidates() -> dict[str, dict[str, str]]:
@@ -427,7 +502,7 @@ def main() -> int:
     args = parser.parse_args()
 
     candidates = load_candidates()
-    growth_candidates = LAYER1 + LAYER2 + RECENT_YEAR + PROFIT_CORE + FREQ80 + FREQ100 + FREQ100B + FREQ100C + FREQ100D + FREQ100E + FREQ100F + FREQ100G + FREQ100H + FREQ100I + FREQ100J + FREQ100K + FREQ100L
+    growth_candidates = LAYER1 + LAYER2 + RECENT_YEAR + PROFIT_CORE + FREQ80 + FREQ100 + FREQ100B + FREQ100C + FREQ100D + FREQ100E + FREQ100F + FREQ100G + FREQ100H + FREQ100I + FREQ100J + FREQ100K + FREQ100L + SCALP_M5 + SCALP_M5_QUALITY + SCALP_SHORTTERM + SCALP_SHORTTERM_REPAIR + SCALP_DD_REPAIR + SCALP_COMPOUND + SCALP_ROBUST + SCALP_ROBUST_V2
 
     if args.list:
         for name in growth_candidates:
