@@ -13,6 +13,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+REPORT_DIR = ROOT / "mt5/backtests/reports"
+CONFIG_DIR = ROOT / "mt5/backtests/config"
 
 
 def load_candidates(matrix: Path) -> list[dict[str, str]]:
@@ -33,6 +35,24 @@ def shell_command(env: dict[str, str]) -> str:
     return " ".join(parts)
 
 
+def clean_artifacts(report_name: str) -> None:
+    for suffix in (
+        ".htm",
+        ".xml",
+        ".trades.csv",
+        ".summary.csv",
+        ".evaluation.csv",
+        ".daily-growth.csv",
+        ".equity-curve.csv",
+        ".stability.csv",
+        ".journal-summary.csv",
+        ".attribution.csv",
+        ".report-status.csv",
+    ):
+        (REPORT_DIR / f"{report_name}{suffix}").unlink(missing_ok=True)
+    (CONFIG_DIR / f"{report_name}.run-stamp").unlink(missing_ok=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("candidate", nargs="?", help="Candidate name from the matrix")
@@ -43,6 +63,7 @@ def main() -> int:
     parser.add_argument("--symbol", default="BTC")
     parser.add_argument("--period", default="M5")
     parser.add_argument("--report-suffix", default="", help="Append a suffix to the MT5 report name")
+    parser.add_argument("--clean", action="store_true", help="Delete this candidate's report artifacts before running")
     parser.add_argument("--dry-run", action="store_true", help="Print the command without running MT5")
     parser.add_argument("--list", action="store_true", help="List available candidates")
     args = parser.parse_args()
@@ -82,6 +103,8 @@ def main() -> int:
 
     print(f"# {candidate['name']}: {candidate['description']}")
     print(shell_command(env))
+    if args.clean:
+        clean_artifacts(report_name)
     if args.dry_run:
         return 0
 

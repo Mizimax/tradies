@@ -54,6 +54,30 @@ double BTCScalperCalculateLot(
    return BTCScalperNormalizeLot(symbol, rawLot, minLot, maxLot);
 }
 
+bool BTCScalperCostGatePass(
+   const string symbol,
+   const double expectedMovePrice,
+   const double atrRef,
+   const double k,
+   const double commPerLot,
+   const double minAtrMult)
+{
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+   double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+   if(point <= 0.0 || tickSize <= 0.0)
+      return false;
+
+   double spreadPrice = (double)SymbolInfoInteger(symbol, SYMBOL_SPREAD) * point;
+   double commPrice = (tickValue > 0.0) ? commPerLot * tickSize / tickValue : 0.0;
+   double costFloor = MathMax(0.0, k) * (spreadPrice + MathMax(0.0, commPrice));
+   double atrFloor = 0.0;
+   if(atrRef > 0.0 && minAtrMult > 0.0)
+      atrFloor = minAtrMult * atrRef;
+
+   return expectedMovePrice >= MathMax(costFloor, atrFloor);
+}
+
 //--- Daily loss tracking
 double BTCScalperDailyStartEquity()
 {

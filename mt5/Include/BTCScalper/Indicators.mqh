@@ -17,6 +17,7 @@ int g_btcEma50        = INVALID_HANDLE;  // EMA(50) on M15
 int g_btcAtrM5Handle  = INVALID_HANDLE;  // ATR(14) on M5 (for VWAP SL sizing)
 int g_btcRsiM5Handle  = INVALID_HANDLE;  // RSI(14) on M5 (for VWAP verification)
 int g_btcH1EmaHandle  = INVALID_HANDLE;  // EMA(50) on H1 (for HTF trend filter)
+int g_btcAtrH1Handle  = INVALID_HANDLE;  // ATR(14) on H1 (for regime-ratio gate)
 
 //--- VWAP Static State
 static double s_vwap = 0.0;
@@ -33,6 +34,37 @@ double BTCScalperGetBufferValue(const int handle, const int buffer, const int sh
    if(CopyBuffer(handle, buffer, shift, 1, values) != 1)
       return EMPTY_VALUE;
    return values[0];
+}
+
+//--- H1 ATR-ratio regime gate: current H1 ATR vs its own rolling average
+bool BTCScalperRegimeGatePass(
+   const int atrH1Handle,
+   const int lookback,
+   const double minRatio,
+   const double maxRatio)
+{
+   if(atrH1Handle == INVALID_HANDLE || lookback <= 1)
+      return true; // gate not usable -> fail-open (no filtering)
+
+   double buf[];
+   ArraySetAsSeries(buf, true);
+   if(CopyBuffer(atrH1Handle, 0, 1, lookback, buf) != lookback)
+      return false; // insufficient H1 history -> fail-closed (block trade)
+
+   double current = buf[0];
+   double sum = 0.0;
+   for(int i = 0; i < lookback; i++)
+      sum += buf[i];
+   double avgRef = sum / lookback;
+   if(avgRef <= 0.0)
+      return false;
+
+   double ratio = current / avgRef;
+   if(minRatio > 0.0 && ratio < minRatio)
+      return false;
+   if(maxRatio > 0.0 && ratio > maxRatio)
+      return false;
+   return true;
 }
 
 //--- Initialize all indicator handles
@@ -57,12 +89,14 @@ bool BTCScalperIndicatorsInit(
    g_btcAtrM5Handle = iATR(symbol, PERIOD_M5, atrPeriod);
    g_btcRsiM5Handle = iRSI(symbol, PERIOD_M5, rsiPeriod, PRICE_CLOSE);
    g_btcH1EmaHandle = iMA(symbol, PERIOD_H1, 50, 0, MODE_EMA, PRICE_CLOSE);
+   g_btcAtrH1Handle = iATR(symbol, PERIOD_H1, atrPeriod);
 
    if(g_btcBbHandle == INVALID_HANDLE || g_btcRsiHandle == INVALID_HANDLE ||
       g_btcAtrHandle == INVALID_HANDLE || g_btcAdxHandle == INVALID_HANDLE ||
       g_btcEmaFast == INVALID_HANDLE || g_btcEmaSlow == INVALID_HANDLE ||
       g_btcEma50 == INVALID_HANDLE || g_btcAtrM5Handle == INVALID_HANDLE ||
-      g_btcRsiM5Handle == INVALID_HANDLE || g_btcH1EmaHandle == INVALID_HANDLE)
+      g_btcRsiM5Handle == INVALID_HANDLE || g_btcH1EmaHandle == INVALID_HANDLE ||
+      g_btcAtrH1Handle == INVALID_HANDLE)
    {
       Print("BTCScalper: Failed to create one or more indicator handles.");
       return false;
@@ -83,6 +117,7 @@ void BTCScalperIndicatorsDeinit()
    if(g_btcAtrM5Handle != INVALID_HANDLE) { IndicatorRelease(g_btcAtrM5Handle); g_btcAtrM5Handle = INVALID_HANDLE; }
    if(g_btcRsiM5Handle != INVALID_HANDLE) { IndicatorRelease(g_btcRsiM5Handle); g_btcRsiM5Handle = INVALID_HANDLE; }
    if(g_btcH1EmaHandle != INVALID_HANDLE) { IndicatorRelease(g_btcH1EmaHandle); g_btcH1EmaHandle = INVALID_HANDLE; }
+   if(g_btcAtrH1Handle != INVALID_HANDLE) { IndicatorRelease(g_btcAtrH1Handle); g_btcAtrH1Handle = INVALID_HANDLE; }
 }
 
 //--- VWAP Reset

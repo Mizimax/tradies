@@ -57,6 +57,18 @@ input bool     InpVwapVolConfirm      = false;       // require signal-bar tick 
 input double   InpVwapVolMult         = 1.3;         // volume confirmation multiple
 input int      InpVwapAvoidEdgeHours  = 0;           // skip entries in first/last N UTC hours (0 = off)
 
+//--- Cost / Edge Gate (default-off; diagnostic)
+input bool     InpCostGateEnabled     = false;       // require expected move to clear spread/edge floor
+input double   InpCostGateK           = 2.0;         // cost multiple
+input double   InpCostGateCommPerLot  = 0.0;         // tester commission model is normally zero
+input double   InpCostGateMinAtrMult  = 0.0;         // optional ATR edge floor
+
+//--- H1 Regime Gate (default-off; diagnostic)
+input bool     InpRegimeGateEnabled    = false;       // require H1 ATR ratio within volatility band
+input double   InpRegimeMinH1AtrRatio  = 0.70;        // block if current/avg H1 ATR ratio below this (0 = no floor)
+input double   InpRegimeMaxH1AtrRatio  = 0.0;         // block if ratio above this (0 = no cap)
+input int      InpRegimeAtrAvgPeriod   = 100;         // H1 bars averaged for the ATR reference
+
 //--- Strategy 3: Momentum Breakout (EMA crossover on M15)
 input bool     InpEnableMomentum      = true;
 input int      InpMomEmaFast          = 9;
@@ -295,6 +307,23 @@ void OnTick()
                int mrSig = BTCScalperMRSignal(symbol, InpMrRsiOverbought, InpMrRsiOversold, InpBestSessionStart, InpBestSessionEnd);
                if(mrSig != 0)
                {
+                  if(InpCostGateEnabled)
+                  {
+                     double bbMiddle = BTCScalperGetBufferValue(g_btcBbHandle, 0, 1);
+                     double atrRef = BTCScalperGetBufferValue(g_btcAtrHandle, 0, 1);
+                     double expectedMove = MathAbs(SymbolInfoDouble(symbol, SYMBOL_ASK) - bbMiddle);
+                     if(bbMiddle == EMPTY_VALUE || atrRef == EMPTY_VALUE ||
+                        !BTCScalperCostGatePass(symbol, expectedMove, atrRef, InpCostGateK, InpCostGateCommPerLot, InpCostGateMinAtrMult))
+                        mrSig = 0;
+                  }
+               }
+               if(mrSig != 0 && InpRegimeGateEnabled)
+               {
+                  if(!BTCScalperRegimeGatePass(g_btcAtrH1Handle, InpRegimeAtrAvgPeriod, InpRegimeMinH1AtrRatio, InpRegimeMaxH1AtrRatio))
+                     mrSig = 0;
+               }
+               if(mrSig != 0)
+               {
                   double mrRisk = BTCScalperStrategyRisk(BTC_STRAT_MR, risk);
                   if(mrRisk > 0.0)
                   {
@@ -309,6 +338,22 @@ void OnTick()
             if(InpEnableMomentum && isTrending)
             {
                int momSig = BTCScalperMomSignal(symbol, InpMomRsiLow, InpMomRsiHigh, InpTradingEndHour);
+               if(momSig != 0)
+               {
+                  if(InpCostGateEnabled)
+                  {
+                     double atrRef = BTCScalperGetBufferValue(g_btcAtrHandle, 0, 1);
+                     double expectedMove = (atrRef == EMPTY_VALUE) ? 0.0 : atrRef * InpMomSlAtrMult * InpMomRR;
+                     if(atrRef == EMPTY_VALUE ||
+                        !BTCScalperCostGatePass(symbol, expectedMove, atrRef, InpCostGateK, InpCostGateCommPerLot, InpCostGateMinAtrMult))
+                        momSig = 0;
+                  }
+               }
+               if(momSig != 0 && InpRegimeGateEnabled)
+               {
+                  if(!BTCScalperRegimeGatePass(g_btcAtrH1Handle, InpRegimeAtrAvgPeriod, InpRegimeMinH1AtrRatio, InpRegimeMaxH1AtrRatio))
+                     momSig = 0;
+               }
                if(momSig != 0)
                {
                   double momRisk = BTCScalperStrategyRisk(BTC_STRAT_MOM, risk);
@@ -350,6 +395,23 @@ void OnTick()
             if(InpEnableVwapReversion && !isTrending)
             {
                int vwapSig = BTCScalperVwapSignal(symbol, InpVwapZscoreEntry, InpTradingEndHour, InpVwapVolConfirm, InpVwapVolMult, InpVwapAvoidEdgeHours);
+               if(vwapSig != 0)
+               {
+                  if(InpCostGateEnabled)
+                  {
+                     double vwap = BTCScalperVwapValue();
+                     double atrRef = BTCScalperGetBufferValue(g_btcAtrM5Handle, 0, 1);
+                     double expectedMove = MathAbs(SymbolInfoDouble(symbol, SYMBOL_ASK) - vwap);
+                     if(vwap <= 0.0 || atrRef == EMPTY_VALUE ||
+                        !BTCScalperCostGatePass(symbol, expectedMove, atrRef, InpCostGateK, InpCostGateCommPerLot, InpCostGateMinAtrMult))
+                        vwapSig = 0;
+                  }
+               }
+               if(vwapSig != 0 && InpRegimeGateEnabled)
+               {
+                  if(!BTCScalperRegimeGatePass(g_btcAtrH1Handle, InpRegimeAtrAvgPeriod, InpRegimeMinH1AtrRatio, InpRegimeMaxH1AtrRatio))
+                     vwapSig = 0;
+               }
                if(vwapSig != 0)
                {
                   double vwapRisk = BTCScalperStrategyRisk(BTC_STRAT_VWAP, risk);
