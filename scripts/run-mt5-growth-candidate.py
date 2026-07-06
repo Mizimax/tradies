@@ -278,6 +278,162 @@ SCALP_ROBUST_V2 = [
     "scalp-robust-v2-long12-split2only",
     "scalp-robust-v2-quality-combo",
 ]
+SCALP_ROBUST_V3 = [
+    "scalp-robust-v3-smc-no-long7-split1",
+    "scalp-robust-v3-no-breakout-long7-split1",
+    "scalp-robust-v3-no-breakout-long7-no-m5-long10-split1",
+    "scalp-robust-v3-no-breakout-long7-no-smc-short8-split1",
+    "scalp-robust-v3-quality-split1",
+]
+SCALP_ADAPTIVE = [
+    "scalp-adaptive-monththrottle-soft15-hard4",
+    "scalp-adaptive-monththrottle-soft25-hard6",
+    "scalp-adaptive-monththrottle-soft15-nohard",
+    "scalp-adaptive-daily2-monthlock25",
+    "scalp-adaptive-nolock-soft12",
+    "scalp-adaptive-smooth-monthlock25",
+    "scalp-adaptive-monththrottle-soft15-daily2",
+    "scalp-adaptive-size115-widen",
+    "scalp-adaptive-size125-widen-daily8",
+    "scalp-adaptive-size115-target12",
+    "scalp-adaptive-setup-weighted",
+    "scalp-adaptive-aggressive-combo",
+    "scalp-adaptive-setup-weighted-target8",
+    "scalp-adaptive-setup-weighted-v2",
+    "scalp-adaptive-setup-weighted-v2-target8",
+]
+SCALP_ADAPTIVE_V2 = [
+    "scalp-adaptive-v2-long12-split1",
+    "scalp-adaptive-v2-breakout-long12-off",
+    "scalp-adaptive-v2-long12-split1-breakout-long12-off",
+    "scalp-adaptive-v2-m5-no-short10",
+    "scalp-adaptive-v2-monthloss5",
+    "scalp-adaptive-v2-smooth-dd",
+    "scalp-adaptive-v2-quality-combo",
+]
+SCALP_ADAPTIVE_V3 = [
+    "scalp-adaptive-v3-roll20-throttle35",
+    "scalp-adaptive-v3-roll12-throttle50",
+    "scalp-adaptive-v3-roll20-pause12h",
+    "scalp-adaptive-v3-m5-only-roll20",
+    "scalp-adaptive-v3-m15-only-roll20",
+    "scalp-adaptive-v3-quality-combo",
+]
+SCALP_ADAPTIVE_V4 = [
+    "scalp-adaptive-v4-no-m5-short10",
+    "scalp-adaptive-v4-no-m5-short7-10",
+    "scalp-adaptive-v4-no-m5-long18",
+    "scalp-adaptive-v4-no-smc-long7",
+    "scalp-adaptive-v4-no-breakout-long12",
+    "scalp-adaptive-v4-long12-split1",
+    "scalp-adaptive-v4-weak-slice-combo",
+    "scalp-adaptive-v4-defensive-combo",
+    "scalp-adaptive-v4-smc-weighted-debrick",
+    "scalp-adaptive-v2t8-debrick",
+    "scalp-adaptive-v2t8-debrick-hard4",
+    "scalp-adaptive-v2t8-debrick-rollgov",
+    "scalp-adaptive-v2t8-robustgate-volband",
+    "scalp-adaptive-v2t8-robustgate-volslope",
+    "scalp-adaptive-v2t8-lock0",
+    "scalp-adaptive-v2t8-target50",
+    "scalp-adaptive-v2t8-lock0-target50",
+    "scalp-adaptive-v2t8-w3-lock0-target50",
+    "scalp-adaptive-v2t8-w3",
+    "scalp-adaptive-v2t8-w4-lock0-target50",
+    "scalp-adaptive-v2t8-w4",
+    "scalp-adaptive-v2t8-w5",
+    "scalp-adaptive-v2t8-w4-volband",
+    "scalp-adaptive-w4vb-debrick-cap22",
+    "scalp-adaptive-w4-debrick",
+    "scalp-adaptive-w4vb-nocap",
+    "scalp-adaptive-w4vb-loosethrottle",
+    "scalp-adaptive-w4vb-freq-cap",
+    "scalp-adaptive-w4vb-freq-hours",
+    "scalp-adaptive-w4vb-freq-both",
+    "scalp-adaptive-w4vb-nocap-tg15",
+    "scalp-adaptive-w4vb-nocap-m1micro",
+    "scalp-adaptive-w4vb-nocap-mo8",
+    "scalp-adaptive-w4vb-nocap-tg15-m1micro",
+    "scalp-adaptive-w4vb-nocap-tg15-m1micro-no-long10",
+]
+SCALP_ADAPTIVE_FREQ = [
+    "scalp-adaptive-freq-cap12",
+    "scalp-adaptive-freq-maxopen5",
+    "scalp-adaptive-freq-long7",
+    "scalp-adaptive-freq-long7-cap12",
+    "scalp-adaptive-freq-scalp-ladder2-lot035",
+    "scalp-adaptive-freq-scalp-ladder2-lot050",
+    "scalp-adaptive-freq-long7-ladder2-lot035",
+    "scalp-adaptive-freq-expiry15",
+    "scalp-adaptive-freq-clean-adx16",
+    "scalp-adaptive-freq-breakout-long10-quality",
+]
+SCALP_ADAPTIVE_FREQ_V2 = [
+    "scalp-adaptive-freq-v2-long7-adx16",
+    "scalp-adaptive-freq-v2-long7-adx16-split1",
+    "scalp-adaptive-freq-v2-long7-split1",
+    "scalp-adaptive-freq-v2-long7-no-m5-short10",
+    "scalp-adaptive-freq-v2-long7-no-smc-short8",
+    "scalp-adaptive-freq-v2-long7-no-breakout-long7",
+    "scalp-adaptive-freq-v2-long7-m5-shorts-only",
+    "scalp-adaptive-freq-v2-long7-short78-split1",
+    "scalp-adaptive-freq-v2-long7-clean-combo",
+    "scalp-adaptive-freq-v2-adx16-short78",
+]
+SCALP_ADAPTIVE_RISK = [
+    "scalp-adaptive-risk015-scalp025",
+    "scalp-adaptive-risk015-scalp035",
+    "scalp-adaptive-risk015-no-m5",
+    "scalp-adaptive-risk015-m5-short10-only",
+    "scalp-adaptive-risk012",
+]
+SCALP_ADAPTIVE_HYBRID_TF = [
+    "adaptive-hybrid-m1-core",
+    "adaptive-hybrid-m1-short-only",
+    "adaptive-hybrid-m1-quality-hours",
+    "adaptive-hybrid-m1-tight-cost",
+    "adaptive-hybrid-m1-loose-adx",
+    "adaptive-hybrid-riskalloc-m15",
+    "adaptive-hybrid-riskalloc-freq-long7",
+    "adaptive-hybrid-m1-riskalloc",
+    "adaptive-hybrid-xaus-m15core-risk012-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk015-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk020-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk025-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk030-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk025-split1-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk030-split1-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk035-split1-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk040-split1-no-m5",
+    "adaptive-hybrid-xaus-m15risk-m5short10",
+    "adaptive-hybrid-xaus-freqlong7-m5short10-riskalloc",
+]
+AXI_FREQ200 = [
+    "axi-freq200-m1-core",
+    "axi-freq200-m1-loose",
+    "axi-freq200-m1-short-only",
+    "axi-freq200-m1-short-only-loose",
+    "axi-freq200-m5-short10-lowrisk",
+    "axi-freq200-m5-short78-lowrisk",
+    "axi-freq200-m1-m5-short-combo",
+    "axi-freq200-m1-cap16",
+]
+AXI_FREQ150 = [
+    "axi-freq150-m1-short-plus-long7",
+    "axi-freq150-m1-short-plus-long10",
+    "axi-freq150-m1-short-plus-long7-10",
+    "axi-freq150-m1-short-plus-long7-tightcost",
+]
+AXI_PROFIT200 = [
+    "axi-profit200-m15risk025-m1short",
+    "axi-profit200-m15risk030-m1short",
+    "axi-profit200-m15risk025-long10-clean",
+    "axi-profit200-m15risk030-long10-clean",
+    "axi-profit200-long10-clean-m1lot015",
+    "axi-profit200-risk025-long10-clean-m1lot015",
+    "axi-profit200-risk025-short810-loose",
+    "axi-profit200-risk030-short810-loose",
+]
 
 
 def load_candidates() -> dict[str, dict[str, str]]:
@@ -502,7 +658,7 @@ def main() -> int:
     args = parser.parse_args()
 
     candidates = load_candidates()
-    growth_candidates = LAYER1 + LAYER2 + RECENT_YEAR + PROFIT_CORE + FREQ80 + FREQ100 + FREQ100B + FREQ100C + FREQ100D + FREQ100E + FREQ100F + FREQ100G + FREQ100H + FREQ100I + FREQ100J + FREQ100K + FREQ100L + SCALP_M5 + SCALP_M5_QUALITY + SCALP_SHORTTERM + SCALP_SHORTTERM_REPAIR + SCALP_DD_REPAIR + SCALP_COMPOUND + SCALP_ROBUST + SCALP_ROBUST_V2
+    growth_candidates = LAYER1 + LAYER2 + RECENT_YEAR + PROFIT_CORE + FREQ80 + FREQ100 + FREQ100B + FREQ100C + FREQ100D + FREQ100E + FREQ100F + FREQ100G + FREQ100H + FREQ100I + FREQ100J + FREQ100K + FREQ100L + SCALP_M5 + SCALP_M5_QUALITY + SCALP_SHORTTERM + SCALP_SHORTTERM_REPAIR + SCALP_DD_REPAIR + SCALP_COMPOUND + SCALP_ROBUST + SCALP_ROBUST_V2 + SCALP_ROBUST_V3 + SCALP_ADAPTIVE + SCALP_ADAPTIVE_V2 + SCALP_ADAPTIVE_V3 + SCALP_ADAPTIVE_V4 + SCALP_ADAPTIVE_FREQ + SCALP_ADAPTIVE_FREQ_V2 + SCALP_ADAPTIVE_RISK + SCALP_ADAPTIVE_HYBRID_TF + AXI_FREQ200 + AXI_FREQ150 + AXI_PROFIT200
 
     if args.list:
         for name in growth_candidates:

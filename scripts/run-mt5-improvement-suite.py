@@ -319,6 +319,126 @@ SCALP_ROBUST_V2_CANDIDATES = [
     "scalp-robust-v2-long12-split2only",
     "scalp-robust-v2-quality-combo",
 ]
+SCALP_ROBUST_V3_CANDIDATES = [
+    "scalp-robust-v3-smc-no-long7-split1",
+    "scalp-robust-v3-no-breakout-long7-split1",
+    "scalp-robust-v3-no-breakout-long7-no-m5-long10-split1",
+    "scalp-robust-v3-no-breakout-long7-no-smc-short8-split1",
+    "scalp-robust-v3-quality-split1",
+]
+SCALP_ADAPTIVE_CANDIDATES = [
+    "scalp-adaptive-monththrottle-soft15-hard4",
+    "scalp-adaptive-monththrottle-soft25-hard6",
+    "scalp-adaptive-monththrottle-soft15-nohard",
+    "scalp-adaptive-daily2-monthlock25",
+    "scalp-adaptive-smooth-monthlock25",
+    "scalp-adaptive-monththrottle-soft15-daily2",
+]
+SCALP_ADAPTIVE_V2_CANDIDATES = [
+    "scalp-adaptive-v2-long12-split1",
+    "scalp-adaptive-v2-breakout-long12-off",
+    "scalp-adaptive-v2-long12-split1-breakout-long12-off",
+    "scalp-adaptive-v2-m5-no-short10",
+    "scalp-adaptive-v2-monthloss5",
+    "scalp-adaptive-v2-smooth-dd",
+    "scalp-adaptive-v2-quality-combo",
+]
+SCALP_ADAPTIVE_V3_CANDIDATES = [
+    "scalp-adaptive-v3-roll20-throttle35",
+    "scalp-adaptive-v3-roll12-throttle50",
+    "scalp-adaptive-v3-roll20-pause12h",
+    "scalp-adaptive-v3-m5-only-roll20",
+    "scalp-adaptive-v3-m15-only-roll20",
+    "scalp-adaptive-v3-quality-combo",
+]
+SCALP_ADAPTIVE_V4_CANDIDATES = [
+    "scalp-adaptive-v4-no-m5-short10",
+    "scalp-adaptive-v4-no-m5-short7-10",
+    "scalp-adaptive-v4-no-m5-long18",
+    "scalp-adaptive-v4-no-smc-long7",
+    "scalp-adaptive-v4-no-breakout-long12",
+    "scalp-adaptive-v4-long12-split1",
+    "scalp-adaptive-v4-weak-slice-combo",
+    "scalp-adaptive-v4-defensive-combo",
+]
+SCALP_ADAPTIVE_FREQ_CANDIDATES = [
+    "scalp-adaptive-freq-cap12",
+    "scalp-adaptive-freq-maxopen5",
+    "scalp-adaptive-freq-long7",
+    "scalp-adaptive-freq-long7-cap12",
+    "scalp-adaptive-freq-scalp-ladder2-lot035",
+    "scalp-adaptive-freq-scalp-ladder2-lot050",
+    "scalp-adaptive-freq-long7-ladder2-lot035",
+    "scalp-adaptive-freq-expiry15",
+    "scalp-adaptive-freq-clean-adx16",
+    "scalp-adaptive-freq-breakout-long10-quality",
+]
+SCALP_ADAPTIVE_FREQ_V2_CANDIDATES = [
+    "scalp-adaptive-freq-v2-long7-adx16",
+    "scalp-adaptive-freq-v2-long7-adx16-split1",
+    "scalp-adaptive-freq-v2-long7-split1",
+    "scalp-adaptive-freq-v2-long7-no-m5-short10",
+    "scalp-adaptive-freq-v2-long7-no-smc-short8",
+    "scalp-adaptive-freq-v2-long7-no-breakout-long7",
+    "scalp-adaptive-freq-v2-long7-m5-shorts-only",
+    "scalp-adaptive-freq-v2-long7-short78-split1",
+    "scalp-adaptive-freq-v2-long7-clean-combo",
+    "scalp-adaptive-freq-v2-adx16-short78",
+]
+SCALP_ADAPTIVE_RISK_CANDIDATES = [
+    "scalp-adaptive-risk015-scalp025",
+    "scalp-adaptive-risk015-scalp035",
+    "scalp-adaptive-risk015-no-m5",
+    "scalp-adaptive-risk015-m5-short10-only",
+    "scalp-adaptive-risk012",
+]
+SCALP_ADAPTIVE_HYBRID_TF_CANDIDATES = [
+    "adaptive-hybrid-m1-core",
+    "adaptive-hybrid-m1-short-only",
+    "adaptive-hybrid-m1-quality-hours",
+    "adaptive-hybrid-m1-tight-cost",
+    "adaptive-hybrid-m1-loose-adx",
+    "adaptive-hybrid-riskalloc-m15",
+    "adaptive-hybrid-riskalloc-freq-long7",
+    "adaptive-hybrid-m1-riskalloc",
+    "adaptive-hybrid-xaus-m15core-risk012-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk015-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk020-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk025-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk030-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk025-split1-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk030-split1-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk035-split1-no-m5",
+    "adaptive-hybrid-xaus-m15core-risk040-split1-no-m5",
+    "adaptive-hybrid-xaus-m15risk-m5short10",
+    "adaptive-hybrid-xaus-freqlong7-m5short10-riskalloc",
+]
+AXI_FREQ200_CANDIDATES = [
+    "axi-freq200-m1-core",
+    "axi-freq200-m1-loose",
+    "axi-freq200-m1-short-only",
+    "axi-freq200-m1-short-only-loose",
+    "axi-freq200-m5-short10-lowrisk",
+    "axi-freq200-m5-short78-lowrisk",
+    "axi-freq200-m1-m5-short-combo",
+    "axi-freq200-m1-cap16",
+]
+AXI_FREQ150_CANDIDATES = [
+    "axi-freq150-m1-short-plus-long7",
+    "axi-freq150-m1-short-plus-long10",
+    "axi-freq150-m1-short-plus-long7-10",
+    "axi-freq150-m1-short-plus-long7-tightcost",
+]
+AXI_PROFIT200_CANDIDATES = [
+    "axi-profit200-m15risk025-m1short",
+    "axi-profit200-m15risk030-m1short",
+    "axi-profit200-m15risk025-long10-clean",
+    "axi-profit200-m15risk030-long10-clean",
+    "axi-profit200-long10-clean-m1lot015",
+    "axi-profit200-risk025-long10-clean-m1lot015",
+    "axi-profit200-risk025-short810-loose",
+    "axi-profit200-risk030-short810-loose",
+]
 
 
 def load_candidate_names(matrix: Path) -> set[str]:
@@ -470,10 +590,46 @@ def main() -> int:
     parser.add_argument("--scalp-compound", action="store_true", help="Run only GoldBot risk-governed compound scalping candidates unless names are provided.")
     parser.add_argument("--scalp-robust", action="store_true", help="Run only GoldBot 2Y+recent robust scalping candidates unless names are provided.")
     parser.add_argument("--scalp-robust-v2", action="store_true", help="Run only GoldBot robust-v2 slice cleanup candidates unless names are provided.")
+    parser.add_argument("--scalp-robust-v3", action="store_true", help="Run only GoldBot robust-v3 split1 cleanup candidates unless names are provided.")
+    parser.add_argument("--scalp-adaptive", action="store_true", help="Run only GoldBot adaptive risk-control candidates unless names are provided.")
+    parser.add_argument("--scalp-adaptive-v2", action="store_true", help="Run only GoldBot adaptive-v2 stability cleanup candidates unless names are provided.")
+    parser.add_argument("--scalp-adaptive-v3", action="store_true", help="Run only GoldBot adaptive-v3 rolling performance governor candidates unless names are provided.")
+    parser.add_argument("--scalp-adaptive-v4", action="store_true", help="Run only GoldBot adaptive-v4 weak-month recovery candidates unless names are provided.")
+    parser.add_argument("--scalp-adaptive-freq", action="store_true", help="Run only GoldBot adaptive frequency-plus candidates unless names are provided.")
+    parser.add_argument("--scalp-adaptive-freq-v2", action="store_true", help="Run only GoldBot adaptive frequency-v2 cleanup candidates unless names are provided.")
+    parser.add_argument("--scalp-adaptive-risk", action="store_true", help="Run only GoldBot adaptive setup-risk allocation candidates unless names are provided.")
+    parser.add_argument("--scalp-adaptive-hybrid-tf", action="store_true", help="Run only GoldBot adaptive hybrid timeframe candidates unless names are provided.")
+    parser.add_argument("--axi-freq200", action="store_true", help="Run only Axi XAUUSD freq200 discovery candidates unless names are provided.")
+    parser.add_argument("--axi-freq150", action="store_true", help="Run only Axi XAUUSD middle-frequency candidates unless names are provided.")
+    parser.add_argument("--axi-profit200", action="store_true", help="Run only Axi XAUUSD aggressive 200-percent profit research candidates unless names are provided.")
     args = parser.parse_args()
 
     known = load_candidate_names(args.matrix)
-    if args.scalp_robust_v2:
+    if args.axi_profit200:
+        candidates = args.candidates or AXI_PROFIT200_CANDIDATES
+    elif args.axi_freq150:
+        candidates = args.candidates or AXI_FREQ150_CANDIDATES
+    elif args.axi_freq200:
+        candidates = args.candidates or AXI_FREQ200_CANDIDATES
+    elif args.scalp_adaptive_hybrid_tf:
+        candidates = args.candidates or SCALP_ADAPTIVE_HYBRID_TF_CANDIDATES
+    elif args.scalp_adaptive_risk:
+        candidates = args.candidates or SCALP_ADAPTIVE_RISK_CANDIDATES
+    elif args.scalp_adaptive_freq_v2:
+        candidates = args.candidates or SCALP_ADAPTIVE_FREQ_V2_CANDIDATES
+    elif args.scalp_adaptive_freq:
+        candidates = args.candidates or SCALP_ADAPTIVE_FREQ_CANDIDATES
+    elif args.scalp_adaptive_v4:
+        candidates = args.candidates or SCALP_ADAPTIVE_V4_CANDIDATES
+    elif args.scalp_adaptive_v3:
+        candidates = args.candidates or SCALP_ADAPTIVE_V3_CANDIDATES
+    elif args.scalp_adaptive_v2:
+        candidates = args.candidates or SCALP_ADAPTIVE_V2_CANDIDATES
+    elif args.scalp_adaptive:
+        candidates = args.candidates or SCALP_ADAPTIVE_CANDIDATES
+    elif args.scalp_robust_v3:
+        candidates = args.candidates or SCALP_ROBUST_V3_CANDIDATES
+    elif args.scalp_robust_v2:
         candidates = args.candidates or SCALP_ROBUST_V2_CANDIDATES
     elif args.scalp_robust:
         candidates = args.candidates or SCALP_ROBUST_CANDIDATES

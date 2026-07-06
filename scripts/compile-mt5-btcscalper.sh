@@ -5,6 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="${MT5_APP:-$HOME/Applications/MetaTrader 5.app}"
 PREFIX="${MT5_PREFIX:-$HOME/Library/Application Support/net.metaquotes.wine.metatrader5}"
 WINE="$APP/Contents/SharedSupport/wine/bin/wine"
+if [[ ! -f "$WINE" && -f "$APP/Contents/SharedSupport/wine/bin/wine64" ]]; then
+  WINE="$APP/Contents/SharedSupport/wine/bin/wine64"
+fi
 WINEPATH="$APP/Contents/SharedSupport/wine/bin/winepath"
 METAEDITOR="$PREFIX/drive_c/Program Files/MetaTrader 5/metaeditor64.exe"
 MT5_ROOT="$PREFIX/drive_c/Program Files/MetaTrader 5"

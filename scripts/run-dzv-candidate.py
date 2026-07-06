@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""Run one DZV_Style_ADR MT5 candidate from the candidate matrix."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import os
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_candidates(matrix: Path) -> list[dict[str, str]]:
+    with matrix.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    return rows
+
+
+def find_candidate(rows: list[dict[str, str]], name: str) -> dict[str, str] | None:
+    for row in rows:
+        if row["name"].strip() == name:
+            return row
+    return None
+
+
+def shell_command(env: dict[str, str]) -> str:
+    parts = [f"{key}={shlex.quote(value)}" for key, value in env.items()]
+    parts.append("bash scripts/run-mt5-backtest.sh")
+    return " ".join(parts)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("candidate", nargs="?", help="Candidate name from the matrix")
+    parser.add_argument("--matrix", type=Path, default=ROOT / "mt5/backtests/DZV_CANDIDATES.csv")
+    parser.add_argument("--from-date", default="2024.06.01")
+    parser.add_argument("--to-date", default="2026.05.31")
+    parser.add_argument("--deposit", default="100000")
+    parser.add_argument("--symbol", default="XAUUSD")
+    parser.add_argument("--period", default="M15")
+    parser.add_argument("--report-suffix", default="", help="Append a suffix to the MT5 report name")
+    parser.add_argument("--dry-run", action="store_true", help="Print the command without running MT5")
+    parser.add_argument("--list", action="store_true", help="List available candidates")
+    args = parser.parse_args()
+
+    rows = load_candidates(args.matrix)
+    if args.list:
+        for row in rows:
+            print(f"{row['name']}: {row['description']}")
+        return 0
+
+    if not args.candidate:
+        print("Candidate name is required unless --list is used.", file=sys.stderr)
+        return 2
+
+    candidate = find_candidate(rows, args.candidate)
+    if candidate is None:
+        print(f"Unknown candidate: {args.candidate}", file=sys.stderr)
+        print("Available candidates:", file=sys.stderr)
+        for row in rows:
+            print(f"  {row['name']}", file=sys.stderr)
+        return 2
+
+    report_name = f"DZV-{candidate['name'].strip()}"
+    if args.report_suffix:
+        report_name = f"{report_name}-{args.report_suffix.strip()}"
+
+    overrides = candidate["overrides"].replace("\\n", "\n").strip()
+    symbol_override = f"InpSymbol={args.symbol}"
+    overrides = f"{symbol_override}\n{overrides}" if overrides else symbol_override
+
+    env = {
+        "MT5_DEPOSIT": args.deposit,
+        "MT5_FROM": args.from_date,
+        "MT5_TO": args.to_date,
+        "MT5_SYMBOL": args.symbol,
+        "MT5_PERIOD": args.period,
+        "MT5_REPORT": report_name,
+        "MT5_INPUT_OVERRIDES": overrides,
+        "MT5_EXPERT": "DZV_Style_ADR\\DZV_Style_ADR_EA.ex5",
+        "MT5_PRESET": "DZV_Style_ADR.signal.set",
+    }
+
+    print(f"# {candidate['name']}: {candidate['description']}")
+    print(shell_command(env))
+    if args.dry_run:
+        return 0
+
+    run_env = os.environ.copy()
+    run_env.update(env)
+    return subprocess.call(["bash", "scripts/run-mt5-backtest.sh"], cwd=ROOT, env=run_env)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -28,16 +28,16 @@ input int      InpMaxOpenTrades       = 3;           // max concurrent positions
 //--- Session Times (UTC hours, crypto 24/7 but filtered)
 input int      InpTradingStartHour    = 7;           // start scanning
 input int      InpTradingEndHour      = 21;          // stop new entries
-input int      InpBestSessionStart    = 8;           // London open
-input int      InpBestSessionEnd      = 18;          // NY close
+input int      InpBestSessionStart    = 7;           // MR session start (widened from 8 so MR actually fires)
+input int      InpBestSessionEnd      = 21;          // MR session end (widened from 18 to match trading window)
 
 //--- Strategy 1: Mean Reversion (BB + RSI on M15)
 input bool     InpEnableMeanReversion = true;
 input int      InpMrBbPeriod          = 20;
 input double   InpMrBbDeviation       = 2.0;
 input int      InpMrRsiPeriod         = 14;
-input int      InpMrRsiOverbought     = 70;
-input int      InpMrRsiOversold       = 30;
+input int      InpMrRsiOverbought     = 65;          // loosened from 70 so MR reaches allocator min-sample
+input int      InpMrRsiOversold       = 35;          // loosened from 30 so MR reaches allocator min-sample
 input double   InpMrSlAtrMult         = 1.5;         // SL = 1.5× ATR(14)
 input int      InpMrMaxTrades         = 4;           // max MR trades/day
 input bool     InpMrTrailBE           = true;        // move SL to BE at 1× ATR profit
@@ -50,6 +50,12 @@ input double   InpVwapZscoreEntry     = 2.0;         // enter when Z > ±2.0
 input double   InpVwapSlAtrMult       = 1.5;
 input int      InpVwapMaxTrades       = 4;
 input int      InpVwapMaxHoldBars     = 12;          // exit VWAP trades after 12 bars (60m)
+//--- VWAP execution improvements (all default to current behavior; ablation-tested)
+input double   InpVwapTpOvershootAtr  = 0.0;         // extend TP past VWAP by N*ATR(M5) (0 = TP at VWAP)
+input bool     InpVwapHoldAtrScale    = false;       // scale max-hold by ATR regime (fast=shorter, calm=longer)
+input bool     InpVwapVolConfirm      = false;       // require signal-bar tick volume > avg*mult
+input double   InpVwapVolMult         = 1.3;         // volume confirmation multiple
+input int      InpVwapAvoidEdgeHours  = 0;           // skip entries in first/last N UTC hours (0 = off)
 
 //--- Strategy 3: Momentum Breakout (EMA crossover on M15)
 input bool     InpEnableMomentum      = true;
@@ -123,11 +129,15 @@ double BTCScalperStrategyRiskMult(const BTCStrategyId sid)
    return m;
 }
 
-//--- Final per-strategy risk, clamped so it never exceeds the configured base
+//--- Final per-strategy risk. The ceiling is the configured base risk scaled by the
+//    boost multiplier, so a strategy promoted to the boost tier may exceed base risk
+//    (concentration) up to base*InpPerfBoostMult. With InpPerfBoostMult=1.0 (default)
+//    this is identical to the old hard base-risk cap (strictly de-risking).
 double BTCScalperStrategyRisk(const BTCStrategyId sid, const double baseEffectiveRisk)
 {
    double r = baseEffectiveRisk * BTCScalperStrategyRiskMult(sid);
-   return MathMin(r, InpRiskPerTradePct);
+   double ceiling = InpRiskPerTradePct * MathMax(1.0, InpPerfBoostMult);
+   return MathMin(r, ceiling);
 }
 
 //--- Global Risk Gate
@@ -251,7 +261,7 @@ void OnTick()
    if(InpEnableMeanReversion)
       BTCScalperMRManage(symbol, InpMagicNumber, trade, InpMrTrailBE, InpMrTrailBETrigger);
    if(InpEnableVwapReversion)
-      BTCScalperVwapManage(symbol, InpMagicNumber, trade, InpVwapMaxHoldBars);
+      BTCScalperVwapManage(symbol, InpMagicNumber, trade, InpVwapMaxHoldBars, InpVwapTpOvershootAtr, InpVwapHoldAtrScale);
    if(InpEnableMomentum)
       BTCScalperMomManage(symbol, InpMagicNumber, trade);
 
@@ -339,7 +349,7 @@ void OnTick()
 
             if(InpEnableVwapReversion && !isTrending)
             {
-               int vwapSig = BTCScalperVwapSignal(symbol, InpVwapZscoreEntry, InpTradingEndHour);
+               int vwapSig = BTCScalperVwapSignal(symbol, InpVwapZscoreEntry, InpTradingEndHour, InpVwapVolConfirm, InpVwapVolMult, InpVwapAvoidEdgeHours);
                if(vwapSig != 0)
                {
                   double vwapRisk = BTCScalperStrategyRisk(BTC_STRAT_VWAP, risk);
@@ -348,7 +358,7 @@ void OnTick()
                      if(InpEnablePerfAllocation)
                         BTCScalperJournal(StringFormat("AllocDecision strategy=vwap_reversion regime=range mult=%.3f risk=%.4f",
                            vwapRisk / MathMax(risk, 1e-9), vwapRisk));
-                     BTCScalperVwapEntry(symbol, InpMagicNumber, trade, vwapSig, InpVwapSlAtrMult, vwapRisk, InpMinLot, InpMaxLot, InpVwapMaxTrades);
+                     BTCScalperVwapEntry(symbol, InpMagicNumber, trade, vwapSig, InpVwapSlAtrMult, vwapRisk, InpMinLot, InpMaxLot, InpVwapMaxTrades, InpVwapTpOvershootAtr);
                   }
                }
             }
@@ -375,7 +385,15 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    long dealEntry = HistoryDealGetInteger(trans.deal, DEAL_ENTRY);
    ulong positionId = (ulong)HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID);
    string comment = HistoryDealGetString(trans.deal, DEAL_COMMENT);
-   
+
+   // ORDERING IS LOAD-BEARING: read this deal's realized P/L BEFORE any
+   // HistorySelect* call below. HistorySelectByPosition() reselects the history
+   // pool and makes HistoryDealGetDouble(trans.deal, ...) return 0.00, which
+   // silently feeds the performance allocator and the consec-loss tracker zeros.
+   double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT) +
+                   HistoryDealGetDouble(trans.deal, DEAL_COMMISSION) +
+                   HistoryDealGetDouble(trans.deal, DEAL_SWAP);
+
    string strategy = "unknown";
    if(StringFind(comment, "BTC_MR_") >= 0)
       strategy = "mean_reversion";
@@ -384,9 +402,22 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    else if(StringFind(comment, "BTC_Mom_") >= 0)
       strategy = "momentum";
 
-   double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT) +
-                   HistoryDealGetDouble(trans.deal, DEAL_COMMISSION) +
-                   HistoryDealGetDouble(trans.deal, DEAL_SWAP);
+   // Exit deals carry SL/TP price as comment, not the strategy tag.
+   // Look up the strategy from the entry deal of the same position.
+   // (Runs after the profit read above so it can't clobber it.)
+   if(strategy == "unknown" && HistorySelectByPosition(positionId))
+   {
+      int nd = HistoryDealsTotal();
+      for(int _i = 0; _i < nd; _i++)
+      {
+         ulong _d = HistoryDealGetTicket(_i);
+         if((long)HistoryDealGetInteger(_d, DEAL_ENTRY) != DEAL_ENTRY_IN) continue;
+         string _c = HistoryDealGetString(_d, DEAL_COMMENT);
+         if(StringFind(_c, "BTC_MR_") >= 0)        { strategy = "mean_reversion"; break; }
+         else if(StringFind(_c, "BTC_VWAP_") >= 0) { strategy = "vwap_reversion"; break; }
+         else if(StringFind(_c, "BTC_Mom_") >= 0)  { strategy = "momentum";       break; }
+      }
+   }
 
    BTCScalperJournal(StringFormat("Deal deal=%I64u position=%I64u entry=%d strategy=%s profit=%.2f comment=%s",
       trans.deal, positionId, dealEntry, strategy, profit, comment));

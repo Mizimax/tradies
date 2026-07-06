@@ -116,6 +116,7 @@ def main() -> int:
     }
     if args.symbol:
         env["MT5_SYMBOL"] = args.symbol
+        env["MT5_INPUT_OVERRIDES"] = overrides + ("\n" if overrides else "") + f"InpSymbol={args.symbol}"
     if args.period:
         env["MT5_PERIOD"] = args.period
 

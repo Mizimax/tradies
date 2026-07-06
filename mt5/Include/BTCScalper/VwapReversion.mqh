@@ -27,17 +27,53 @@ void BTCScalperVwapMarkTradePlaced()
    GlobalVariableSet(key, (double)(current + 1));
 }
 
+//--- Average ATR(M5) over the last `period` completed bars (shift 1..period)
+double BTCScalperVwapAtrAverage(const int period)
+{
+   if(period <= 0) return 0.0;
+   double a[];
+   if(CopyBuffer(g_btcAtrM5Handle, 0, 1, period, a) != period)
+      return 0.0;
+   double sum = 0.0;
+   for(int i = 0; i < period; i++) sum += a[i];
+   return sum / period;
+}
+
+//--- Average M5 tick volume over the last `period` completed bars (shift 1..period)
+double BTCScalperVwapVolAverage(const string symbol, const int period)
+{
+   if(period <= 0) return 0.0;
+   long v[];
+   if(CopyTickVolume(symbol, PERIOD_M5, 1, period, v) != period)
+      return 0.0;
+   double sum = 0.0;
+   for(int i = 0; i < period; i++) sum += (double)v[i];
+   return sum / period;
+}
+
 //--- Signal Generator (runs on completed M5 bar, shift=1)
 int BTCScalperVwapSignal(
    const string symbol,
    const double zscoreEntry,
-   const int tradingEndHour
+   const int tradingEndHour,
+   const bool volConfirm,
+   const double volMult,
+   const int avoidEdgeHours
 )
 {
    //--- 1. Session Filter (trading hours check)
    if(!BTCScalperIsTradingHours(tradingEndHour))
    {
       return 0;
+   }
+
+   //--- 1b. Edge-hour liquidity filter (skip first/last N UTC hours)
+   if(avoidEdgeHours > 0)
+   {
+      MqlDateTime nowst;
+      TimeToStruct(TimeCurrent(), nowst);
+      if(nowst.hour < avoidEdgeHours || nowst.hour >= 24 - avoidEdgeHours)
+         return 0;
    }
 
    //--- 2. Get VWAP Z-score (which is updated live or at completed M5 bar)
@@ -76,6 +112,16 @@ int BTCScalperVwapSignal(
    bool h1Up = (h1Ema != EMPTY_VALUE && h1Close > h1Ema);
    bool h1Down = (h1Ema != EMPTY_VALUE && h1Close < h1Ema);
 
+   //--- 5. Volume confirmation on the signal bar (genuine volume-driven panic reverts;
+   //       thin-tick wicks do not). Off by default (volConfirm=false).
+   if(volConfirm)
+   {
+      double volAvg = BTCScalperVwapVolAverage(symbol, 20);
+      double volBar = (double)iVolume(symbol, PERIOD_M5, 1);
+      if(volAvg <= 0.0 || volBar < volAvg * volMult)
+         return 0;
+   }
+
    //--- Evaluate Signals
    if(zscoreShift1 < -zscoreEntry && rsi < 35.0 && h1Up)
    {
@@ -103,7 +149,8 @@ bool BTCScalperVwapEntry(
    const double riskPct,
    const double minLot,
    const double maxLot,
-   const int maxDailyTrades
+   const int maxDailyTrades,
+   const double tpOvershootAtr
 )
 {
    if(signal == 0)
@@ -125,6 +172,7 @@ bool BTCScalperVwapEntry(
       return false;
    }
    double slDistance = atr * slAtrMult;
+   double tpBuffer = atr * tpOvershootAtr;   // extend TP past VWAP to capture overshoot (0 = TP at VWAP)
 
    // Read current VWAP value
    double vwap = BTCScalperVwapValue();
@@ -152,7 +200,7 @@ bool BTCScalperVwapEntry(
    {
       double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
       double sl  = NormalizeDouble(ask - slDistance, digits);
-      double tp  = NormalizeDouble(vwap, digits);
+      double tp  = NormalizeDouble(vwap + tpBuffer, digits);
 
       if(tp <= ask)
       {
@@ -166,7 +214,7 @@ bool BTCScalperVwapEntry(
    {
       double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
       double sl  = NormalizeDouble(bid + slDistance, digits);
-      double tp  = NormalizeDouble(vwap, digits);
+      double tp  = NormalizeDouble(vwap - tpBuffer, digits);
 
       if(tp >= bid)
       {
@@ -189,7 +237,9 @@ void BTCScalperVwapManage(
    const string symbol,
    const long magic,
    CTrade &trade,
-   const int maxHoldBars
+   const int maxHoldBars,
+   const double tpOvershootAtr,
+   const bool holdAtrScale
 )
 {
    double vwap = BTCScalperVwapValue();
@@ -199,6 +249,21 @@ void BTCScalperVwapManage(
    // Read ATR(14) on M5 (shift 1) for BE trigger
    double atr = BTCScalperGetBufferValue(g_btcAtrM5Handle, 0, 1);
    bool hasAtr = (atr != EMPTY_VALUE && atr > 0.0);
+   double tpBuffer = (hasAtr ? atr * tpOvershootAtr : 0.0);
+
+   //--- Volatility-scaled max-hold: shorten in fast markets, lengthen in calm ones.
+   //    Off by default (holdAtrScale=false) -> effHold == maxHoldBars.
+   int effHold = maxHoldBars;
+   if(holdAtrScale && hasAtr && maxHoldBars > 0)
+   {
+      double atrMa = BTCScalperVwapAtrAverage(50);
+      if(atrMa > 0.0)
+      {
+         double ratio = atr / atrMa;
+         if(ratio >= 1.5)      effHold = (int)MathMax(1, maxHoldBars / 2);
+         else if(ratio <= 0.7) effHold = (int)MathRound(maxHoldBars * 1.5);
+      }
+   }
 
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
    double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
@@ -220,13 +285,13 @@ void BTCScalperVwapManage(
       if(StringFind(comment, "BTC_VWAP_") < 0)
          continue;
 
-      // 1. Time-in-trade exit check
-      if(maxHoldBars > 0)
+      // 1. Time-in-trade exit check (effHold = ATR-scaled when enabled)
+      if(effHold > 0)
       {
          datetime openTime = (datetime)PositionGetInteger(POSITION_TIME);
-         if(TimeCurrent() - openTime >= maxHoldBars * 300) // 5 minutes per bar
+         if(TimeCurrent() - openTime >= effHold * 300) // 5 minutes per bar
          {
-            Print("[VWAP-Manage] Max hold time reached (", maxHoldBars, " bars). Closing position ticket=", ticket);
+            Print("[VWAP-Manage] Max hold time reached (", effHold, " bars). Closing position ticket=", ticket);
             trade.PositionClose(ticket);
             continue;
          }
@@ -238,11 +303,15 @@ void BTCScalperVwapManage(
       double currentTp = PositionGetDouble(POSITION_TP);
       double currentPrice = PositionGetDouble(POSITION_PRICE_CURRENT);
 
-      double newTp = NormalizeDouble(vwap, digits);
+      // TP target = live VWAP, extended past it by the overshoot buffer in the trade's favor
+      double tpTarget = vwap;
+      if(type == POSITION_TYPE_BUY)       tpTarget = vwap + tpBuffer;
+      else if(type == POSITION_TYPE_SELL) tpTarget = vwap - tpBuffer;
+      double newTp = NormalizeDouble(tpTarget, digits);
       double newSl = currentSl;
       bool modify = false;
 
-      // 2. Update TP to live VWAP
+      // 2. Update TP to live VWAP (+overshoot)
       if(MathAbs(newTp - currentTp) > point * 2.0)
       {
          if((type == POSITION_TYPE_BUY && newTp > openPrice) ||

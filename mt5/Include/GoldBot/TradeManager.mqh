@@ -314,7 +314,21 @@ bool GoldBotPlaceLadder(
    const double positionBreakEvenAtR,
    const double positionTrailStartR,
    const double lotMultiplier,
-   CTrade &trade
+   CTrade &trade,
+   const double featureSpread = 0.0,
+   const double featureSpreadToTpPct = 0.0,
+   const double featureAdx = 0.0,
+   const double featureDiGap = 0.0,
+   const double featureAtr = 0.0,
+   const double featureAtrRatio = 0.0,
+   const double featureEma21 = 0.0,
+   const double featureEma50 = 0.0,
+   const double featureVwap = 0.0,
+   const double featureZoneBottom = 0.0,
+   const double featureZoneTop = 0.0,
+   const double featureSlDistance = 0.0,
+   const double featureLotMultiplier = 0.0,
+   const double featureSetupRiskMultiplier = 0.0
 )
 {
    if(!zone.valid)
@@ -406,6 +420,21 @@ bool GoldBotPlaceLadder(
             GlobalVariableSet(orderKey + ".trailStartR", positionTrailStartR);
          if(riskCash > 0.0)
             GlobalVariableSet(orderKey + ".riskCash", riskCash);
+         GlobalVariableSet(orderKey + ".spread", featureSpread);
+         GlobalVariableSet(orderKey + ".spreadToTpPct", featureSpreadToTpPct);
+         GlobalVariableSet(orderKey + ".adx", featureAdx);
+         GlobalVariableSet(orderKey + ".diGap", featureDiGap);
+         GlobalVariableSet(orderKey + ".atr", featureAtr);
+         GlobalVariableSet(orderKey + ".atrRatio", featureAtrRatio);
+         GlobalVariableSet(orderKey + ".ema21", featureEma21);
+         GlobalVariableSet(orderKey + ".ema50", featureEma50);
+         GlobalVariableSet(orderKey + ".vwap", featureVwap);
+         GlobalVariableSet(orderKey + ".zoneBottom", featureZoneBottom);
+         GlobalVariableSet(orderKey + ".zoneTop", featureZoneTop);
+         GlobalVariableSet(orderKey + ".zoneWidth", MathAbs(featureZoneTop - featureZoneBottom));
+         GlobalVariableSet(orderKey + ".slDistance", featureSlDistance > 0.0 ? featureSlDistance : risk);
+         GlobalVariableSet(orderKey + ".lotMultiplier", featureLotMultiplier > 0.0 ? featureLotMultiplier : lotMultiplier);
+         GlobalVariableSet(orderKey + ".setupRiskMultiplier", featureSetupRiskMultiplier);
          GoldBotJournal(StringFormat("Pending order placed signalId=%s setup=%s split=%d dir=%d entry=%.2f sl=%.2f lot=%.2f order=%I64u scoreBucket=%d confluences=%d/%d hour=%d",
             signalId,
             setupName,

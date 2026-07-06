@@ -3,11 +3,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="${MT5_APP:-$HOME/Applications/MetaTrader 5.app}"
+if [[ ! -d "$APP" && -d "/Applications/MetaTrader 5.app" ]]; then
+  APP="/Applications/MetaTrader 5.app"
+fi
 PREFIX="${MT5_PREFIX:-$HOME/Library/Application Support/net.metaquotes.wine.metatrader5}"
 WINE="$APP/Contents/SharedSupport/wine/bin/wine"
 WINEPATH="$APP/Contents/SharedSupport/wine/bin/winepath"
 # Fallback to wine64 if wine doesn't exist
-if [[ ! -f "$WINE" && -f "$APP/Contents/SharedSupport/wine/bin/wine64" ]]; then
+if [[ ! -x "$WINE" && -x "$APP/Contents/SharedSupport/wine/bin/wine64" ]]; then
   WINE="$APP/Contents/SharedSupport/wine/bin/wine64"
 fi
 TERMINAL="$PREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"

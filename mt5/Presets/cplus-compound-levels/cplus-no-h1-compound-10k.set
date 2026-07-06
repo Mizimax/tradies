@@ -1,0 +1,74 @@
+TRADE_BUY=true
+TRADE_SELL=true
+Lot=0.10
+Martingale_multiply=1.5
+Distance=true
+NearBy_distance=1200.0
+MAX_LOT=1.00
+MaxOrder=10.0
+Mode============= Mode Fix Order ============
+Gride_Candle=false
+Next_Candle=true
+Signal_Candle=false
+MODE_Ai============= AI MODE ============
+SD_near=false
+SD_multiply=80.0
+Mode_1============= Mode Customs Signal ============
+STO_MA_USE=true
+STO_USE=true
+MA_USE=true
+Signal_TF=1
+Mode_4============= Mode Modify Signal ============
+MA_FAST=20
+MA_SLOW=50
+MA_TREND=100
+Mode_5============= Mode Modify Signal ============
+STO_K=8
+STO_D=16
+STO_SLOW=21
+Level_Buy=40
+Level_Sell=60
+Step1_TF=15
+Step1_number_order=3.0
+Step2_TF=15
+Step2_number_order=5.0
+PF_Buy_Sell============= Profit Buy_Sell Zone ============
+TP_Money_buy_sell=true
+TP_Money=1000
+TP_PIP_buy_sell=false
+TP_Pip=1000.0
+TP_Traling_buy_sell=true
+Trailing_Start=300.0
+Trailing_Step=50.0
+Trailing_Stop=100.0
+PF_Close_All============= Profit Close All Zone ============
+TP_Money_CloseAll=true
+TP_Money_Close=200
+TP_PIP_CloseAll=true
+TP_Pip_Close=4000.0
+Safe_Mode============= Safe Mode Zone ============
+Open_Safe_Mode=true
+Order_to_SafeMode=5.0
+TP_Close=5.0
+Mode_2============= Profit/Day ============
+PF_Day_need=500.0
+Mode_3============= Cutloss DD% ============
+Percent_Max_DD=20.0
+DAY_SETTING============= DAY SETTING Zone ============
+Monday=true
+Mon_Start_time=00:00
+Mon_End_time=23:59
+Tuesday=true
+Tue_start_time=00:00
+Tue_End_time=23:59
+Wednesday=true
+Wed_Start_time=00:00
+Wed_End_time=23:59
+Thursday=true
+Thu_Start_time=00:00
+Thu_End_time=23:59
+Friday=true
+Fri_Start_time=00:00
+Fri_End_time=23:59
+MagicStart=0
+inp89_ObjChartSubWindow=
