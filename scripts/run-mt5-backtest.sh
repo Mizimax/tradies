@@ -38,6 +38,7 @@ PRESET="${MT5_PRESET:-GoldBot.optimized.set}"
 # Derive the expert directory name from the path (e.g. GoldBot\GoldBot.ex5 -> GoldBot)
 EXPERT_DIR="${EXPERT%%\\*}"
 EXPERT_FILE="${EXPERT##*\\}"
+INCLUDE_EXPERT_DIR="${MT5_INCLUDE_DIR:-$EXPERT_DIR}"
 
 CONFIG_DIR="$PWD/mt5/backtests/config"
 REPORT_DIR="$PWD/mt5/backtests/reports"
@@ -67,7 +68,7 @@ if [[ ! -f "$MT5_ROOT/MQL5/Experts/$EXPERT_DIR/$EXPERT_FILE" ]]; then
   exit 1
 fi
 
-NEWER_SOURCE="$(find "$MT5_ROOT/MQL5/Experts/$EXPERT_DIR" "$MT5_ROOT/MQL5/Include/$EXPERT_DIR" \( -name '*.mq5' -o -name '*.mqh' \) -newer "$MT5_ROOT/MQL5/Experts/$EXPERT_DIR/$EXPERT_FILE" -print -quit 2>/dev/null || true)"
+NEWER_SOURCE="$(find "$MT5_ROOT/MQL5/Experts/$EXPERT_DIR" "$MT5_ROOT/MQL5/Include/$INCLUDE_EXPERT_DIR" \( -name '*.mq5' -o -name '*.mqh' \) -newer "$MT5_ROOT/MQL5/Experts/$EXPERT_DIR/$EXPERT_FILE" -print -quit 2>/dev/null || true)"
 if [[ -n "$NEWER_SOURCE" ]]; then
   echo "$EXPERT_FILE is older than the installed $EXPERT_DIR source. Compile in MetaEditor first." >&2
   echo "Changed source: $NEWER_SOURCE" >&2
@@ -86,6 +87,7 @@ else
   PARITY_START=""
 fi
 
+if [[ "$EXPERT_DIR" == "GoldBot" ]]; then
 awk -v parity_mode="$PARITY_MODE" -v parity_start="$PARITY_START" '
   BEGIN { seen_parity = 0; seen_start = 0 }
   /^InpPythonParityMode=/ {
@@ -107,6 +109,7 @@ awk -v parity_mode="$PARITY_MODE" -v parity_start="$PARITY_START" '
   }
 ' "$RUNTIME_SET" > "$RUNTIME_SET.tmp"
 mv "$RUNTIME_SET.tmp" "$RUNTIME_SET"
+fi
 
 if [[ -n "$INPUT_OVERRIDES" ]]; then
   while IFS= read -r override; do
@@ -211,15 +214,17 @@ is_metatester_pid() {
 
 LISTENER_PIDS="$(metatester_listener_pids)"
 if [[ -n "$LISTENER_PIDS" ]]; then
-  NON_MT5_LISTENER=0
+  HAS_METATESTER_LISTENER=0
   while IFS= read -r pid; do
     [[ -z "$pid" ]] && continue
-    if ! is_metatester_pid "$pid"; then
-      NON_MT5_LISTENER=1
-    fi
+    if is_metatester_pid "$pid"; then HAS_METATESTER_LISTENER=1; fi
   done <<< "$LISTENER_PIDS"
 
-  if [[ "$NON_MT5_LISTENER" == "1" ]]; then
+  # Wine exposes the same listening socket through both wineserver and the
+  # metatester process on macOS. The short lsof command name can also appear as
+  # "metateste". Trust the full ps command line when any owning PID is the
+  # registered MetaTester; otherwise treat the port as a real collision.
+  if [[ "$HAS_METATESTER_LISTENER" != "1" ]]; then
     echo "Port $AGENT_PORT is already used by a non-MetaTester process:" >&2
     lsof -nP -iTCP:"$AGENT_PORT" -sTCP:LISTEN >&2 || true
     echo "Stop that process before running MT5; the terminal needs this port for its local tester agent." >&2

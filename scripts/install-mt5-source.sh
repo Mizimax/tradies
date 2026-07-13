@@ -14,6 +14,8 @@ mkdir -p \
   "$MT5_ROOT/MQL5/Include/BTCScalper" \
   "$MT5_ROOT/MQL5/Experts/CodexCGrid" \
   "$MT5_ROOT/MQL5/Experts/DZV_Style_ADR" \
+  "$MT5_ROOT/MQL5/Experts/QuantumBehavioralReplica" \
+  "$MT5_ROOT/MQL5/Include/QBR" \
   "$MT5_ROOT/MQL5/Indicators" \
   "$MT5_ROOT/MQL5/Scripts/DZVStyle" \
   "$MT5_ROOT/MQL5/Include/DZVStyle" \
@@ -72,6 +74,18 @@ if [[ -f "$ROOT_DIR/mt5/Experts/CodexCGrid/CodexCGrid.mq5" ]]; then
     cp "$preset_file" "$MT5_ROOT/MQL5/Profiles/Tester/$(basename "$preset_file")"
   done
   echo "Installed CodexCGrid source into $MT5_ROOT/MQL5"
+fi
+
+# QuantumBehavioralReplica
+if [[ -f "$ROOT_DIR/mt5/Experts/QuantumBehavioralReplica/QuantumBehavioralReplica.mq5" ]]; then
+  install_source "$ROOT_DIR/mt5/Experts/QuantumBehavioralReplica/QuantumBehavioralReplica.mq5" "$MT5_ROOT/MQL5/Experts/QuantumBehavioralReplica/QuantumBehavioralReplica.mq5"
+  for source_file in "$ROOT_DIR"/mt5/Include/QBR/*.mqh; do
+    install_source "$source_file" "$MT5_ROOT/MQL5/Include/QBR/$(basename "$source_file")"
+  done
+  for preset_file in "$ROOT_DIR"/mt5/Presets/QBR/*.set; do
+    cp "$preset_file" "$MT5_ROOT/MQL5/Profiles/Tester/$(basename "$preset_file")"
+  done
+  echo "Installed QuantumBehavioralReplica source into $MT5_ROOT/MQL5"
 fi
 
 # DZV_Style_ADR
