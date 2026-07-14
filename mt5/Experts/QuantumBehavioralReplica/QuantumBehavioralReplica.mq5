@@ -207,6 +207,9 @@ QBRBasketSnapshot g_basket_audit_snapshot;
 int      g_m5_ema_handle=INVALID_HANDLE;
 int      g_m5_atr_handle=INVALID_HANDLE;
 bool     g_active_m5_profile=false;
+bool     g_pending_basket_finalization=false;
+QBRBasketSnapshot g_pending_finalization_snapshot;
+string   g_pending_finalization_reason="";
 
 string PersistentKey(const string suffix)
   {
@@ -583,6 +586,25 @@ bool FinalizeClosedBasket(const QBRBasketSnapshot &snapshot,const datetime end_t
    return true;
   }
 
+void QueueBasketFinalization(const QBRBasketSnapshot &snapshot,const string reason)
+  {
+   if(snapshot.orders<=0 || snapshot.basket_id<=0) return;
+   g_pending_finalization_snapshot=snapshot;
+   g_pending_finalization_reason=reason;
+   g_pending_basket_finalization=true;
+  }
+
+void RetryPendingBasketFinalization(void)
+  {
+   if(!g_pending_basket_finalization || g_basket_snapshot.orders>0) return;
+   if(FinalizeClosedBasket(g_pending_finalization_snapshot,TimeCurrent(),g_pending_finalization_reason))
+     {
+      g_pending_basket_finalization=false;
+      ZeroMemory(g_pending_finalization_snapshot);
+      g_pending_finalization_reason="";
+     }
+  }
+
 bool CloseBasketWithReason(const string reason)
   {
    QBRBasketSnapshot before=g_basket_snapshot;
@@ -597,7 +619,7 @@ bool CloseBasketWithReason(const string reason)
      {
       QBRBasketSnapshot audit=before;
       if(g_basket_audit_snapshot.basket_id>0) audit=g_basket_audit_snapshot;
-      FinalizeClosedBasket(audit,TimeCurrent(),reason);
+      if(!FinalizeClosedBasket(audit,TimeCurrent(),reason)) QueueBasketFinalization(audit,reason);
       return true;
      }
    g_pending_exit_reason="";
@@ -1092,8 +1114,10 @@ void OnTick()
      {
       QBRBasketSnapshot audit=prior_basket;
       if(g_basket_audit_snapshot.basket_id>0) audit=g_basket_audit_snapshot;
-      FinalizeClosedBasket(audit,TimeCurrent(),"UNOBSERVED_EXTERNAL_EXIT");
+      if(!FinalizeClosedBasket(audit,TimeCurrent(),"UNOBSERVED_EXTERNAL_EXIT"))
+         QueueBasketFinalization(audit,"UNOBSERVED_EXTERNAL_EXIT");
      }
+   RetryPendingBasketFinalization();
    g_context_result=g_context.Evaluate(g_features,g_basket_snapshot,g_consecutive_basket_losses);
    if(g_context_result.fallback_used && !g_context_fallback_logged)
      {
@@ -1224,7 +1248,9 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &
      {
       QBRBasketSnapshot audit=before;
       if(g_basket_audit_snapshot.basket_id>0) audit=g_basket_audit_snapshot;
-      FinalizeClosedBasket(audit,(datetime)HistoryDealGetInteger(trans.deal,DEAL_TIME),ExitReasonFromDeal(trans.deal));
+      string reason=ExitReasonFromDeal(trans.deal);
+      if(!FinalizeClosedBasket(audit,(datetime)HistoryDealGetInteger(trans.deal,DEAL_TIME),reason))
+         QueueBasketFinalization(audit,reason);
      }
   }
 

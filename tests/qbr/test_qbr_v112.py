@@ -51,6 +51,8 @@ def test_native_and_programmatic_exits_share_one_reconciled_finalizer():
     assert '"closed_deals"' in (ROOT / "mt5/Include/QBR/CSVLogger.mqh").read_text()
     assert '"closed_positions"' in (ROOT / "mt5/Include/QBR/CSVLogger.mqh").read_text()
     assert '"deal_ticket","position_id"' in (ROOT / "mt5/Include/QBR/CSVLogger.mqh").read_text()
+    assert "QueueBasketFinalization" in MAIN
+    assert "RetryPendingBasketFinalization();" in MAIN
 
 
 def test_permanent_equity_peak_survives_live_restart():
