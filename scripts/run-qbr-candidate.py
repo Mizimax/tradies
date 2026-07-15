@@ -58,6 +58,12 @@ SCALED_SAFETY = {
 CANDIDATES = {
     "v113-control": candidate("v113-control", "QBR_Logs_v113_control"),
     "v113-minlot-cap": candidate("v113-minlot-cap", "QBR_Logs_v113_minlot_cap", **COMMON_MINLOT),
+    "v113-minlot-quality-hours": candidate(
+        "v113-minlot-quality-hours",
+        "QBR_Logs_v113_minlot_quality_hours",
+        **COMMON_MINLOT,
+        InpMinLotAllowedHours="02,03,06,10,13,16,17,18,19,20",
+    ),
     "v113-stop60": candidate("v113-stop60", "QBR_Logs_v113_stop60", **STOP60),
     "v113-stop45": candidate("v113-stop45", "QBR_Logs_v113_stop45", **STOP45),
     "v113-lock40": candidate("v113-lock40", "QBR_Logs_v113_lock40", **LOCK40),

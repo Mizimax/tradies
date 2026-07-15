@@ -9,6 +9,18 @@ private:
    string    m_symbol;
    QBRConfig m_cfg;
 
+   bool MinLotHourAllowed(void) const
+     {
+      string hours=m_cfg.min_lot_allowed_hours;
+      StringReplace(hours," ","");
+      if(hours=="") return true;
+      MqlDateTime current;
+      TimeToStruct(TimeCurrent(),current);
+      string normalized=","+hours+",";
+      string needle=StringFormat(",%02d,",current.hour);
+      return StringFind(normalized,needle)>=0;
+     }
+
 public:
    void Configure(const string symbol,const QBRConfig &cfg)
      {
@@ -139,6 +151,11 @@ public:
          if(!native_cap_safe)
            {
             reason="Risk budget is below broker minimum lot";
+            return 0.0;
+           }
+         if(!MinLotHourAllowed())
+           {
+            reason="Broker minimum lot is disabled for the current research hour";
             return 0.0;
            }
          requested=minimum;

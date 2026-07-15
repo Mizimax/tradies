@@ -39,6 +39,7 @@ base-risk candidate passed the discovery gate.
 ```text
 v113-control
 v113-minlot-cap
+v113-minlot-quality-hours
 v113-stop60
 v113-stop45
 v113-lock40
@@ -54,6 +55,13 @@ v113-scale200
 Use `2026.01.01` through `2026.06.30` for the current Exness real-tick
 window. M5 candidates keep M15/H4 regime authority and admit only closed-bar
 pullback, failed-breakout, and breakout-retest triggers.
+
+`v113-minlot-quality-hours` is an evidence-driven recovery candidate added
+after the unrestricted min-lot run failed. It leaves normally risk-sized
+control entries unchanged and permits the broker-minimum fallback only during
+`02,03,06,10,13,16,17,18,19,20` broker hours. This is discovery evidence from
+the 2026 H1 sample and must be treated as overfit until longer-window and
+forward validation confirm it.
 
 ## Acceptance
 

@@ -154,6 +154,7 @@ struct QBRConfig
    double                risk_per_order_pct;
    double                risk_per_basket_pct;
    bool                  allow_min_lot_with_native_risk_cap;
+   string                min_lot_allowed_hours;
    QBREntryMode          entry_mode;
    QBRAddMode            add_mode;
    bool                  averaging_against_move;

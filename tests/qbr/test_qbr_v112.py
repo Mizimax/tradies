@@ -71,9 +71,11 @@ def test_aggressive_frequency_controls_are_public_inputs():
         "InpEnableM5ScalpLayer",
         "InpM5TargetPct",
         "InpM5HardStopPct",
+        "InpMinLotAllowedHours",
     ):
         assert name in MAIN
     assert "allow_min_lot_with_native_risk_cap" in SIZER
+    assert "MinLotHourAllowed" in SIZER
     assert "CapVolumeToLimits" in SIZER
     assert "ProcessM5ScalpBar" in MAIN
     assert "iTime(_Symbol,PERIOD_M5,0)" in MAIN

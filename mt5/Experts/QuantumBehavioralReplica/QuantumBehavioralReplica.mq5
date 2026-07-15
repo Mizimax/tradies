@@ -113,6 +113,7 @@ input double                InpSpikeVolumeRatio=3.00;
 input double                InpRiskPerOrderPct=0.35;
 input double                InpRiskPerBasketPct=1.00;
 input bool                  InpAllowMinLotWithNativeRiskCap=false;
+input string                InpMinLotAllowedHours="";
 input double                InpEntrySpacingATR=0.45;
 
 // Basket target and exits
@@ -291,6 +292,7 @@ void BuildConfig()
    g_cfg.risk_per_order_pct=InpRiskPerOrderPct;
    g_cfg.risk_per_basket_pct=InpRiskPerBasketPct;
    g_cfg.allow_min_lot_with_native_risk_cap=InpAllowMinLotWithNativeRiskCap;
+   g_cfg.min_lot_allowed_hours=InpMinLotAllowedHours;
    g_cfg.entry_mode=InpEntryMode;
    g_cfg.add_mode=InpAddMode;
    g_cfg.averaging_against_move=InpAveragingAgainstMove;

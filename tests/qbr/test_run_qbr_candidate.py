@@ -19,6 +19,7 @@ def test_candidate_ladder_has_fixed_contracts():
     expected = {
         "v113-control",
         "v113-minlot-cap",
+        "v113-minlot-quality-hours",
         "v113-stop60",
         "v113-stop45",
         "v113-lock40",
@@ -32,6 +33,13 @@ def test_candidate_ladder_has_fixed_contracts():
     }
     assert set(RUNNER.CANDIDATES) == expected
     assert RUNNER.BUILD_TAG == "QBR-1.13-aggressive"
+
+
+def test_minlot_quality_hours_only_relaxes_broker_minimum_during_positive_research_hours():
+    values = RUNNER.CANDIDATES["v113-minlot-quality-hours"].overrides
+    assert values["InpAllowMinLotWithNativeRiskCap"] == "true"
+    assert values["InpPostExitCooldownBars"] == "1"
+    assert values["InpMinLotAllowedHours"] == "02,03,06,10,13,16,17,18,19,20"
 
 
 def test_scaled_candidates_keep_safety_and_loss_target_ratio():

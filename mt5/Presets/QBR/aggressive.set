@@ -50,6 +50,7 @@ InpMinBarsBetweenOrders=1
 InpRiskPerOrderPct=0.25
 InpRiskPerBasketPct=0.75
 InpAllowMinLotWithNativeRiskCap=false
+InpMinLotAllowedHours=
 InpEntrySpacingATR=0.55
 InpBasketTargetMode=1
 InpBasketTargetValue=0.30
