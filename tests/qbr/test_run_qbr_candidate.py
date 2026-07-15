@@ -79,6 +79,28 @@ def test_process_detection_accepts_truncated_metatester_name():
         RUNNER.process_commands = original
 
 
+def test_report_validation_rejects_missing_candidate_input_override():
+    with TemporaryDirectory() as directory:
+        report = Path(directory) / "report.htm"
+        report.write_text(
+            "Expert: QuantumBehavioralReplica "
+            "InpBuildTag=QBR-1.13-aggressive "
+            "InpMinLotAllowedHours= "
+            "History Quality: 100.00% real ticks"
+        )
+        try:
+            RUNNER.validate_report(
+                report,
+                "QBR-1.13-aggressive",
+                99.0,
+                {"InpMinLotAllowedHours": "02,03,06,10,13,16,17,18,19,20"},
+            )
+        except RuntimeError as exc:
+            assert "InpMinLotAllowedHours" in str(exc)
+        else:
+            raise AssertionError("missing candidate input override must invalidate the report")
+
+
 def write_evidence(root: Path, name: str, *, trades: int, net: float, pf: float = 1.5) -> None:
     path = root / f"QBR-{name}-XAUUSD-M15-2026.01.01-2026.06.30.qbr-analysis"
     path.mkdir()

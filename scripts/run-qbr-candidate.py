@@ -115,12 +115,20 @@ def report_text(path: Path) -> str:
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", source)))
 
 
-def validate_report(path: Path, build_tag: str, minimum_quality: float) -> float:
+def validate_report(
+    path: Path,
+    build_tag: str,
+    minimum_quality: float,
+    expected_inputs: dict[str, str] | None = None,
+) -> float:
     text = report_text(path)
     if "Expert: QuantumBehavioralReplica" not in text:
         raise RuntimeError("report is not QuantumBehavioralReplica")
     if f"InpBuildTag={build_tag}" not in text:
         raise RuntimeError(f"report does not contain build tag {build_tag}")
+    for key, value in (expected_inputs or {}).items():
+        if f"{key}={value}" not in text:
+            raise RuntimeError(f"report does not contain expected input {key}={value}")
     quality_match = re.search(r"History Quality:\s*([0-9.]+)% real ticks", text)
     if not quality_match:
         raise RuntimeError("report has no real-tick history-quality marker")
@@ -395,7 +403,18 @@ def main() -> int:
         log_folder,
         REPORT_DIR / f"{report_name}.qbr-logs",
     )
-    quality = validate_report(report_path, build_tag, args.min_real_tick_quality)
+    expected_inputs = {
+        "InpRunId": spec.overrides["InpRunId"],
+        "InpLogFolder": spec.overrides["InpLogFolder"],
+    }
+    if "InpMinLotAllowedHours" in spec.overrides:
+        expected_inputs["InpMinLotAllowedHours"] = spec.overrides["InpMinLotAllowedHours"]
+    quality = validate_report(
+        report_path,
+        build_tag,
+        args.min_real_tick_quality,
+        expected_inputs,
+    )
     analysis_dir = REPORT_DIR / f"{report_name}.qbr-analysis"
     subprocess.run(
         [
