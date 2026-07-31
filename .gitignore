@@ -15,9 +15,12 @@ legacy/cloudflare-worker/backtesting/results/optimization_grid.csv
 *.log
 mt5/backtests/reports/
 mt5/backtests/config/
+mt5/backtests/ai-maxret/
 mt5/files/
 dist/
 
 # OS/editor noise
 .DS_Store
 *.lnk
+.claude/
+

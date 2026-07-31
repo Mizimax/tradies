@@ -397,3 +397,65 @@ All headline numbers in this document were independently re-derived from the raw
 5. Carry forward the H1 regime-gate concept (genuinely useful) but re-validate it against the new H4 signal, since its current calibration was tuned against M15 momentum.
 
 This is a larger scoping decision (timeframe change + strategy removal) than a diagnostic gate iteration — recommend a fresh plan/scoping pass rather than folding it into this one.
+
+## Iteration 2 Checkpoint: H4 Momentum Restructure
+
+Implemented an H4-capable momentum path while preserving default bit-identity:
+
+- Default control `v2-control-bitid` remains byte-identical to `rebaseline-perfoff` on the 2026 H1 window (`2026.01.01-2026.06.22`): net `$16,612.57`, PF `1.06`, 435 trades, equity DD `23.59%`, journal checksum identical.
+- H4 signal modes added: EMA-cross control and Donchian breakout (`InpMomSignalMode=1`), with configurable momentum timeframe, HTF trend timeframe, ADX filter, direction mode, ATR/swing SL mode, BE/trailing/time-stop controls, and default-off momentum entry-hour allowlist.
+- Diagnostic helper added: `scripts/analyze-btcscalper-momentum.py`, which pairs copied BTCScalper journal entry/exit deals by position and attributes momentum PnL by direction, entry hour, month, exit reason, and hold-time bucket.
+
+### Initial H4 Matrix, 2026 H1
+
+Window: `2026.01.01-2026.06.22`, deposit `100000`, symbol `BTCUSD`.
+
+| Candidate | Net | PF | Trades | Equity DD | Verdict |
+|---|---:|---:|---:|---:|---|
+| `h4-ema-cross-pure` | `-$8,613.41` | 0.83 | 113 | 21.38% | fail |
+| `h4-breakout-pure` | `-$10,633.24` | 0.56 | 36 | 20.75% | fail |
+| `h4-breakout-regime-rr3` | `-$6,833.12` | 0.70 | 32 | 18.84% | fail |
+| `h4-breakout-regime-rr2` | `-$5,007.26` | 0.79 | 32 | 17.65% | fail |
+| `h4-breakout-regime-longonly` | `-$9,989.11` | 0.18 | 11 | 11.04% | fail |
+
+Conclusion: broad H4 momentum is not promotable. H4 Donchian plus regime filtering reduces damage but does not create a viable full trade set.
+
+### Diagnostic Attribution
+
+The `h4-breakout-regime-rr2` journal showed a narrow positive pocket:
+
+- Direction: shorts `+$938.86`, PF `1.06`; longs `-$5,946.12`, PF `0.15`.
+- Entry hours: `04` `+$5,730.73`, PF `2.89`; `12` `+$533.75`, PF `1.41`; `16` `+$3,442.54`, PF `2.18`.
+- Damaging hours: `00` `-$6,808.58`, PF `0.12`; `20` `-$6,632.33`, PF `0.07`; `08` `-$1,273.37`, PF `0.28`.
+
+This justified a diagnostic trim rather than more RR tuning.
+
+### Trimmed H4 Diagnostics
+
+Window: `2026.01.01-2026.06.22`, deposit `100000`, symbol `BTCUSD`.
+
+| Candidate | Net | PF | Trades | Equity DD | Verdict |
+|---|---:|---:|---:|---:|---|
+| `h4-breakout-regime-rr2-shortonly` | `-$484.00` | 0.98 | 21 | 13.53% | fail |
+| `h4-breakout-regime-rr2-hours041216` | `$7,815.88` | 1.49 | 17 | 11.57% | discovery-only |
+| `h4-breakout-regime-rr2-short-hours041216` | `$16,391.95` | 3.69 | 10 | 4.54% | discovery-only |
+
+The combined short-only + `04|12|16` hour filter is the first profitable H4 result, but it has only 10 trades on the 6-month window.
+
+### Longer Validation
+
+Candidate: `h4-breakout-regime-rr2-short-hours041216`
+
+| Window | Net | PF | Trades | Equity DD | Verdict |
+|---|---:|---:|---:|---:|---|
+| `2026.01.01-2026.06.22` | `$16,391.95` | 3.69 | 10 | 4.54% | discovery-only |
+| `2024.06.01-2026.05.31` | `$19,841.71` | 1.92 | 30 | 8.96% | discovery-only |
+
+Interpretation: this is a real positive pocket and survives the 2-year window better than any prior BTCScalper H4 candidate, but it still fails the trade-count gate (`>=40` discovery, and far below demo-readiness volume). Do not promote. Treat it as the next seed for frequency expansion, not as a deployment candidate.
+
+Next useful direction:
+
+1. Try adjacent H4 short-only entry hours around the proven pocket (`04|12|16`) without adding known-bad `00`/`20`.
+2. Test whether `04|08|12|16` remains positive or whether hour `08` is structurally toxic.
+3. Consider a softer regime threshold or breakout lookback variants only for the short/hour-filtered seed, not for the broad failed H4 universe.
+4. Preserve default bit-identity and keep VWAP/MR removed from H4 diagnostics unless a specific attribution reason emerges.

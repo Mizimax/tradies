@@ -296,52 +296,31 @@ GoldScalper dynamic allocation behavior to preserve:
 
 The old Python/TypeScript backtest looked much better because it was a simulator, not real broker execution. Do not chase exact old metrics.
 
-Observed real-mode progression:
+Full research history for the GoldBot scalp-adaptive line (every candidate tried, exact numbers, falsified hypotheses, the weight-gradient hill-climb, the regime-gate switcher study) is archived in `mt5/backtests/NEXT_IMPROVEMENT_PLAN.md` under "Phase 11 Archive" — read that only when you need the full reasoning behind a specific past candidate. Below is the current load-bearing state.
 
-- Original honest real baseline overtraded and lost badly.
-- TP lifecycle repair improved win rate and made TP2/TP3 meaningful, but PF stayed below acceptance.
-- More indicators and stricter filters reduced trades but did not reliably improve PF.
-- Direction/session quality helped more than adding filters.
-- `smc-hours-7-12-15-17-19` reached roughly PF `0.94`, better than early repair candidates but still not demo-ready.
-- Growth Layer 1 broad-frequency candidates had many trades but no edge:
-  - `growth-open-fasttp`: about 296 trades, PF around `1.00`, near flat.
-  - `growth-open-cooldown8`: about 308 trades, PF around `0.91`, losing.
-- Full-ladder seed `growth-long-7-12-full` had better sample size than split-only seeds:
-  - about 57 trades, PF around `1.14`, avg full-window daily growth far below the 3-5% research target.
-- Fast-TP hour-12 isolation was very strong but too small:
-  - `growth-fasttp-hour12-only`: about 14 trades, very high PF, low DD, but `TOO_SMALL`.
-- In the fast-TP frequency restoration pass, hour 12 remained strong and hour 16 looked potentially useful; hours 15, 17, and 19 damaged the full long-only candidate.
+**Current champion:** `scalp-adaptive-w4vb-nocap-tg15` — the only config so far that improves on ALL THREE tested horizons simultaneously (every earlier "winner" in the archive was a single-window overfit that failed once extended):
 
-Current likely next research direction:
+| Window | Net | Equity DD |
+|---|---|---|
+| 6mo (`2026.01.01-2026.06.30`) | +300.4% | 18.61% |
+| 1y (`2025.07.01-2026.06.30`) | +597.7% | 18.58% |
+| 2y (`2024.07.01-2026.06.30`) | +340.5% | 19.01% |
 
-- Test fast-TP hour `12+16` only.
-- Compare full ladder, split `1+2`, and split `1` only.
-- Optionally isolate hour `16` alone.
-- Keep hour `7` out of fast-TP candidates unless a specific result justifies retesting it.
-- Treat short hour `19` as suspicious until attribution proves it helps.
+Preset: `mt5/Presets/GoldBot.forward-demo.scalp-adaptive-w4vb-nocap-tg15.set` (239 inputs, verified against the report's `Inputs:` block). Passes the demo-forward quality gate (PF 2.58, eq DD 19.01%, 256 trades/24mo). This is the active demo-forward candidate (demo account Login `415927759` @ `Exness-MT5Trial14`).
 
-The daily growth goal of `3-5%` average per day is a research target, not a live deployment promise. Full-window daily growth is the official growth metric; active-day growth is only setup-quality diagnostics.
+Lower-DD alternative if max-return isn't the goal: add `InpEnableM1MicroScalpSetup=true` (candidate `...-tg15-m1micro`) — cuts 6mo equity DD from 18.6% to 11.0% at the cost of return (300%→241%); not yet validated on 1y/2y.
 
-GoldScalper lessons from the dynamic allocation validation:
+**Rules earned the hard way — apply these before re-deriving them from scratch:**
 
-- `mr-v3` and `mr-v4-safe` were repaired from broken multiline CSV rows into valid escaped `\n` rows.
-- `mr-v3-2024-2026` produced `0` trades after repair, so it is not evidence of profitability.
-- `mr-v4-safe` MR-only remained negative in both windows.
-- Dynamic allocation improved survival versus repaired MR-only candidates in both tested windows.
-- `dynamic-balanced-2024-2026`: net `36774.12`, PF `1.14`, trades `247`, equity DD `36.44%`.
-- `dynamic-conservative-2024-2026`: net `23282.92`, PF `1.18`, trades `247`, equity DD `20.83%`.
-- `dynamic-balanced-2022-2024`: net `28979.04`, PF `1.07`, trades `425`, equity DD `45.72%`.
-- `dynamic-conservative-2022-2024`: net `4551.85`, PF `1.02`, trades `425`, equity DD `33.19%`.
-- Dynamic allocation is promising but not robust yet: PF is thin and drawdown is still high.
-- Conservative dynamic allocation is safer by drawdown but gives up much of the return.
-- Riskguard pass added filled-entry daily trade accounting, strategy attribution by position ID, global risk gates for Asian Breakout/MR/Momentum, pending-order cancellation on hard risk blocks, and DD-scaled risk for all strategies.
-- Riskguard journal attribution reached `100%` for closed deals across the four validation reports, but all closed deals attributed to `breakout`; current dynamic settings are effectively breakout-only in these windows.
-- `dynamic-riskguard-balanced-2024-2026`: net `15338.28`, PF `1.09`, trades `233`, equity DD `20.15%`.
-- `dynamic-riskguard-conservative-2024-2026`: net `39883.45`, PF `1.34`, trades `230`, equity DD `10.52%`.
-- `dynamic-riskguard-balanced-2022-2024`: net `-9318.37`, PF `0.87`, trades `116`, equity DD `20.22%`.
-- `dynamic-riskguard-conservative-2022-2024`: net `-6272.97`, PF `0.95`, trades `286`, equity DD `20.13%`.
-- Riskguard improved survival materially, especially in the bull window, but did not survive profitably across the 2022-2024 bear/choppy window.
-- Next useful GoldScalper direction is breakout quality/regime filtering for the bear/choppy window, not re-expanding MR-only.
+- MT5 `net_profit` in reports/summaries is DOLLARS, not percent (`pct = net_profit / deposit * 100`). A subagent once misreported a result as `+1701%` when it was actually `+170%` — always compute and show both.
+- A config that looks great on ONE backtest window is not trustworthy until tested on at least one materially longer window. Every regime-favorable "sprint champion" this project produced before `tg15` failed hard once extended (DD breach, dead-lock, or return collapse) — treat any new 6-month winner as unproven until it's run on 1y and 2y.
+- Prefer trimming/gating specific negative-expectancy setups (hours, sub-strategies) over global levers (raw lot scaling, loosening throttles, widening hour windows). Trimming has won every head-to-head test in this repo; global levers have consistently degraded the trade-set instead of just scaling it.
+- The binary regime gate `GoldBotRobustRegimePass` (`GoldBot.mq5:2705-2792`, config-only via `InpEnableRobustRegimeFilter`) is the correct safety mechanism — prefer it over `InpEnableRollingPerformanceGovernor` (has a self-reinforcing pause loop that can strangle a strategy to near-zero trades in chop) or the older `InpEnableRegimeFilter` (only wired into the M15/SMC path, does not protect scalp engines).
+- `InpCompoundMaxDrawdownPct=0.0` disables the permanent equity-peak halt (which never resets and can brick an account forever once tripped); pair it with `InpEnableMonthlyLossThrottle=true` (resets every calendar month) as the replacement safety net.
+- When a runtime `.set` file in the tester profile looks wrong after the fact, trust the `Inputs:` block embedded in the report `.htm` instead — it records exactly what the tester ran; the profile file gets overwritten by later runs.
+- Tooling gotcha: the runner's parallel-MT5 guard false-positives ("already running") if the SAME Bash tool call's own cmdline contains the literal text `terminal64|metatester64` anywhere — e.g. a `pgrep` pre-check run before the launcher in one call. Put multi-run loops in a script FILE and invoke `bash file.sh` as the only command in that Bash call; check MT5 process state in a separate prior call if needed.
+
+GoldScalper dynamic-allocation lessons (full numbers in `mt5/backtests/NEXT_IMPROVEMENT_PLAN.md`): dynamic allocation survives better than repaired MR-only baselines in both bull and bear windows, but drawdown is still thin and riskguard did not survive profitably across the 2022-2024 bear/choppy window. Next useful direction is breakout quality/regime filtering for that window, not re-expanding MR-only.
 
 ## Acceptance Gates
 
@@ -390,6 +369,7 @@ Still not demo-ready until trades are near `150+`, monthly stability is acceptab
 - If a candidate appears to have no trades, verify whether the report is stale, malformed, or from the wrong period.
 - Use `--clean` when rerunning a candidate whose inputs changed.
 - Do not run multiple MT5 tester jobs unless intentional.
+- Keep commentary quiet during long MT5 backtests to save tokens. Send updates when a command starts, a candidate finishes, an error/malformed report appears, or the final comparison is ready. Avoid repeated "still running" updates unless the user asks for status or the run is unusually long.
 - Do not commit MT5 config files with login/password/server details.
 - Do not commit generated reports unless the user explicitly wants evidence snapshots.
 - `scripts/compile-mt5-goldscalper.sh` stops running MT5/tester processes by default via `MT5_STOP_RUNNING=1`; use `MT5_STOP_RUNNING=0` only when you know no compile conflict exists.
