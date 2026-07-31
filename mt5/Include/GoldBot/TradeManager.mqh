@@ -5,6 +5,14 @@
 #include <GoldBot/SMC.mqh>
 #include <GoldBot/Risk.mqh>
 
+// Forward declaration -- defined in GoldBot/PropMode.mqh, included after this file from
+// GoldBot.mq5. Needed here so the realized-risk self-check below can use the same robust
+// (contract-size-first, tick-value-fallback) cash-per-price-unit logic the prop sizing gate
+// itself uses, instead of a raw SYMBOL_TRADE_TICK_VALUE/TICK_SIZE ratio that can be scaled
+// unreliably on some brokers (e.g. tickValue=0.01 on this repo's demo XAUUSD symbol, ~100x
+// off contract size 100 -- see the multiplier-leakage fix in GoldBot.mq5).
+double GoldBotPropCashPerPriceUnitPerLot(const string symbol);
+
 struct EntryZone
 {
    double bottom;
@@ -111,6 +119,33 @@ void GoldBotCancelPendingOrders(const string symbol, const long magic, CTrade &t
          continue;
       trade.OrderDelete(ticket);
    }
+}
+
+//--- Closes every open position for symbol/magic, then cancels every pending order (reuses
+//--- GoldBotCancelPendingOrders above rather than duplicating the pending-cancel loop). Used
+//--- by GoldBot/PropMode.mqh's intra-bar hard-breach monitor (daily hard-flatten floor or
+//--- max-DD internal halt) -- the one place GoldBot needs a "flatten everything now" action.
+//--- Returns the number of positions successfully closed.
+int GoldBotFlattenAll(const string symbol, const long magic, CTrade &trade)
+{
+   int closed = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0 || !PositionSelectByTicket(ticket))
+         continue;
+      if(PositionGetString(POSITION_SYMBOL) != symbol || PositionGetInteger(POSITION_MAGIC) != magic)
+         continue;
+      if(trade.PositionClose(ticket))
+         closed++;
+      else
+         GoldBotJournal(StringFormat("Flatten-all position close failed ticket=%I64u retcode=%d %s",
+            ticket,
+            (int)trade.ResultRetcode(),
+            trade.ResultRetcodeDescription()));
+   }
+   GoldBotCancelPendingOrders(symbol, magic, trade);
+   return closed;
 }
 
 string GoldBotSignalIdFromComment(const string comment)
@@ -328,7 +363,8 @@ bool GoldBotPlaceLadder(
    const double featureZoneTop = 0.0,
    const double featureSlDistance = 0.0,
    const double featureLotMultiplier = 0.0,
-   const double featureSetupRiskMultiplier = 0.0
+   const double featureSetupRiskMultiplier = 0.0,
+   const double stressExtraSpreadPrice = 0.0
 )
 {
    if(!zone.valid)
@@ -382,14 +418,39 @@ bool GoldBotPlaceLadder(
       if(tickSize > 0.0 && tickValue > 0.0)
          riskCash = (risk / tickSize) * tickValue * lot;
 
+      // Self-check: makes setup-multiplier leakage (lotMultiplier/setupRiskMultiplier
+      // stacking on top of an already risk-correct prop lot) visible in the journal without
+      // a manual audit -- compare this realizedRiskPct against the "Prop sizing gate ...
+      // throttledPct=" line logged a few lines earlier in the same signal's journal entries.
+      // Uses GoldBotPropCashPerPriceUnitPerLot (contract-size-first) rather than the
+      // riskCash variable above (tickValue/tickSize), which some brokers report at a scale
+      // that doesn't match contract size for this symbol (e.g. this repo's demo XAUUSD
+      // reports tickValue=0.01, ~100x off contract size 100) -- riskCash itself is left
+      // untouched since it already feeds the rolling-performance-governor's global-variable
+      // state elsewhere in this function and that governor is out of scope for this fix.
+      double propCashPerPriceUnit = GoldBotPropCashPerPriceUnitPerLot(symbol);
+      double realizedRiskCashCheck = propCashPerPriceUnit > 0.0 ? risk * propCashPerPriceUnit * lot : riskCash;
+      double realizedRiskPct = equity > 0.0 ? (realizedRiskCashCheck / equity) * 100.0 : 0.0;
+      GoldBotJournal(StringFormat("Realized risk check signalId=%s split=%d lot=%.2f riskCash=%.2f equity=%.2f realizedRiskPct=%.4f",
+         signalId, splitNumber, lot, realizedRiskCashCheck, equity, realizedRiskPct));
+
       string comment = StringFormat("%s_%d", signalId, splitNumber);
       double brokerTp = 0.0; // TP is managed by the EA so TP1 can be a partial close.
 
+      // Spread-stress testing: widen the broker-side SL by the extra spread so a stop-out
+      // realizes a bigger loss and EA-managed TP1/TP2/TP3 (computed off the real position SL
+      // in GoldBotManagePositions) require a proportionally larger move. Lot sizing/riskCash
+      // above still use the original technical sl, so position sizing intent is unchanged.
+      // stressExtraSpreadPrice == 0.0 (default) leaves stressedSl identical to sl.
+      double stressedSl = sl;
+      if(stressExtraSpreadPrice > 0.0)
+         stressedSl = direction == DIR_LONG ? sl - stressExtraSpreadPrice : sl + stressExtraSpreadPrice;
+
       bool ok = false;
       if(direction == DIR_LONG)
-         ok = trade.BuyLimit(lot, entries[entryIndex], symbol, sl, brokerTp, ORDER_TIME_SPECIFIED, expiration, comment);
+         ok = trade.BuyLimit(lot, entries[entryIndex], symbol, stressedSl, brokerTp, ORDER_TIME_SPECIFIED, expiration, comment);
       else
-         ok = trade.SellLimit(lot, entries[entryIndex], symbol, sl, brokerTp, ORDER_TIME_SPECIFIED, expiration, comment);
+         ok = trade.SellLimit(lot, entries[entryIndex], symbol, stressedSl, brokerTp, ORDER_TIME_SPECIFIED, expiration, comment);
 
       if(ok)
       {

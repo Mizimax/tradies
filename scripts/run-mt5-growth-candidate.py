@@ -408,6 +408,40 @@ SCALP_ADAPTIVE_HYBRID_TF = [
     "adaptive-hybrid-xaus-m15risk-m5short10",
     "adaptive-hybrid-xaus-freqlong7-m5short10-riskalloc",
 ]
+AI_MAXRET_S1 = [
+    "ai-maxret-s1-w3-debrick",
+    "ai-maxret-s1-w3-robust-nocap",
+    "ai-maxret-s1-w3-tg15",
+    "ai-maxret-s1-w3-m1micro",
+    "ai-maxret-s1-w3-m1micro-clean",
+    "ai-maxret-s1-tg15-m1micro-riskup",
+    "ai-maxret-s1-daily2-w3-risk",
+    "ai-maxret-s1-daily2-w3-risk-m1micro",
+]
+AI_DAILY2_S2 = [
+    "daily2-ai-s2-splitclean",
+    "daily2-ai-s2-risk115",
+    "daily2-ai-s2-m1short-clean",
+    "daily2-ai-s2-risk115-m1short-clean",
+    "daily2-ai-s2-target8",
+]
+AI_DAILY2_S3 = [
+    "daily2-ai-s3-risk112",
+    "daily2-ai-s3-m5smc115-bk105",
+    "daily2-ai-s3-risk115-splitclean",
+    "daily2-ai-s3-risk115-lock20",
+    "daily2-ai-s3-m5smc115-bk105-lock20",
+]
+AI_DAILY2_S4 = [
+    "daily2-ai-s4-slwide",
+    "daily2-ai-s4-monthstop",
+]
+AI_DAILY2_S5 = [
+    "daily2-ai-s5-slwide-light",
+    "daily2-ai-s5-slwide-heavy",
+    "daily2-ai-s5-slwide-risk100",
+    "daily2-ai-s5-slwide-smcnorm",
+]
 AXI_FREQ200 = [
     "axi-freq200-m1-core",
     "axi-freq200-m1-loose",
@@ -651,6 +685,7 @@ def main() -> int:
     parser.add_argument("--symbol", default="")
     parser.add_argument("--period", default="")
     parser.add_argument("--report-suffix", default="", help="Append a suffix to report artifacts, e.g. recent-12m.")
+    parser.add_argument("--spread-points", type=float, default=None, help="Stress-test extra spread (raw price units) passed through to run-mt5-candidate.py as InpStressExtraSpreadPrice. 0/omitted = no change.")
     parser.add_argument("--clean", action="store_true", help="Delete this candidate's report artifacts before running.")
     parser.add_argument("--dry-run", action="store_true", help="Print the underlying command without launching MT5.")
     parser.add_argument("--list", action="store_true", help="List growth candidates.")
@@ -658,7 +693,7 @@ def main() -> int:
     args = parser.parse_args()
 
     candidates = load_candidates()
-    growth_candidates = LAYER1 + LAYER2 + RECENT_YEAR + PROFIT_CORE + FREQ80 + FREQ100 + FREQ100B + FREQ100C + FREQ100D + FREQ100E + FREQ100F + FREQ100G + FREQ100H + FREQ100I + FREQ100J + FREQ100K + FREQ100L + SCALP_M5 + SCALP_M5_QUALITY + SCALP_SHORTTERM + SCALP_SHORTTERM_REPAIR + SCALP_DD_REPAIR + SCALP_COMPOUND + SCALP_ROBUST + SCALP_ROBUST_V2 + SCALP_ROBUST_V3 + SCALP_ADAPTIVE + SCALP_ADAPTIVE_V2 + SCALP_ADAPTIVE_V3 + SCALP_ADAPTIVE_V4 + SCALP_ADAPTIVE_FREQ + SCALP_ADAPTIVE_FREQ_V2 + SCALP_ADAPTIVE_RISK + SCALP_ADAPTIVE_HYBRID_TF + AXI_FREQ200 + AXI_FREQ150 + AXI_PROFIT200
+    growth_candidates = LAYER1 + LAYER2 + RECENT_YEAR + PROFIT_CORE + FREQ80 + FREQ100 + FREQ100B + FREQ100C + FREQ100D + FREQ100E + FREQ100F + FREQ100G + FREQ100H + FREQ100I + FREQ100J + FREQ100K + FREQ100L + SCALP_M5 + SCALP_M5_QUALITY + SCALP_SHORTTERM + SCALP_SHORTTERM_REPAIR + SCALP_DD_REPAIR + SCALP_COMPOUND + SCALP_ROBUST + SCALP_ROBUST_V2 + SCALP_ROBUST_V3 + SCALP_ADAPTIVE + SCALP_ADAPTIVE_V2 + SCALP_ADAPTIVE_V3 + SCALP_ADAPTIVE_V4 + SCALP_ADAPTIVE_FREQ + SCALP_ADAPTIVE_FREQ_V2 + SCALP_ADAPTIVE_RISK + SCALP_ADAPTIVE_HYBRID_TF + AI_MAXRET_S1 + AI_DAILY2_S2 + AI_DAILY2_S3 + AI_DAILY2_S4 + AI_DAILY2_S5 + AXI_FREQ200 + AXI_FREQ150 + AXI_PROFIT200
 
     if args.list:
         for name in growth_candidates:
@@ -708,6 +743,8 @@ def main() -> int:
         command.extend(["--period", args.period])
     if args.report_suffix:
         command.extend(["--report-suffix", args.report_suffix])
+    if args.spread_points is not None:
+        command.extend(["--spread-points", str(args.spread_points)])
     if args.dry_run:
         command.append("--dry-run")
 

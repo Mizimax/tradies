@@ -36,30 +36,32 @@ bool BTCScalperIsTradingHours(const int tradingEndHour)
    return now.hour < tradingEndHour;
 }
 
+//--- Generic new-bar detection using caller-owned state
+bool BTCScalperIsNewBar(const string symbol, const ENUM_TIMEFRAMES timeframe, datetime &lastSeen)
+{
+   datetime barTime = iTime(symbol, timeframe, 0);
+   if(barTime <= 0)
+      return false;
+   if(barTime != lastSeen)
+   {
+      lastSeen = barTime;
+      return true;
+   }
+   return false;
+}
+
 //--- New M5 bar detection (static last-seen datetime per symbol)
 bool BTCScalperIsNewM5Bar(const string symbol)
 {
    static datetime s_lastM5 = 0;
-   datetime barTime = iTime(symbol, PERIOD_M5, 0);
-   if(barTime != s_lastM5)
-   {
-      s_lastM5 = barTime;
-      return true;
-   }
-   return false;
+   return BTCScalperIsNewBar(symbol, PERIOD_M5, s_lastM5);
 }
 
 //--- New M15 bar detection (static last-seen datetime per symbol)
 bool BTCScalperIsNewM15Bar(const string symbol)
 {
    static datetime s_lastM15 = 0;
-   datetime barTime = iTime(symbol, PERIOD_M15, 0);
-   if(barTime != s_lastM15)
-   {
-      s_lastM15 = barTime;
-      return true;
-   }
-   return false;
+   return BTCScalperIsNewBar(symbol, PERIOD_M15, s_lastM15);
 }
 
 #endif

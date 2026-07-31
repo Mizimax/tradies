@@ -18,6 +18,14 @@ int g_btcAtrM5Handle  = INVALID_HANDLE;  // ATR(14) on M5 (for VWAP SL sizing)
 int g_btcRsiM5Handle  = INVALID_HANDLE;  // RSI(14) on M5 (for VWAP verification)
 int g_btcH1EmaHandle  = INVALID_HANDLE;  // EMA(50) on H1 (for HTF trend filter)
 int g_btcAtrH1Handle  = INVALID_HANDLE;  // ATR(14) on H1 (for regime-ratio gate)
+int g_btcMomEmaFast   = INVALID_HANDLE;  // Momentum EMA fast on configurable TF
+int g_btcMomEmaSlow   = INVALID_HANDLE;  // Momentum EMA slow on configurable TF
+int g_btcMomEma50     = INVALID_HANDLE;  // Momentum EMA filter on configurable TF
+int g_btcMomRsiHandle = INVALID_HANDLE;  // Momentum RSI on configurable TF
+int g_btcMomAtrHandle = INVALID_HANDLE;  // Momentum ATR on configurable TF
+int g_btcMomAdxHandle = INVALID_HANDLE;  // Momentum ADX on configurable TF
+int g_btcMomHtfEmaHandle = INVALID_HANDLE; // Momentum HTF trend EMA
+int g_btcRegimeAtrHandle = INVALID_HANDLE; // ATR on configurable regime TF
 
 //--- VWAP Static State
 static double s_vwap = 0.0;
@@ -38,17 +46,17 @@ double BTCScalperGetBufferValue(const int handle, const int buffer, const int sh
 
 //--- H1 ATR-ratio regime gate: current H1 ATR vs its own rolling average
 bool BTCScalperRegimeGatePass(
-   const int atrH1Handle,
+   const int atrHandle,
    const int lookback,
    const double minRatio,
    const double maxRatio)
 {
-   if(atrH1Handle == INVALID_HANDLE || lookback <= 1)
+   if(atrHandle == INVALID_HANDLE || lookback <= 1)
       return true; // gate not usable -> fail-open (no filtering)
 
    double buf[];
    ArraySetAsSeries(buf, true);
-   if(CopyBuffer(atrH1Handle, 0, 1, lookback, buf) != lookback)
+   if(CopyBuffer(atrHandle, 0, 1, lookback, buf) != lookback)
       return false; // insufficient H1 history -> fail-closed (block trade)
 
    double current = buf[0];
@@ -76,7 +84,11 @@ bool BTCScalperIndicatorsInit(
    const int atrPeriod,
    const int adxPeriod,
    const int emaFast,
-   const int emaSlow
+   const int emaSlow,
+   const ENUM_TIMEFRAMES momTf = PERIOD_M15,
+   const ENUM_TIMEFRAMES momHtfTf = PERIOD_H1,
+   const int momHtfEmaPeriod = 50,
+   const ENUM_TIMEFRAMES regimeTf = PERIOD_H1
 )
 {
    g_btcBbHandle = iBands(symbol, PERIOD_M15, bbPeriod, 0, bbDev, PRICE_CLOSE);
@@ -90,13 +102,25 @@ bool BTCScalperIndicatorsInit(
    g_btcRsiM5Handle = iRSI(symbol, PERIOD_M5, rsiPeriod, PRICE_CLOSE);
    g_btcH1EmaHandle = iMA(symbol, PERIOD_H1, 50, 0, MODE_EMA, PRICE_CLOSE);
    g_btcAtrH1Handle = iATR(symbol, PERIOD_H1, atrPeriod);
+   g_btcMomEmaFast = iMA(symbol, momTf, emaFast, 0, MODE_EMA, PRICE_CLOSE);
+   g_btcMomEmaSlow = iMA(symbol, momTf, emaSlow, 0, MODE_EMA, PRICE_CLOSE);
+   g_btcMomEma50 = iMA(symbol, momTf, 50, 0, MODE_EMA, PRICE_CLOSE);
+   g_btcMomRsiHandle = iRSI(symbol, momTf, rsiPeriod, PRICE_CLOSE);
+   g_btcMomAtrHandle = iATR(symbol, momTf, atrPeriod);
+   g_btcMomAdxHandle = iADX(symbol, momTf, adxPeriod);
+   g_btcMomHtfEmaHandle = iMA(symbol, momHtfTf, momHtfEmaPeriod, 0, MODE_EMA, PRICE_CLOSE);
+   g_btcRegimeAtrHandle = iATR(symbol, regimeTf, atrPeriod);
 
    if(g_btcBbHandle == INVALID_HANDLE || g_btcRsiHandle == INVALID_HANDLE ||
       g_btcAtrHandle == INVALID_HANDLE || g_btcAdxHandle == INVALID_HANDLE ||
       g_btcEmaFast == INVALID_HANDLE || g_btcEmaSlow == INVALID_HANDLE ||
       g_btcEma50 == INVALID_HANDLE || g_btcAtrM5Handle == INVALID_HANDLE ||
       g_btcRsiM5Handle == INVALID_HANDLE || g_btcH1EmaHandle == INVALID_HANDLE ||
-      g_btcAtrH1Handle == INVALID_HANDLE)
+      g_btcAtrH1Handle == INVALID_HANDLE || g_btcMomEmaFast == INVALID_HANDLE ||
+      g_btcMomEmaSlow == INVALID_HANDLE || g_btcMomEma50 == INVALID_HANDLE ||
+      g_btcMomRsiHandle == INVALID_HANDLE || g_btcMomAtrHandle == INVALID_HANDLE ||
+      g_btcMomAdxHandle == INVALID_HANDLE || g_btcMomHtfEmaHandle == INVALID_HANDLE ||
+      g_btcRegimeAtrHandle == INVALID_HANDLE)
    {
       Print("BTCScalper: Failed to create one or more indicator handles.");
       return false;
@@ -118,6 +142,14 @@ void BTCScalperIndicatorsDeinit()
    if(g_btcRsiM5Handle != INVALID_HANDLE) { IndicatorRelease(g_btcRsiM5Handle); g_btcRsiM5Handle = INVALID_HANDLE; }
    if(g_btcH1EmaHandle != INVALID_HANDLE) { IndicatorRelease(g_btcH1EmaHandle); g_btcH1EmaHandle = INVALID_HANDLE; }
    if(g_btcAtrH1Handle != INVALID_HANDLE) { IndicatorRelease(g_btcAtrH1Handle); g_btcAtrH1Handle = INVALID_HANDLE; }
+   if(g_btcMomEmaFast != INVALID_HANDLE) { IndicatorRelease(g_btcMomEmaFast); g_btcMomEmaFast = INVALID_HANDLE; }
+   if(g_btcMomEmaSlow != INVALID_HANDLE) { IndicatorRelease(g_btcMomEmaSlow); g_btcMomEmaSlow = INVALID_HANDLE; }
+   if(g_btcMomEma50 != INVALID_HANDLE) { IndicatorRelease(g_btcMomEma50); g_btcMomEma50 = INVALID_HANDLE; }
+   if(g_btcMomRsiHandle != INVALID_HANDLE) { IndicatorRelease(g_btcMomRsiHandle); g_btcMomRsiHandle = INVALID_HANDLE; }
+   if(g_btcMomAtrHandle != INVALID_HANDLE) { IndicatorRelease(g_btcMomAtrHandle); g_btcMomAtrHandle = INVALID_HANDLE; }
+   if(g_btcMomAdxHandle != INVALID_HANDLE) { IndicatorRelease(g_btcMomAdxHandle); g_btcMomAdxHandle = INVALID_HANDLE; }
+   if(g_btcMomHtfEmaHandle != INVALID_HANDLE) { IndicatorRelease(g_btcMomHtfEmaHandle); g_btcMomHtfEmaHandle = INVALID_HANDLE; }
+   if(g_btcRegimeAtrHandle != INVALID_HANDLE) { IndicatorRelease(g_btcRegimeAtrHandle); g_btcRegimeAtrHandle = INVALID_HANDLE; }
 }
 
 //--- VWAP Reset

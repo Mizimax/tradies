@@ -122,8 +122,10 @@ def compact_value(prefix: str, value: str | None) -> str:
     return f"{prefix}{value or 'unknown'}"
 
 
-def attribution_rows(path: Path) -> list[dict[str, str]]:
+def attribution_rows(path: Path, until: str | None = None) -> list[dict[str, str]]:
     rows = read_rows(path)
+    if until:
+        rows = [(time_value, message) for time_value, message in rows if time_value <= until]
     groups: dict[tuple[str, str], Counter[str]] = {}
     sums: dict[tuple[str, str], dict[str, float]] = {}
 
@@ -202,10 +204,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("journals", nargs="+", type=Path, help="GoldBot trades.csv paths")
     parser.add_argument("--attribution", action="store_true", help="Group closed deal PnL by setup, direction, split, hour, setup/direction/hour/split, direction/hour/split, score, confluence, and exit reason")
+    parser.add_argument(
+        "--until",
+        help="Include journal events only through this MT5 timestamp (YYYY.MM.DD HH:MM:SS)",
+    )
     args = parser.parse_args()
 
     if args.attribution:
-        rows = [row for path in args.journals if path.exists() for row in attribution_rows(path)]
+        rows = [row for path in args.journals if path.exists() for row in attribution_rows(path, args.until)]
         fieldnames = ["journal", "group", "value", "closed_deals", "net_profit", "gross_profit", "gross_loss", "profit_factor", "win_rate_pct"]
     else:
         rows = [summarize(path) for path in args.journals if path.exists()]

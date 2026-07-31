@@ -37,12 +37,17 @@ def candidate(run_id: str, log_name: str, **overrides: object) -> Candidate:
     return Candidate(values)
 
 
+QUALITY_HOURS = "02,03,06,10,13,16,17,18,19,20"
+QUALITY_HOURS_V2 = "02,10,13,16,17,18,19,20"
+
 COMMON_MINLOT = {
     "InpAllowMinLotWithNativeRiskCap": True,
     "InpPostExitCooldownBars": 1,
 }
-STOP60 = {**COMMON_MINLOT, "InpBasketHardStopPct": 0.60, "InpMaxLossTargetRatio": 2.0}
-STOP45 = {**COMMON_MINLOT, "InpBasketHardStopPct": 0.45, "InpMaxLossTargetRatio": 1.5}
+STOP60 = {**COMMON_MINLOT, "InpMinLotAllowedHours": QUALITY_HOURS,
+          "InpBasketHardStopPct": 0.60, "InpMaxLossTargetRatio": 2.0}
+STOP45 = {**COMMON_MINLOT, "InpMinLotAllowedHours": QUALITY_HOURS,
+          "InpBasketHardStopPct": 0.45, "InpMaxLossTargetRatio": 1.5}
 LOCK40 = {"InpProfitLockFloorFraction": 0.40}
 QSYNC22 = {"InpLongThreshold": 0.22, "InpShortThreshold": -0.22}
 CONF64 = {"InpMinPatternConfidence": 64}
@@ -62,7 +67,20 @@ CANDIDATES = {
         "v113-minlot-quality-hours",
         "QBR_Logs_v113_minlot_quality_hours",
         **COMMON_MINLOT,
-        InpMinLotAllowedHours="02,03,06,10,13,16,17,18,19,20",
+        InpMinLotAllowedHours=QUALITY_HOURS,
+    ),
+    "v113-quality-hours2": candidate(
+        "v113-quality-hours2",
+        "QBR_Logs_v113_quality_hours2",
+        **COMMON_MINLOT,
+        InpMinLotAllowedHours=QUALITY_HOURS_V2,
+    ),
+    "v113-quality-hours3": candidate(
+        "v113-quality-hours3",
+        "QBR_Logs_v113_quality_hours3",
+        **COMMON_MINLOT,
+        InpMinLotAllowedHours=QUALITY_HOURS_V2,
+        InpEnableBreakoutRetest=False,
     ),
     "v113-stop60": candidate("v113-stop60", "QBR_Logs_v113_stop60", **STOP60),
     "v113-stop45": candidate("v113-stop45", "QBR_Logs_v113_stop45", **STOP45),
@@ -91,6 +109,17 @@ CANDIDATES = {
         "v113-scale200", "QBR_Logs_v113_scale200", **{**SCALED_SAFETY,
         "InpRiskPerBasketPct": 2.0, "InpBasketTargetValue": 1.0, "InpBasketHardStopPct": 2.0,
         "InpM5TargetPct": 1.0, "InpM5HardStopPct": 2.0, "InpMaxLossTargetRatio": 2.0},
+    ),
+    "v113-scale-agg": candidate(
+        "v113-scale-agg", "QBR_Logs_v113_scale_agg", **{
+            "InpMaxDailyLossPct": 12.0,
+            "InpMaxWeeklyLossPct": 20.0,
+            "InpMaxEquityDrawdownPct": 25.0,
+            "InpMaxFloatingLossPct": 7.5,
+            "InpMaxConsecutiveLosses": 3,
+            "InpRiskPerBasketPct": 6.0, "InpBasketTargetValue": 2.40, "InpBasketHardStopPct": 6.0,
+            "InpM5TargetPct": 2.40, "InpM5HardStopPct": 6.0, "InpMaxLossTargetRatio": 2.0,
+        },
     ),
 }
 
@@ -240,7 +269,9 @@ def calendar_month_count(from_date: str, to_date: str) -> int:
     return (end_year - start_year) * 12 + end_month - start_month + 1
 
 
-def resolved_candidate(name: str, symbol: str, from_date: str, to_date: str) -> tuple[Candidate, list[str]]:
+def resolved_candidate(
+    name: str, symbol: str, from_date: str, to_date: str, scale_base: str | None = None
+) -> tuple[Candidate, list[str]]:
     own = CANDIDATES[name].overrides
     lineage: list[str] = []
     base: dict[str, str] = {}
@@ -268,21 +299,27 @@ def resolved_candidate(name: str, symbol: str, from_date: str, to_date: str) -> 
                     f"M5 layer is forbidden: v113-conf64 already has {monthly_frequency:.2f} trades/month"
                 )
     elif name.startswith("v113-scale"):
-        eligible: list[tuple[str, dict[str, object]]] = []
-        for candidate_name in CANDIDATES:
-            if candidate_name.startswith("v113-scale"):
-                continue
-            try:
-                summary = evidence_summary(candidate_name, symbol, from_date, to_date)
-            except RuntimeError:
-                continue
-            acceptance = summary.get("acceptance", {})
-            if isinstance(acceptance, dict) and acceptance.get("safety_gate_passed") is True:
-                eligible.append((candidate_name, summary))
-        if not eligible:
-            raise RuntimeError("scaling is forbidden: no base-risk candidate passed the discovery edge gate")
-        base_name, _ = max(eligible, key=lambda item: discovery_score(item[1]))
-        resolved_base, base_lineage = resolved_candidate(base_name, symbol, from_date, to_date)
+        if scale_base is not None:
+            if scale_base not in CANDIDATES or scale_base.startswith("v113-scale"):
+                raise RuntimeError(f"invalid --scale-base: {scale_base}")
+            evidence_summary(scale_base, symbol, from_date, to_date)  # still requires real, reconciled evidence
+            base_name = scale_base
+        else:
+            eligible: list[tuple[str, dict[str, object]]] = []
+            for candidate_name in CANDIDATES:
+                if candidate_name.startswith("v113-scale"):
+                    continue
+                try:
+                    summary = evidence_summary(candidate_name, symbol, from_date, to_date)
+                except RuntimeError:
+                    continue
+                acceptance = summary.get("acceptance", {})
+                if isinstance(acceptance, dict) and acceptance.get("safety_gate_passed") is True:
+                    eligible.append((candidate_name, summary))
+            if not eligible:
+                raise RuntimeError("scaling is forbidden: no base-risk candidate passed the discovery edge gate")
+            base_name, _ = max(eligible, key=lambda item: discovery_score(item[1]))
+        resolved_base, base_lineage = resolved_candidate(base_name, symbol, from_date, to_date, scale_base)
         base.update(resolved_base.overrides)
         lineage.extend([*base_lineage, base_name])
     base.update(own)
@@ -327,6 +364,7 @@ def main() -> int:
     parser.add_argument("--min-real-tick-quality", type=float, default=99.0)
     parser.add_argument("--timeout-seconds", type=int, default=7200)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--scale-base", default=None)
     args = parser.parse_args()
 
     if args.deposit != 1000.0 or args.leverage != 100:
@@ -334,7 +372,7 @@ def main() -> int:
     if args.min_real_tick_quality < 99.0:
         raise RuntimeError("QBR v1.13 prerequisite quality cannot be relaxed below 99% real ticks")
 
-    spec, lineage = resolved_candidate(args.candidate, args.symbol, args.from_date, args.to_date)
+    spec, lineage = resolved_candidate(args.candidate, args.symbol, args.from_date, args.to_date, args.scale_base)
     preset_name = BASE_PRESET
     preset_path = PRESET_DIR / preset_name
     values = preset_values(preset_path)

@@ -16,6 +16,8 @@ mkdir -p \
   "$MT5_ROOT/MQL5/Experts/DZV_Style_ADR" \
   "$MT5_ROOT/MQL5/Experts/QuantumBehavioralReplica" \
   "$MT5_ROOT/MQL5/Include/QBR" \
+  "$MT5_ROOT/MQL5/Experts/PropGuard" \
+  "$MT5_ROOT/MQL5/Include/PropGuard" \
   "$MT5_ROOT/MQL5/Indicators" \
   "$MT5_ROOT/MQL5/Scripts/DZVStyle" \
   "$MT5_ROOT/MQL5/Include/DZVStyle" \
@@ -86,6 +88,22 @@ if [[ -f "$ROOT_DIR/mt5/Experts/QuantumBehavioralReplica/QuantumBehavioralReplic
     cp "$preset_file" "$MT5_ROOT/MQL5/Profiles/Tester/$(basename "$preset_file")"
   done
   echo "Installed QuantumBehavioralReplica source into $MT5_ROOT/MQL5"
+fi
+
+# PropGuard
+if [[ -f "$ROOT_DIR/mt5/Experts/PropGuard/PropGuard.mq5" ]]; then
+  install_source "$ROOT_DIR/mt5/Experts/PropGuard/PropGuard.mq5" "$MT5_ROOT/MQL5/Experts/PropGuard/PropGuard.mq5"
+  for source_file in "$ROOT_DIR"/mt5/Include/PropGuard/*.mqh; do
+    install_source "$source_file" "$MT5_ROOT/MQL5/Include/PropGuard/$(basename "$source_file")"
+  done
+  if [[ -d "$ROOT_DIR/mt5/Presets/PropGuard" ]]; then
+    mkdir -p "$MT5_ROOT/MQL5/Profiles/Tester/PropGuard"
+    for preset_file in "$ROOT_DIR"/mt5/Presets/PropGuard/*.set; do
+      [[ -f "$preset_file" ]] || continue
+      cp "$preset_file" "$MT5_ROOT/MQL5/Profiles/Tester/PropGuard/$(basename "$preset_file")"
+    done
+  fi
+  echo "Installed PropGuard source into $MT5_ROOT/MQL5"
 fi
 
 # DZV_Style_ADR

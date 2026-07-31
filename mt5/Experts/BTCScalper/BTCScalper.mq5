@@ -65,19 +65,42 @@ input double   InpCostGateMinAtrMult  = 0.0;         // optional ATR edge floor
 
 //--- H1 Regime Gate (default-off; diagnostic)
 input bool     InpRegimeGateEnabled    = false;       // require H1 ATR ratio within volatility band
+input ENUM_TIMEFRAMES InpRegimeTf      = PERIOD_H1;   // ATR timeframe for regime-ratio gate
 input double   InpRegimeMinH1AtrRatio  = 0.70;        // block if current/avg H1 ATR ratio below this (0 = no floor)
 input double   InpRegimeMaxH1AtrRatio  = 0.0;         // block if ratio above this (0 = no cap)
 input int      InpRegimeAtrAvgPeriod   = 100;         // H1 bars averaged for the ATR reference
 
 //--- Strategy 3: Momentum Breakout (EMA crossover on M15)
 input bool     InpEnableMomentum      = true;
+input ENUM_TIMEFRAMES InpMomTf        = PERIOD_M15;   // momentum signal timeframe
+input bool     InpUseGatekeeperRouting = true;        // route momentum through M15 ADX trend gate
+input int      InpMomSignalMode       = 0;            // 0=EMA cross, 1=Donchian breakout
 input int      InpMomEmaFast          = 9;
 input int      InpMomEmaSlow          = 21;
 input int      InpMomRsiPeriod        = 14;
 input int      InpMomRsiLow           = 40;          // only enter when RSI 40-60
 input int      InpMomRsiHigh          = 60;
+input int      InpMomBreakoutLookback = 20;
+input double   InpMomBreakoutBufferAtr = 0.10;
+input bool     InpMomUseSessionVwapFilter = true;
+input bool     InpMomUseHtfTrendFilter = true;
+input ENUM_TIMEFRAMES InpMomHtfTf     = PERIOD_H1;
+input int      InpMomHtfEmaPeriod     = 50;
+input bool     InpMomUseAdxFilter     = false;
+input double   InpMomAdxMin           = 20.0;
+input int      InpMomDirectionMode    = 0;           // 0=both, 1=long-only, 2=short-only
+input string   InpMomAllowedEntryHours = "";         // optional pipe/comma list, e.g. 04|12|16
 input double   InpMomRR               = 2.0;         // R:R for momentum trades
 input double   InpMomSlAtrMult        = 2.0;         // SL ATR multiplier for Momentum
+input int      InpMomSlMode           = 0;           // 0=legacy tight swing/ATR, 1=ATR/swing bounded
+input int      InpMomSwingLookback    = 5;
+input double   InpMomSlMinAtrMult     = 1.5;
+input double   InpMomSlMaxAtrMult     = 2.0;
+input double   InpMomBETriggerR       = 1.0;
+input double   InpMomTrailStartR      = 1.0;
+input double   InpMomTrailAtrMult     = 1.5;
+input int      InpMomMaxHoldBars      = 0;
+input double   InpMomTimeStopMinR     = 0.0;
 input int      InpMomMaxTrades        = 2;
 
 //--- Regime Gatekeeper
@@ -109,6 +132,7 @@ input bool     InpResetJournalOnInit  = true;
 
 //--- Global Variables
 CTrade trade;
+static datetime g_btcLastMomBar = 0;
 
 //--- Forward Declarations
 string BTCScalperSymbol();
@@ -150,6 +174,67 @@ double BTCScalperStrategyRisk(const BTCStrategyId sid, const double baseEffectiv
    double r = baseEffectiveRisk * BTCScalperStrategyRiskMult(sid);
    double ceiling = InpRiskPerTradePct * MathMax(1.0, InpPerfBoostMult);
    return MathMin(r, ceiling);
+}
+
+bool BTCScalperMomHourAllowed()
+{
+   if(StringLen(InpMomAllowedEntryHours) == 0)
+      return true;
+
+   MqlDateTime now;
+   TimeToStruct(TimeCurrent(), now);
+
+   string allowed = InpMomAllowedEntryHours;
+   StringReplace(allowed, ",", "|");
+   StringReplace(allowed, ";", "|");
+   StringReplace(allowed, " ", "");
+
+   string haystack = "|" + allowed + "|";
+   string padded = StringFormat("|%02d|", now.hour);
+   string plain = StringFormat("|%d|", now.hour);
+   return StringFind(haystack, padded) >= 0 || StringFind(haystack, plain) >= 0;
+}
+
+//--- Momentum signal, filters, allocation, and execution
+void BTCScalperTryMomentumEntry(const string symbol, const double baseEffectiveRisk, const string regimeLabel)
+{
+   if(!BTCScalperMomHourAllowed())
+      return;
+
+   int momSig = BTCScalperMomSignal(symbol, InpMomRsiLow, InpMomRsiHigh, InpTradingEndHour,
+                                    InpMomTf, InpMomSignalMode, InpMomBreakoutLookback,
+                                    InpMomBreakoutBufferAtr, InpMomUseSessionVwapFilter,
+                                    InpMomUseHtfTrendFilter, InpMomHtfTf, InpMomUseAdxFilter,
+                                    InpMomAdxMin, InpMomDirectionMode);
+   if(momSig != 0)
+   {
+      if(InpCostGateEnabled)
+      {
+         double atrRef = BTCScalperGetBufferValue(g_btcMomAtrHandle, 0, 1);
+         double expectedMove = (atrRef == EMPTY_VALUE) ? 0.0 : atrRef * InpMomSlAtrMult * InpMomRR;
+         if(atrRef == EMPTY_VALUE ||
+            !BTCScalperCostGatePass(symbol, expectedMove, atrRef, InpCostGateK, InpCostGateCommPerLot, InpCostGateMinAtrMult))
+            momSig = 0;
+      }
+   }
+   if(momSig != 0 && InpRegimeGateEnabled)
+   {
+      if(!BTCScalperRegimeGatePass(g_btcRegimeAtrHandle, InpRegimeAtrAvgPeriod, InpRegimeMinH1AtrRatio, InpRegimeMaxH1AtrRatio))
+         momSig = 0;
+   }
+   if(momSig != 0)
+   {
+      double momRisk = BTCScalperStrategyRisk(BTC_STRAT_MOM, baseEffectiveRisk);
+      if(momRisk > 0.0)
+      {
+         if(InpEnablePerfAllocation)
+            BTCScalperJournal(StringFormat("AllocDecision strategy=momentum regime=%s mult=%.3f risk=%.4f",
+               regimeLabel, momRisk / MathMax(baseEffectiveRisk, 1e-9), momRisk));
+         BTCScalperMomEntry(symbol, InpMagicNumber, trade, momSig, InpMomSlAtrMult, InpMomRR,
+                            momRisk, InpMinLot, InpMaxLot, InpMomMaxTrades, InpMomTf,
+                            InpMomSlMode, InpMomSwingLookback, InpMomSlMinAtrMult, InpMomSlMaxAtrMult);
+      }
+   }
 }
 
 //--- Global Risk Gate
@@ -244,7 +329,8 @@ int OnInit()
    // Initialize indicators
    if(!BTCScalperIndicatorsInit(symbol, InpMrBbPeriod, InpMrBbDeviation, 
                                 InpMrRsiPeriod, 14, InpGatekeeperAdxPeriod, 
-                                InpMomEmaFast, InpMomEmaSlow))
+                                InpMomEmaFast, InpMomEmaSlow, InpMomTf,
+                                InpMomHtfTf, InpMomHtfEmaPeriod, InpRegimeTf))
    {
       return INIT_FAILED;
    }
@@ -275,7 +361,9 @@ void OnTick()
    if(InpEnableVwapReversion)
       BTCScalperVwapManage(symbol, InpMagicNumber, trade, InpVwapMaxHoldBars, InpVwapTpOvershootAtr, InpVwapHoldAtrScale);
    if(InpEnableMomentum)
-      BTCScalperMomManage(symbol, InpMagicNumber, trade);
+      BTCScalperMomManage(symbol, InpMagicNumber, trade, InpMomTf, InpMomBETriggerR,
+                          InpMomTrailStartR, InpMomTrailAtrMult, InpMomMaxHoldBars,
+                          InpMomTimeStopMinR);
 
    // 2. Live VWAP update
    BTCScalperVwapUpdate(symbol);
@@ -319,7 +407,7 @@ void OnTick()
                }
                if(mrSig != 0 && InpRegimeGateEnabled)
                {
-                  if(!BTCScalperRegimeGatePass(g_btcAtrH1Handle, InpRegimeAtrAvgPeriod, InpRegimeMinH1AtrRatio, InpRegimeMaxH1AtrRatio))
+                  if(!BTCScalperRegimeGatePass(g_btcRegimeAtrHandle, InpRegimeAtrAvgPeriod, InpRegimeMinH1AtrRatio, InpRegimeMaxH1AtrRatio))
                      mrSig = 0;
                }
                if(mrSig != 0)
@@ -335,37 +423,8 @@ void OnTick()
                }
             }
 
-            if(InpEnableMomentum && isTrending)
-            {
-               int momSig = BTCScalperMomSignal(symbol, InpMomRsiLow, InpMomRsiHigh, InpTradingEndHour);
-               if(momSig != 0)
-               {
-                  if(InpCostGateEnabled)
-                  {
-                     double atrRef = BTCScalperGetBufferValue(g_btcAtrHandle, 0, 1);
-                     double expectedMove = (atrRef == EMPTY_VALUE) ? 0.0 : atrRef * InpMomSlAtrMult * InpMomRR;
-                     if(atrRef == EMPTY_VALUE ||
-                        !BTCScalperCostGatePass(symbol, expectedMove, atrRef, InpCostGateK, InpCostGateCommPerLot, InpCostGateMinAtrMult))
-                        momSig = 0;
-                  }
-               }
-               if(momSig != 0 && InpRegimeGateEnabled)
-               {
-                  if(!BTCScalperRegimeGatePass(g_btcAtrH1Handle, InpRegimeAtrAvgPeriod, InpRegimeMinH1AtrRatio, InpRegimeMaxH1AtrRatio))
-                     momSig = 0;
-               }
-               if(momSig != 0)
-               {
-                  double momRisk = BTCScalperStrategyRisk(BTC_STRAT_MOM, risk);
-                  if(momRisk > 0.0)
-                  {
-                     if(InpEnablePerfAllocation)
-                        BTCScalperJournal(StringFormat("AllocDecision strategy=momentum regime=trend mult=%.3f risk=%.4f",
-                           momRisk / MathMax(risk, 1e-9), momRisk));
-                     BTCScalperMomEntry(symbol, InpMagicNumber, trade, momSig, InpMomSlAtrMult, InpMomRR, momRisk, InpMinLot, InpMaxLot, InpMomMaxTrades);
-                  }
-               }
-            }
+            if(InpEnableMomentum && InpMomTf == PERIOD_M15 && (!InpUseGatekeeperRouting || isTrending))
+               BTCScalperTryMomentumEntry(symbol, risk, isTrending ? "trend" : "ungated");
          }
       }
    }
@@ -409,7 +468,7 @@ void OnTick()
                }
                if(vwapSig != 0 && InpRegimeGateEnabled)
                {
-                  if(!BTCScalperRegimeGatePass(g_btcAtrH1Handle, InpRegimeAtrAvgPeriod, InpRegimeMinH1AtrRatio, InpRegimeMaxH1AtrRatio))
+                  if(!BTCScalperRegimeGatePass(g_btcRegimeAtrHandle, InpRegimeAtrAvgPeriod, InpRegimeMinH1AtrRatio, InpRegimeMaxH1AtrRatio))
                      vwapSig = 0;
                }
                if(vwapSig != 0)
@@ -425,6 +484,34 @@ void OnTick()
                }
             }
          }
+      }
+   }
+
+   // 5. Configurable-TF momentum signals (H4 research path; skipped for legacy M15)
+   if(InpEnableMomentum && InpMomTf != PERIOD_M15 && BTCScalperIsNewBar(symbol, InpMomTf, g_btcLastMomBar))
+   {
+      double risk = BTCScalperEffectiveRisk();
+      string reason = "";
+      bool cancelPending = false;
+      bool allowed = BTCScalperEntryRiskAllowed(symbol, InpMagicNumber, InpMaxDailyLossPct,
+                                               InpMaxDailyTrades, InpMaxOpenTrades,
+                                               InpTradingEndHour, risk, reason, cancelPending);
+
+      if(!allowed)
+      {
+         if(cancelPending)
+            BTCScalperCancelPendingOrders(symbol, InpMagicNumber);
+      }
+      else if(!InpDebugOnly && BTCScalperCooldownAllowed(InpMaxConsecLoss))
+      {
+         bool routed = true;
+         if(InpUseGatekeeperRouting)
+         {
+            double adxVal = BTCScalperGetBufferValue(g_btcAdxHandle, 0, 1);
+            routed = (adxVal != EMPTY_VALUE && adxVal >= InpGatekeeperAdxLevel);
+         }
+         if(routed)
+            BTCScalperTryMomentumEntry(symbol, risk, InpUseGatekeeperRouting ? "trend" : "ungated");
       }
    }
 }

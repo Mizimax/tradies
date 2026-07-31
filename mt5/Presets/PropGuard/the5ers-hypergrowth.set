@@ -1,0 +1,63 @@
+; PropGuard -- The5ers Hyper Growth preset. HARDEST of the three firms: 3% daily (pause
+; only) and a 6% max DD floor -- materially tighter than FTMO/FundingPips/High Stakes.
+;
+; Internal thresholds are NOT copied from the FTMO preset -- they are scaled to the same
+; fraction of THIS firm's tighter budget (matches the 0.8x / 0.5x ratios PROPGUARD_DESIGN.md
+; uses for FTMO: dd_hard_halt = 0.8 x firm_max_dd_pct, daily_hard_flatten = 0.5 x
+; firm_daily_loss_pct, daily_soft_halt = 0.8 x daily_hard_flatten). Reusing FTMO's absolute
+; 8.0 / 2.5 / 2.0 values here would put the internal DD floor (92%) BELOW this firm's real
+; 6% floor (94%) -- i.e. looser than the firm's own limit, which is exactly backwards.
+;
+; Hyper Growth is a single-phase program; PropGuard is a 2-phase state machine, so
+; InpPhase2TargetPct=0.0 makes Phase 2 a trivial pass-through (equity already meets a 0%
+; target the instant Phase 1's target is hit) -- an approximation, not a perfect model.
+; Single trade at ~1.0% risk therefore is also too aggressive for the daily budget here;
+; InpChallengeBaseRiskPct is reduced accordingly (see the risk-vs-speed math in the
+; approved plan §1 -- risk-per-trade is capped by the daily-loss arithmetic, not preference).
+InpSymbol=XAUUSD
+InpMagicNumber=27072604
+InpMinLot=0.01
+InpMaxLot=10.0
+InpFirmDailyLossPct=3.0
+InpFirmMaxDdPct=6.0
+InpFirmDdIsTrailing=false
+InpPhase1TargetPct=10.0
+InpPhase2TargetPct=0.0
+InpDailySoftHaltPct=1.2
+InpDailyHardFlattenPct=1.5
+InpDdHardHaltPct=4.8
+InpDailyProfitCapPct=2.5
+InpTargetProximityPct=1.5
+InpCostGateMaxPct=8.0
+InpDailyResetServerHour=0
+InpFridayCloseHour=20
+InpRolloverBlockStartHour=21
+InpRolloverBlockEndHour=23
+InpChallengeBaseRiskPct=0.50
+InpFundedBaseRiskPct=0.25
+InpDailyRiskDivisor=3
+InpTotalRiskDivisor=8
+InpMaxOpenTrades=1
+InpAsianStartHour=0
+InpAsianEndHour=7
+InpBreakoutBufferAtr=0.25
+InpStopAtrMult=1.0
+InpTargetR=1.5
+InpVolBandLow=0.5
+InpVolBandHigh=1.5
+InpNyRangeStartHour=12
+InpNyEntryWindowHours=4.0
+InpAtrPeriod=14
+InpVolLookbackDays=20
+InpLondonEndHour=13
+InpNyRangeHours=3.0
+InpNyFlatHour=20
+InpEnableNewsFilter=true
+InpNewsBlackoutMinutes=5
+InpHighImpactNewsTimes=
+InpCommissionPerLotUsd=7.0
+InpSwapEstimatePerLotUsd=0.0
+InpStressExtraSpreadPrice=0.0
+InpResetJournalOnInit=true
+InpShowDashboard=true
+InpForceStartPhase=0

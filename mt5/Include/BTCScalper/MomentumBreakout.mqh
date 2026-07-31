@@ -27,12 +27,61 @@ void BTCScalperMomMarkTradePlaced()
    GlobalVariableSet(key, (double)(current + 1));
 }
 
-//--- Signal Generator (runs on completed M15 bar, shift=1)
+bool BTCScalperMomDirectionAllowed(const int signal, const int directionMode)
+{
+   if(directionMode == 1 && signal < 0)
+      return false;
+   if(directionMode == 2 && signal > 0)
+      return false;
+   return true;
+}
+
+int BTCScalperMomDonchianSignal(
+   const string symbol,
+   const ENUM_TIMEFRAMES timeframe,
+   const int lookback,
+   const double bufferAtr)
+{
+   if(lookback <= 1)
+      return 0;
+
+   double close1 = iClose(symbol, timeframe, 1);
+   double atr = BTCScalperGetBufferValue(g_btcMomAtrHandle, 0, 1);
+   if(close1 <= 0.0 || atr == EMPTY_VALUE || atr <= 0.0)
+      return 0;
+
+   int highIdx = iHighest(symbol, timeframe, MODE_HIGH, lookback, 2);
+   int lowIdx = iLowest(symbol, timeframe, MODE_LOW, lookback, 2);
+   if(highIdx < 0 || lowIdx < 0)
+      return 0;
+
+   double priorHigh = iHigh(symbol, timeframe, highIdx);
+   double priorLow = iLow(symbol, timeframe, lowIdx);
+   double buffer = atr * MathMax(0.0, bufferAtr);
+
+   if(close1 > priorHigh + buffer)
+      return +1;
+   if(close1 < priorLow - buffer)
+      return -1;
+   return 0;
+}
+
+//--- Signal Generator (runs on completed momentum-TF bar, shift=1)
 int BTCScalperMomSignal(
    const string symbol,
    const int rsiLow,
    const int rsiHigh,
-   const int tradingEndHour
+   const int tradingEndHour,
+   const ENUM_TIMEFRAMES timeframe = PERIOD_M15,
+   const int signalMode = 0,
+   const int breakoutLookback = 20,
+   const double breakoutBufferAtr = 0.10,
+   const bool useVwapSideFilter = true,
+   const bool useHtfTrendFilter = true,
+   const ENUM_TIMEFRAMES htfTimeframe = PERIOD_H1,
+   const bool useAdxFilter = false,
+   const double adxMin = 20.0,
+   const int directionMode = 0
 )
 {
    //--- 1. Session Filter
@@ -42,50 +91,77 @@ int BTCScalperMomSignal(
    }
 
    //--- 2. Get EMA values (shift = 1)
-   double emaFast = BTCScalperGetBufferValue(g_btcEmaFast, 0, 1);
-   double emaSlow = BTCScalperGetBufferValue(g_btcEmaSlow, 0, 1);
-   double ema50   = BTCScalperGetBufferValue(g_btcEma50, 0, 1);
+   double emaFast = BTCScalperGetBufferValue(g_btcMomEmaFast, 0, 1);
+   double emaSlow = BTCScalperGetBufferValue(g_btcMomEmaSlow, 0, 1);
+   double ema50   = BTCScalperGetBufferValue(g_btcMomEma50, 0, 1);
    if(emaFast == EMPTY_VALUE || emaSlow == EMPTY_VALUE || ema50 == EMPTY_VALUE)
    {
       return 0;
    }
 
-   //--- 3. Get VWAP Value
+   //--- 3. Get VWAP Value when the legacy side filter is active
    double vwap = BTCScalperVwapValue();
-   if(vwap <= 0.0)
+   if(useVwapSideFilter && vwap <= 0.0)
    {
       return 0;
    }
 
-   //--- 4. Get RSI M15 (shift = 1)
-   double rsi = BTCScalperGetBufferValue(g_btcRsiHandle, 0, 1);
+   //--- 4. Get RSI on the momentum timeframe (shift = 1)
+   double rsi = BTCScalperGetBufferValue(g_btcMomRsiHandle, 0, 1);
    if(rsi == EMPTY_VALUE)
    {
       return 0;
    }
 
-   //--- 5. Get M15 Close (shift = 1)
-   double m15Close = iClose(symbol, PERIOD_M15, 1);
+   //--- 5. Get momentum-TF Close (shift = 1)
+   double momClose = iClose(symbol, timeframe, 1);
+   if(momClose <= 0.0)
+      return 0;
 
-   //--- 6. Get H1 Trend Alignment (shift = 1)
-   double h1Close = iClose(symbol, PERIOD_H1, 1);
-   double h1Ema   = BTCScalperGetBufferValue(g_btcH1EmaHandle, 0, 1);
-   bool h1Up = (h1Ema != EMPTY_VALUE && h1Close > h1Ema);
-   bool h1Down = (h1Ema != EMPTY_VALUE && h1Close < h1Ema);
+   //--- 6. Get higher-timeframe trend alignment (shift = 1)
+   double htfClose = iClose(symbol, htfTimeframe, 1);
+   double htfEma = BTCScalperGetBufferValue(g_btcMomHtfEmaHandle, 0, 1);
+   bool htfUp = (!useHtfTrendFilter || (htfEma != EMPTY_VALUE && htfClose > htfEma));
+   bool htfDown = (!useHtfTrendFilter || (htfEma != EMPTY_VALUE && htfClose < htfEma));
+
+   if(useAdxFilter)
+   {
+      double adx = BTCScalperGetBufferValue(g_btcMomAdxHandle, 0, 1);
+      if(adx == EMPTY_VALUE || adx < adxMin)
+         return 0;
+   }
+
+   int rawSignal = 0;
+   if(signalMode == 1)
+   {
+      rawSignal = BTCScalperMomDonchianSignal(symbol, timeframe, breakoutLookback, breakoutBufferAtr);
+   }
+   else
+   {
+      bool vwapLongOk = (!useVwapSideFilter || momClose > vwap);
+      bool vwapShortOk = (!useVwapSideFilter || momClose < vwap);
+      if(emaFast > emaSlow && momClose > ema50 && vwapLongOk)
+         rawSignal = +1;
+      else if(emaFast < emaSlow && momClose < ema50 && vwapShortOk)
+         rawSignal = -1;
+   }
+
+   if(rawSignal == 0 || !BTCScalperMomDirectionAllowed(rawSignal, directionMode))
+      return 0;
 
    //--- Evaluate Signals
-   if(emaFast > emaSlow && m15Close > ema50 && m15Close > vwap && rsi >= rsiLow && h1Up)
+   if(rawSignal > 0 && rsi >= rsiLow && htfUp)
    {
-      Print("[Mom-Signal] BUY signal on M15: Close=", DoubleToString(m15Close, 2),
+      Print("[Mom-Signal] BUY signal: TF=", EnumToString(timeframe), " Close=", DoubleToString(momClose, 2),
             " EMA9=", DoubleToString(emaFast, 2), " EMA21=", DoubleToString(emaSlow, 2), 
-            " EMA50=", DoubleToString(ema50, 2), " VWAP=", DoubleToString(vwap, 2), " RSI=", DoubleToString(rsi, 2), " H1Up=1");
+            " EMA50=", DoubleToString(ema50, 2), " RSI=", DoubleToString(rsi, 2), " HTFUp=1");
       return +1;
    }
-   if(emaFast < emaSlow && m15Close < ema50 && m15Close < vwap && rsi <= rsiHigh && h1Down)
+   if(rawSignal < 0 && rsi <= rsiHigh && htfDown)
    {
-      Print("[Mom-Signal] SELL signal on M15: Close=", DoubleToString(m15Close, 2),
+      Print("[Mom-Signal] SELL signal: TF=", EnumToString(timeframe), " Close=", DoubleToString(momClose, 2),
             " EMA9=", DoubleToString(emaFast, 2), " EMA21=", DoubleToString(emaSlow, 2), 
-            " EMA50=", DoubleToString(ema50, 2), " VWAP=", DoubleToString(vwap, 2), " RSI=", DoubleToString(rsi, 2), " H1Down=1");
+            " EMA50=", DoubleToString(ema50, 2), " RSI=", DoubleToString(rsi, 2), " HTFDown=1");
       return -1;
    }
 
@@ -103,7 +179,12 @@ bool BTCScalperMomEntry(
    const double riskPct,
    const double minLot,
    const double maxLot,
-   const int maxDailyTrades
+   const int maxDailyTrades,
+   const ENUM_TIMEFRAMES timeframe = PERIOD_M15,
+   const int slMode = 0,
+   const int swingLookback = 5,
+   const double slMinAtrMult = 1.5,
+   const double slMaxAtrMult = 2.0
 )
 {
    if(signal == 0)
@@ -117,8 +198,8 @@ bool BTCScalperMomEntry(
       return false;
    }
 
-   // Read ATR(14) on M15 (shift = 1) for baseline SL distance
-   double atr = BTCScalperGetBufferValue(g_btcAtrHandle, 0, 1);
+   // Read ATR(14) on the momentum timeframe (shift = 1) for baseline SL distance
+   double atr = BTCScalperGetBufferValue(g_btcMomAtrHandle, 0, 1);
    if(atr == EMPTY_VALUE || atr <= 0.0)
    {
       Print("[Mom-Entry] ATR is empty or <= 0");
@@ -126,7 +207,7 @@ bool BTCScalperMomEntry(
    }
    double baseSl = atr * slAtrMult;
 
-   // Find recent swing high/low of last 5 M15 bars (shift 1 to 5)
+   // Find recent swing high/low of recent momentum-TF bars
    double slDistance = baseSl;
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
    double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
@@ -134,34 +215,42 @@ bool BTCScalperMomEntry(
 
    if(signal == +1)
    {
-      int lowestIdx = iLowest(symbol, PERIOD_M15, MODE_LOW, 5, 1);
+      int lowestIdx = iLowest(symbol, timeframe, MODE_LOW, swingLookback, 1);
       if(lowestIdx >= 0)
       {
-         double swingLow = iLow(symbol, PERIOD_M15, lowestIdx);
+         double swingLow = iLow(symbol, timeframe, lowestIdx);
          double swingDist = ask - swingLow;
          if(swingDist > 0.0)
          {
-            slDistance = MathMin(swingDist, baseSl);
+            if(slMode == 1)
+               slDistance = MathMax(swingDist, atr * slMinAtrMult);
+            else
+               slDistance = MathMin(swingDist, baseSl);
          }
       }
    }
    else if(signal == -1)
    {
-      int highestIdx = iHighest(symbol, PERIOD_M15, MODE_HIGH, 5, 1);
+      int highestIdx = iHighest(symbol, timeframe, MODE_HIGH, swingLookback, 1);
       if(highestIdx >= 0)
       {
-         double swingHigh = iHigh(symbol, PERIOD_M15, highestIdx);
+         double swingHigh = iHigh(symbol, timeframe, highestIdx);
          double swingDist = swingHigh - bid;
          if(swingDist > 0.0)
          {
-            slDistance = MathMin(swingDist, baseSl);
+            if(slMode == 1)
+               slDistance = MathMax(swingDist, atr * slMinAtrMult);
+            else
+               slDistance = MathMin(swingDist, baseSl);
          }
       }
    }
 
-   // Floor SL distance at 1.5 * ATR to prevent extremely tight stops
-   if(slDistance < atr * 1.5)
-      slDistance = atr * 1.5;
+   // Floor SL distance to prevent extremely tight stops
+   if(slDistance < atr * slMinAtrMult)
+      slDistance = atr * slMinAtrMult;
+   if(slMode == 1 && slMaxAtrMult > 0.0 && slDistance > atr * slMaxAtrMult)
+      slDistance = atr * slMaxAtrMult;
 
    trade.SetExpertMagicNumber(magic);
 
@@ -202,11 +291,17 @@ bool BTCScalperMomEntry(
 void BTCScalperMomManage(
    const string symbol,
    const long magic,
-   CTrade &trade
+   CTrade &trade,
+   const ENUM_TIMEFRAMES timeframe = PERIOD_M15,
+   const double beTriggerR = 1.0,
+   const double trailStartR = 1.0,
+   const double trailAtrMult = 1.5,
+   const int maxHoldBars = 0,
+   const double timeStopMinR = 0.0
 )
 {
-   // Read ATR(14) on M15 (shift 1) for trailing distance
-   double atr = BTCScalperGetBufferValue(g_btcAtrHandle, 0, 1);
+   // Read ATR(14) on the momentum timeframe (shift 1) for trailing distance
+   double atr = BTCScalperGetBufferValue(g_btcMomAtrHandle, 0, 1);
    if(atr == EMPTY_VALUE || atr <= 0.0)
       return;
 
@@ -243,11 +338,13 @@ void BTCScalperMomManage(
 
       double newSl = currentSl;
       bool modify = false;
+      double currentR = 0.0;
 
       if(type == POSITION_TYPE_BUY)
       {
+         currentR = (originalSlDist > 0.0) ? (currentPrice - openPrice) / originalSlDist : 0.0;
          // 1. Move SL to BE at 1x R (profit >= originalSlDist)
-         if(currentPrice - openPrice >= originalSlDist)
+         if(currentR >= beTriggerR)
          {
             double beSl = NormalizeDouble(openPrice + spread + point, digits);
             if(currentSl < beSl || currentSl == 0.0)
@@ -256,10 +353,10 @@ void BTCScalperMomManage(
                modify = true;
             }
          }
-         // 2. Trail SL at 1.5x ATR once price moves further
-         if(newSl >= openPrice) // already at or above BE
+         // 2. Trail SL after configured R threshold
+         if(currentR >= trailStartR && newSl >= openPrice)
          {
-            double trailSl = NormalizeDouble(currentPrice - (atr * 1.5), digits);
+            double trailSl = NormalizeDouble(currentPrice - (atr * trailAtrMult), digits);
             if(trailSl > newSl)
             {
                newSl = trailSl;
@@ -269,8 +366,9 @@ void BTCScalperMomManage(
       }
       else if(type == POSITION_TYPE_SELL)
       {
+         currentR = (originalSlDist > 0.0) ? (openPrice - currentPrice) / originalSlDist : 0.0;
          // 1. Move SL to BE at 1x R (profit >= originalSlDist)
-         if(openPrice - currentPrice >= originalSlDist)
+         if(currentR >= beTriggerR)
          {
             double beSl = NormalizeDouble(openPrice - spread - point, digits);
             if(currentSl > beSl || currentSl == 0.0)
@@ -279,10 +377,10 @@ void BTCScalperMomManage(
                modify = true;
             }
          }
-         // 2. Trail SL at 1.5x ATR
-         if(newSl <= openPrice && newSl != 0.0) // already at or below BE
+         // 2. Trail SL after configured R threshold
+         if(currentR >= trailStartR && newSl <= openPrice && newSl != 0.0)
          {
-            double trailSl = NormalizeDouble(currentPrice + (atr * 1.5), digits);
+            double trailSl = NormalizeDouble(currentPrice + (atr * trailAtrMult), digits);
             if(trailSl < newSl || newSl == 0.0)
             {
                newSl = trailSl;
@@ -294,6 +392,18 @@ void BTCScalperMomManage(
       if(modify)
       {
          trade.PositionModify(ticket, newSl, currentTp);
+      }
+
+      if(maxHoldBars > 0)
+      {
+         datetime openTime = (datetime)PositionGetInteger(POSITION_TIME);
+         int seconds = PeriodSeconds(timeframe);
+         if(seconds > 0 && openTime > 0)
+         {
+            int barsHeld = (int)((TimeCurrent() - openTime) / seconds);
+            if(barsHeld >= maxHoldBars && currentR < timeStopMinR)
+               trade.PositionClose(ticket);
+         }
       }
    }
 }

@@ -74,6 +74,7 @@ def main() -> int:
     parser.add_argument("--symbol", default="")
     parser.add_argument("--period", default="")
     parser.add_argument("--report-suffix", default="", help="Append a suffix to the MT5 report name, e.g. recent-12m")
+    parser.add_argument("--spread-points", type=float, default=None, help="Stress-test extra spread (raw price units) widened into every ladder SL via InpStressExtraSpreadPrice. 0/omitted = no change.")
     parser.add_argument("--dry-run", action="store_true", help="Print the command without running MT5")
     parser.add_argument("--list", action="store_true", help="List available candidates")
     args = parser.parse_args()
@@ -106,6 +107,9 @@ def main() -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+
+    if args.spread_points is not None:
+        overrides = overrides + ("\n" if overrides else "") + f"InpStressExtraSpreadPrice={args.spread_points}"
 
     env = {
         "MT5_DEPOSIT": args.deposit,

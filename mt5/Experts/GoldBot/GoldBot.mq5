@@ -7,6 +7,7 @@
 #include <GoldBot/SMC.mqh>
 #include <GoldBot/Risk.mqh>
 #include <GoldBot/TradeManager.mqh>
+#include <GoldBot/PropMode.mqh>
 #include <GoldBot/EntryFilters.mqh>
 
 #define GOLDBOT_SETUP_SMC 1
@@ -41,6 +42,7 @@ input double          InpAtrMin = 1.0;
 input double          InpAtrMax = 35.0;
 input double          InpSlAtr = 0.8;
 input double          InpMinRR = 2.0;
+input double          InpStressExtraSpreadPrice = 0.0; // extra spread stress (raw price units) widened into every ladder SL; 0 = no change
 input int             InpMaxHoldBars = 48;
 input int             InpCooldownBars = 16;
 input int             InpStreakCooldownBars = 48;
@@ -193,6 +195,8 @@ input double          InpScalpMaxSpreadPrice = 0.50;
 input int             InpScalpPendingExpiryMinutes = 15;
 input int             InpScalpMaxHoldMinutes = 90;
 input double          InpScalpSlAtr = 0.35;
+input double          InpScalpLongSlAtr = 0.0;
+input double          InpScalpShortSlAtr = 0.0;
 input double          InpScalpTp1R = 0.5;
 input double          InpScalpTp2R = 0.8;
 input double          InpScalpTp3R = 1.2;
@@ -221,6 +225,8 @@ input int             InpScalpTimeStopMinutes = 45;
 input double          InpSmcRiskMultiplier = 1.0;
 input double          InpBreakoutRiskMultiplier = 1.0;
 input double          InpM5ScalpRiskMultiplier = 1.0;
+input double          InpM5ScalpLongRiskMultiplier = 0.0;
+input double          InpM5ScalpShortRiskMultiplier = 0.0;
 input double          InpM1MicroRiskMultiplier = 1.0;
 input bool            InpEnableM1MicroScalpSetup = false;
 input string          InpM1MicroLongHours = "10;18";
@@ -255,12 +261,79 @@ input int             InpLongSessionEndHour = 0;
 input bool            InpAllowLong = true;
 input bool            InpAllowShort = true;
 
+//--- Prop-firm mode (opt-in; InpEnablePropMode=false is the default and makes every input
+//--- below a no-op -- see mt5/Include/GoldBot/PropMode.mqh and mt5/backtests/PROPGUARD_DESIGN.md.
+//--- Ported from the proven mt5/Include/PropGuard/{PropRules,RiskBudget}.mqh rule engine.
+input bool            InpEnablePropMode = false;
+input bool            InpPropMonitorOnly = false;             // enforce hard account floors without changing entries or sizing
+input double          InpPropFirmDailyLossPct = 5.0;
+input double          InpPropFirmMaxDrawdownPct = 10.0;
+input bool            InpPropDdIsTrailing = false;
+input double          InpPropPhaseTargetPct = 10.0;         // active challenge phase's profit target
+input double          InpPropDailySoftHaltPct = 2.0;
+input double          InpPropDailyHardFlattenPct = 2.5;
+input double          InpPropDdHardHaltPct = 8.0;
+input double          InpPropDailyProfitCapPct = 2.5;
+input double          InpPropTargetProximityPct = 1.5;
+input double          InpPropTargetLockBufferPct = 0.10;  // close all once equity clears phase target plus costs
+input double          InpPropCostGateMaxPct = 8.0;
+input double          InpPropChallengeRiskPct = 1.00;        // base risk % of equity per trade
+input int             InpPropDailyRiskDivisor = 3;
+input int             InpPropTotalRiskDivisor = 8;
+input int             InpPropDailyResetServerHour = 0;
+input int             InpPropFridayCloseHour = 20;
+input int             InpPropRolloverBlockStartHour = 21;
+input int             InpPropRolloverBlockEndHour = 23;
+input int             InpPropMaxOpenAndPending = 1;          // pending-inclusive concurrency cap
+input double          InpPropMaxSpreadPrice = 0.80;          // M15 path has no spread cap outside prop mode
+input double          InpPropM5MaxSpreadPrice = 0.35;        // tightens InpScalpMaxSpreadPrice under prop mode
+input double          InpPropM1MaxSpreadPrice = 0.25;        // tightens InpM1MicroMaxSpreadPrice under prop mode
+input bool            InpPropForceNewsFilter = true;         // forces news blackout for all 3 entry paths
+input double          InpPropCommissionPerLotUsd = 7.0;
+input double          InpPropSwapEstimatePerLotUsd = 1.0;
+
 CTrade trade;
 datetime lastM15Bar = 0;
 datetime lastM5Bar = 0;
 datetime lastM1Bar = 0;
 datetime lastParityClosedBar = 0;
 datetime parityStartTime = 0;
+datetime lastPropBreachLogDay = 0;
+
+//--- Builds the prop-mode config struct from Inp* inputs. Cheap (plain struct assignment), so
+//--- it is safe to call fresh every tick rather than caching -- keeps every prop-mode call site
+//--- (OnInit, OnTick monitor, entry gate, sizing gate) reading the same live input values.
+GoldBotPropConfig GoldBotBuildPropConfig()
+{
+   GoldBotPropConfig cfg;
+   cfg.enabled = InpEnablePropMode;
+   cfg.firmDailyLossPct = InpPropFirmDailyLossPct;
+   cfg.firmMaxDrawdownPct = InpPropFirmMaxDrawdownPct;
+   cfg.ddIsTrailing = InpPropDdIsTrailing;
+   cfg.phaseTargetPct = InpPropPhaseTargetPct;
+   cfg.dailySoftHaltPct = InpPropDailySoftHaltPct;
+   cfg.dailyHardFlattenPct = InpPropDailyHardFlattenPct;
+   cfg.ddHardHaltPct = InpPropDdHardHaltPct;
+   cfg.dailyProfitCapPct = InpPropDailyProfitCapPct;
+   cfg.targetProximityPct = InpPropTargetProximityPct;
+   cfg.targetLockBufferPct = InpPropTargetLockBufferPct;
+   cfg.costGateMaxPct = InpPropCostGateMaxPct;
+   cfg.challengeRiskPct = InpPropChallengeRiskPct;
+   cfg.dailyRiskDivisor = InpPropDailyRiskDivisor;
+   cfg.totalRiskDivisor = InpPropTotalRiskDivisor;
+   cfg.dailyResetServerHour = InpPropDailyResetServerHour;
+   cfg.fridayCloseHour = InpPropFridayCloseHour;
+   cfg.rolloverBlockStartHour = InpPropRolloverBlockStartHour;
+   cfg.rolloverBlockEndHour = InpPropRolloverBlockEndHour;
+   cfg.maxOpenAndPending = InpPropMaxOpenAndPending;
+   cfg.maxSpreadPriceM15 = InpPropMaxSpreadPrice;
+   cfg.maxSpreadPriceM5 = InpPropM5MaxSpreadPrice;
+   cfg.maxSpreadPriceM1 = InpPropM1MaxSpreadPrice;
+   cfg.forceNewsFilter = InpPropForceNewsFilter;
+   cfg.commissionPerLotUsd = InpPropCommissionPerLotUsd;
+   cfg.swapEstimatePerLotUsd = InpPropSwapEstimatePerLotUsd;
+   return cfg;
+}
 
 struct PythonParityTrade
 {
@@ -382,7 +455,7 @@ int GoldBotMonthCode(const datetime timeValue);
 void GoldBotResetRollingPerformanceState();
 void GoldBotUpdateRollingPerformanceState(const double profit, const double riskCash, const int setupCode);
 bool GoldBotRollingPerformanceGovernorPass(const string symbol, const string setupName, const int setupCode, const GoldBotDirection direction, const int entryHour, double &multiplier, string &reason);
-bool GoldBotCompoundGovernorPass(const string symbol, const string setupName, const int setupCode, const GoldBotDirection direction, const int entryHour, double &effectiveLotPer100Usd);
+bool GoldBotCompoundGovernorPass(const string symbol, const string setupName, const int setupCode, const GoldBotDirection direction, const int entryHour, const double stopDistancePrice, const double spreadPrice, double &effectiveLotPer100Usd);
 void GoldBotResetMonthlyTradeCounterIfNeeded(const datetime timeValue);
 int GoldBotMonthlyCompletedTradeCount(const datetime timeValue);
 void GoldBotIncrementMonthlyCompletedTrades(const datetime timeValue);
@@ -437,6 +510,32 @@ int OnInit()
    }
    if(InpEnableRollingPerformanceGovernor && (bool)MQLInfoInteger(MQL_TESTER))
       GoldBotResetRollingPerformanceState();
+   if(InpEnablePropMode)
+   {
+      if((bool)MQLInfoInteger(MQL_TESTER))
+         GoldBotPropResetTesterAnchors(InpMagicNumber);
+      GoldBotPropInitialBalance(InpMagicNumber);
+      GoldBotPropEquityPeak(InpMagicNumber, AccountInfoDouble(ACCOUNT_EQUITY));
+      GoldBotJournal(StringFormat("Prop mode enabled monitorOnly=%s challengeRiskPct=%.3f phaseTargetPct=%.2f firmDailyLossPct=%.2f firmMaxDrawdownPct=%.2f ddIsTrailing=%s",
+         InpPropMonitorOnly ? "yes" : "no",
+         InpPropChallengeRiskPct,
+         InpPropPhaseTargetPct,
+         InpPropFirmDailyLossPct,
+         InpPropFirmMaxDrawdownPct,
+         InpPropDdIsTrailing ? "yes" : "no"));
+      GoldBotJournal(StringFormat("Prop symbol specification symbol=%s contractSize=%.4f tickSize=%.8f tickValue=%.8f tickValueProfit=%.8f tickValueLoss=%.8f cashPerPriceUnit=%.4f volumeMin=%.4f volumeStep=%.4f volumeMax=%.4f commissionPerLotUsd=%.2f",
+         symbol,
+         SymbolInfoDouble(symbol, SYMBOL_TRADE_CONTRACT_SIZE),
+         SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE),
+         SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE),
+         SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE_PROFIT),
+         SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE_LOSS),
+         GoldBotPropCashPerPriceUnitPerLot(symbol),
+         SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN),
+         SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP),
+         SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX),
+         InpPropCommissionPerLotUsd));
+   }
    GoldBotDashboardSetState(InpDebugOnly ? "DEBUG ONLY" : "LIVE", "", "EA initialized; waiting for market data");
    GoldBotDashboardSetSetupState("smc", "not checked");
    GoldBotDashboardSetSetupState("breakout_retest", "not checked");
@@ -449,6 +548,8 @@ int OnInit()
    }
    GoldBotForwardEvent("ea_init", "", DIR_NONE, "initialized", 0.0, -1, "", true);
    Print("GoldBot initialized for ", symbol, " magic=", InpMagicNumber);
+   if(InpStressExtraSpreadPrice > 0.0)
+      GoldBotJournal(StringFormat("Spread stress active extraSpreadPrice=%.4f", InpStressExtraSpreadPrice));
    return INIT_SUCCEEDED;
 }
 
@@ -629,6 +730,64 @@ void OnTick()
       return;
    }
 
+   //--- Prop-mode intra-bar hard-breach monitor. Must run every tick, not just on new bars --
+   //--- a daily hard-flatten or max-DD breach can happen mid-bar and must be flattened
+   //--- immediately, not held until the next bar close. No-op entirely when prop mode is off.
+   if(InpEnablePropMode)
+   {
+      GoldBotPropConfig propCfg = GoldBotBuildPropConfig();
+      if(GoldBotPropPhaseTargetCompleted(InpMagicNumber))
+      {
+         GoldBotFlattenAll(symbol, InpMagicNumber, trade);
+         GoldBotDashboardSetState("PROP PASSED", "", "Phase target locked; trading halted");
+         GoldBotDashboardRefresh();
+         return;
+      }
+      GoldBotPropMonitorResult propMon = GoldBotPropIntraBarMonitor(symbol, InpMagicNumber, propCfg);
+      if(GoldBotPropPhaseTargetLockReached(propMon.equity, propMon.initialBalance, propCfg))
+      {
+         double lockEquity = propMon.equity;
+         int targetClosed = GoldBotFlattenAll(symbol, InpMagicNumber, trade);
+         double balanceAfterClose = AccountInfoDouble(ACCOUNT_BALANCE);
+         double targetLevel = GoldBotPropPhaseTargetLevel(propMon.initialBalance, propCfg);
+         bool completed = balanceAfterClose + 0.01 >= targetLevel;
+         if(completed)
+            GoldBotPropSetPhaseTargetCompleted(InpMagicNumber);
+         GoldBotJournal(StringFormat("Prop phase target lock reached completed=%s closed=%d triggerEquity=%.2f balanceAfterClose=%.2f target=%.2f lockLevel=%.2f",
+            completed ? "yes" : "no",
+            targetClosed,
+            lockEquity,
+            balanceAfterClose,
+            targetLevel,
+            GoldBotPropPhaseTargetLockLevel(propMon.initialBalance, propCfg)));
+         GoldBotDashboardSetState(completed ? "PROP PASSED" : "PROP TARGET LOCK", "", completed ? "Phase target locked; trading halted" : "Close costs left balance below target");
+         GoldBotDashboardRefresh();
+         return;
+      }
+      if(propMon.breach)
+      {
+         int propClosed = GoldBotFlattenAll(symbol, InpMagicNumber, trade);
+         datetime breachDay = GoldBotPropDayStart(TimeCurrent(), InpPropDailyResetServerHour);
+         if(lastPropBreachLogDay != breachDay)
+         {
+            GoldBotJournal(StringFormat("Prop mode breach flatten reason=%s closed=%d equity=%.2f initialBalance=%.2f equityPeak=%.2f dayBaseline=%.2f",
+               propMon.reason,
+               propClosed,
+               propMon.equity,
+               propMon.initialBalance,
+               propMon.equityPeak,
+               propMon.dayBaseline));
+            lastPropBreachLogDay = breachDay;
+         }
+         GoldBotDashboardSetState("PROP HALT", "", propMon.reason);
+         if(InpPropMonitorOnly)
+         {
+            GoldBotDashboardRefresh();
+            return;
+         }
+      }
+   }
+
    bool newM15Bar = GoldBotIsNewM15Bar(symbol);
    bool newM5Bar = GoldBotIsNewM5Bar(symbol);
    bool newM1Bar = GoldBotIsNewM1Bar(symbol);
@@ -692,6 +851,32 @@ void OnTick()
       GoldBotLog("Max open trades gate blocked new entries.");
       GoldBotDashboardBlock("", DIR_NONE, "Max open trades reached", 0.0, -1, "");
       return;
+   }
+
+   //--- Prop entry gate: single choke point ahead of the M15/M5/M1 fan-out below, so all three
+   //--- entry paths are gated uniformly by one call. No-op entirely when prop mode is off.
+   if(InpEnablePropMode && !InpPropMonitorOnly)
+   {
+      GoldBotPropConfig propGateCfg = GoldBotBuildPropConfig();
+      GoldBotPropGateResult propGate = GoldBotPropEntryGate(symbol, InpMagicNumber, propGateCfg);
+      if(!propGate.allow)
+      {
+         GoldBotLog("Prop entry gate blocked new entries: " + propGate.reason);
+         GoldBotJournal("Prop entry gate blocked reason=" + propGate.reason);
+         GoldBotDashboardBlock("", DIR_NONE, propGate.reason, 0.0, -1, "");
+         return;
+      }
+      if(propGateCfg.forceNewsFilter)
+      {
+         string propMatchedEvent = "";
+         if(GoldBotNewsBlocked(InpHighImpactNewsTimes, InpNewsBlackoutMinutes, propMatchedEvent))
+         {
+            GoldBotLog("Prop mode forced news filter blocked new entries.");
+            GoldBotJournal("Prop mode forced news filter blocked event=" + propMatchedEvent);
+            GoldBotDashboardBlock("", DIR_NONE, "Prop news blackout " + propMatchedEvent, 0.0, -1, "");
+            return;
+         }
+      }
    }
 
    if(!newM15Bar)
@@ -1362,17 +1547,38 @@ void OnTick()
    MqlDateTime compoundNow;
    TimeToStruct(TimeCurrent(), compoundNow);
    double effectiveLotPer100Usd = InpLotPer100Usd;
-   if(!GoldBotCompoundGovernorPass(symbol, setupName, setupCode, direction, compoundNow.hour, effectiveLotPer100Usd))
+   double featureAsk = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   double featureBid = SymbolInfoDouble(symbol, SYMBOL_BID);
+   double featureSpread = (featureAsk > 0.0 && featureBid > 0.0) ? featureAsk - featureBid : 0.0;
+   double featureRisk = MathAbs(zone.midpoint - sl);
+   if(!GoldBotCompoundGovernorPass(symbol, setupName, setupCode, direction, compoundNow.hour, featureRisk, featureSpread, effectiveLotPer100Usd))
    {
       GoldBotLog("Compound governor blocked new M15 entry.");
       GoldBotDashboardBlock(setupName, direction, "Compound governor", score, confluenceCount, signalId);
       return;
    }
 
-   double featureAsk = SymbolInfoDouble(symbol, SYMBOL_ASK);
-   double featureBid = SymbolInfoDouble(symbol, SYMBOL_BID);
-   double featureSpread = (featureAsk > 0.0 && featureBid > 0.0) ? featureAsk - featureBid : 0.0;
-   double featureRisk = MathAbs(zone.midpoint - sl);
+   //--- Prop-mode sizing gate (above, inside GoldBotCompoundGovernorPass) hands back
+   //--- effectiveLotPer100Usd calibrated for one full-size order, mirroring
+   //--- GoldBotPlaceLegacyMarket's InpLotPer100Usd*3.0 at line ~4859. GoldBotSplitLot bakes
+   //--- in a fixed ~0.33 per-leg weight on every call regardless of how many ladder rungs are
+   //--- configured, so without this compensation each realized fill only carries ~1/3 of the
+   //--- intended prop risk budget. Only compensate when prop sizing is authoritative --
+   //--- non-prop mode's governor-only value relies on the ladder's weights summing to ~1.0
+   //--- across a full 3-way split and must not be tripled.
+   //--- GoldBotPlaceLadder's own lotMultiplier parameter (here GoldBotSetupRiskMultiplier)
+   //--- multiplies lotPer100Usd again downstream inside GoldBotSplitLot -- a leftover
+   //--- notional-sizer knob for scaling risk by setup type that silently compresses/inflates
+   //--- the prop sizer's already-correct per-trade $ risk when prop mode is authoritative.
+   //--- Divide it back out here so the realized risk lands at the prop sizer's target
+   //--- regardless of setup type, matching the ladder-weight compensation above.
+   if(InpEnablePropMode && !InpPropMonitorOnly)
+   {
+      effectiveLotPer100Usd *= 3.0;
+      double setupLotMultiplier = MathMax(0.01, GoldBotSetupRiskMultiplier(setupCode));
+      effectiveLotPer100Usd /= setupLotMultiplier;
+   }
+
    bool m15Placed = GoldBotPlaceLadder(
       symbol,
       InpMagicNumber,
@@ -1417,7 +1623,8 @@ void OnTick()
       zone.top,
       featureRisk,
       1.0,
-      GoldBotSetupRiskMultiplier(setupCode));
+      GoldBotSetupRiskMultiplier(setupCode),
+      InpStressExtraSpreadPrice);
    if(m15Placed)
    {
       GoldBotMarkLadderPlaced();
@@ -1650,12 +1857,15 @@ bool GoldBotRollingPerformanceGovernorPass(const string symbol, const string set
    return multiplier > 0.0;
 }
 
-bool GoldBotCompoundGovernorPass(const string symbol, const string setupName, const int setupCode, const GoldBotDirection direction, const int entryHour, double &effectiveLotPer100Usd)
+bool GoldBotCompoundGovernorPass(const string symbol, const string setupName, const int setupCode, const GoldBotDirection direction, const int entryHour, const double stopDistancePrice, const double spreadPrice, double &effectiveLotPer100Usd)
 {
    effectiveLotPer100Usd = InpLotPer100Usd;
-   if(!InpEnableCompoundGovernor && !InpEnableMonthlyLossThrottle && !InpEnableRollingPerformanceGovernor)
+   bool anyGovernorActive = InpEnableCompoundGovernor || InpEnableMonthlyLossThrottle || InpEnableRollingPerformanceGovernor;
+   if(!anyGovernorActive && !InpEnablePropMode)
       return true;
 
+   if(anyGovernorActive)
+   {
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
    if(equity <= 0.0)
    {
@@ -1824,9 +2034,54 @@ bool GoldBotCompoundGovernorPass(const string symbol, const string setupName, co
          direction,
          entryHour,
          reason));
+      return false;
+   }
+   } // anyGovernorActive
+
+   //--- Prop-mode sizing override: replaces the linear equity-proportional base with an
+   //--- SL-aware anti-ruin-clamped equivalent (mt5/Include/GoldBot/PropMode.mqh). Runs after
+   //--- the governors above so prop mode's own risk budget is authoritative when both are
+   //--- enabled together; effectiveLotPer100Usd from the governor stage (if any) is discarded
+   //--- in favor of the prop-mode value on success. No-op entirely when prop mode is off.
+   if(InpEnablePropMode && !InpPropMonitorOnly)
+   {
+      GoldBotPropConfig propCfg = GoldBotBuildPropConfig();
+
+      bool isM15Setup = (setupCode == GOLDBOT_SETUP_SMC || setupCode == GOLDBOT_SETUP_CONTINUATION || setupCode == GOLDBOT_SETUP_BREAKOUT_RETEST);
+      if(isM15Setup && propCfg.maxSpreadPriceM15 > 0.0 && spreadPrice > propCfg.maxSpreadPriceM15)
+      {
+         GoldBotJournal(StringFormat("Prop mode blocked setup=%s dir=%d hour=%d reason=max_spread spread=%.2f max=%.2f",
+            setupName,
+            direction,
+            entryHour,
+            spreadPrice,
+            propCfg.maxSpreadPriceM15));
+         GoldBotCancelPendingOrders(symbol, InpMagicNumber, trade);
+         return false;
+      }
+
+      double propLotPer100Usd = effectiveLotPer100Usd;
+      string propReason = "";
+      bool propSizingOk = GoldBotPropCostAndSizingGate(symbol, InpMagicNumber, propCfg, stopDistancePrice, spreadPrice,
+         InpMinLot, InpMaxLot, propLotPer100Usd, propReason);
+      GoldBotJournal(StringFormat("Prop sizing gate setup=%s dir=%d hour=%d stopDistance=%.2f spread=%.2f allowed=%s effectiveLotPer100Usd=%.5f detail=%s",
+         setupName,
+         direction,
+         entryHour,
+         stopDistancePrice,
+         spreadPrice,
+         propSizingOk ? "yes" : "no",
+         propLotPer100Usd,
+         propReason));
+      if(!propSizingOk)
+      {
+         GoldBotCancelPendingOrders(symbol, InpMagicNumber, trade);
+         return false;
+      }
+      effectiveLotPer100Usd = propLotPer100Usd;
    }
 
-   return allowed;
+   return true;
 }
 
 void GoldBotResetMonthlyTradeCounterIfNeeded(const datetime timeValue)
@@ -3046,6 +3301,15 @@ bool GoldBotM5DirectionPass(const string symbol, const GoldBotDirection directio
    return false;
 }
 
+double GoldBotM5ScalpSlAtr(const GoldBotDirection direction)
+{
+   if(direction == DIR_LONG && InpScalpLongSlAtr > 0.0)
+      return InpScalpLongSlAtr;
+   if(direction == DIR_SHORT && InpScalpShortSlAtr > 0.0)
+      return InpScalpShortSlAtr;
+   return InpScalpSlAtr;
+}
+
 bool GoldBotBuildM5ScalpZone(const GoldBotDirection direction, const double ema21, const double vwap, const double atr, EntryZone &zone)
 {
    GoldBotResetEntryZone(zone);
@@ -3056,7 +3320,7 @@ bool GoldBotBuildM5ScalpZone(const GoldBotDirection direction, const double ema2
    if(point <= 0.0)
       point = 0.01;
 
-   double padding = MathMax(point * 10.0, atr * MathMax(0.05, InpScalpSlAtr * 0.5));
+   double padding = MathMax(point * 10.0, atr * MathMax(0.05, GoldBotM5ScalpSlAtr(direction) * 0.5));
    double bottom = MathMin(ema21, vwap) - padding;
    double top = MathMax(ema21, vwap) + padding;
    if(bottom <= 0.0 || top <= bottom)
@@ -3295,6 +3559,15 @@ double GoldBotSetupRiskMultiplier(const int setupCode)
    return MathMax(0.0, InpSmcRiskMultiplier);
 }
 
+double GoldBotM5ScalpRiskMultiplier(const GoldBotDirection direction)
+{
+   if(direction == DIR_LONG && InpM5ScalpLongRiskMultiplier > 0.0)
+      return InpM5ScalpLongRiskMultiplier;
+   if(direction == DIR_SHORT && InpM5ScalpShortRiskMultiplier > 0.0)
+      return InpM5ScalpShortRiskMultiplier;
+   return MathMax(0.0, InpM5ScalpRiskMultiplier);
+}
+
 bool GoldBotTryM5Scalp(const string symbol)
 {
    if(!InpEnableM5ScalpSetup)
@@ -3337,12 +3610,15 @@ bool GoldBotTryM5Scalp(const string symbol)
       GoldBotDashboardBlock("m5_scalp", DIR_NONE, "M5 invalid bid/ask", 0.0, -1, "");
       return false;
    }
-   if(InpScalpMaxSpreadPrice > 0.0 && spread > InpScalpMaxSpreadPrice)
+   bool propExecutionControls = InpEnablePropMode && !InpPropMonitorOnly;
+   double m5SpreadCap = propExecutionControls ? GoldBotPropEffectiveSpreadCap(InpScalpMaxSpreadPrice, InpPropM5MaxSpreadPrice) : InpScalpMaxSpreadPrice;
+   if(m5SpreadCap > 0.0 && spread > m5SpreadCap)
    {
-      GoldBotJournal(StringFormat("M5 scalp blocked spread=%.2f max=%.2f",
+      GoldBotJournal(StringFormat("M5 scalp blocked spread=%.2f max=%.2f prop=%s",
          spread,
-         InpScalpMaxSpreadPrice));
-      GoldBotDashboardBlock("m5_scalp", DIR_NONE, StringFormat("M5 spread %.2f > %.2f", spread, InpScalpMaxSpreadPrice), 0.0, -1, "");
+         m5SpreadCap,
+         propExecutionControls ? "yes" : "no"));
+      GoldBotDashboardBlock("m5_scalp", DIR_NONE, StringFormat("M5 spread %.2f > %.2f", spread, m5SpreadCap), 0.0, -1, "");
       return false;
    }
 
@@ -3413,9 +3689,11 @@ bool GoldBotTryM5Scalp(const string symbol)
    bool zoneShortOk = GoldBotBuildM5ScalpZone(DIR_SHORT, ema21, vwap, atr, zone);
    EntryZone shortZone = zone;
 
-   double zonePad = MathMax(atr * MathMax(0.05, InpScalpSlAtr * 0.5), SymbolInfoDouble(symbol, SYMBOL_POINT) * 10.0);
-   bool longPullback = InpScalpEnableClassicPullback && zoneLongOk && m5[0].close > ema21 && m5[0].close > vwap && m5[0].low <= longZone.top + zonePad;
-   bool shortPullback = InpScalpEnableClassicPullback && zoneShortOk && m5[0].close < ema21 && m5[0].close < vwap && m5[0].high >= shortZone.bottom - zonePad;
+   double minimumZonePad = SymbolInfoDouble(symbol, SYMBOL_POINT) * 10.0;
+   double longZonePad = MathMax(atr * MathMax(0.05, GoldBotM5ScalpSlAtr(DIR_LONG) * 0.5), minimumZonePad);
+   double shortZonePad = MathMax(atr * MathMax(0.05, GoldBotM5ScalpSlAtr(DIR_SHORT) * 0.5), minimumZonePad);
+   bool longPullback = InpScalpEnableClassicPullback && zoneLongOk && m5[0].close > ema21 && m5[0].close > vwap && m5[0].low <= longZone.top + longZonePad;
+   bool shortPullback = InpScalpEnableClassicPullback && zoneShortOk && m5[0].close < ema21 && m5[0].close < vwap && m5[0].high >= shortZone.bottom - shortZonePad;
 
    double longSweepLevel = 0.0;
    double shortSweepLevel = 0.0;
@@ -3557,8 +3835,9 @@ bool GoldBotTryM5Scalp(const string symbol)
    }
 
    double entryReference = m5[0].close;
-   double sl = direction == DIR_LONG ? MathMin(selectedZone.bottom, entryReference - atr * MathMax(0.05, InpScalpSlAtr))
-                                     : MathMax(selectedZone.top, entryReference + atr * MathMax(0.05, InpScalpSlAtr));
+   double scalpSlAtr = GoldBotM5ScalpSlAtr(direction);
+   double sl = direction == DIR_LONG ? MathMin(selectedZone.bottom, entryReference - atr * MathMax(0.05, scalpSlAtr))
+                                     : MathMax(selectedZone.top, entryReference + atr * MathMax(0.05, scalpSlAtr));
    double risk = MathAbs(entryReference - sl);
    if(risk <= spread * 2.0)
    {
@@ -3638,11 +3917,23 @@ bool GoldBotTryM5Scalp(const string symbol)
    }
 
    double effectiveLotPer100Usd = InpLotPer100Usd;
-   if(!GoldBotCompoundGovernorPass(symbol, GoldBotSetupName(GOLDBOT_SETUP_M5_SCALP), GOLDBOT_SETUP_M5_SCALP, direction, nowParts.hour, effectiveLotPer100Usd))
+   if(!GoldBotCompoundGovernorPass(symbol, GoldBotSetupName(GOLDBOT_SETUP_M5_SCALP), GOLDBOT_SETUP_M5_SCALP, direction, nowParts.hour, risk, spread, effectiveLotPer100Usd))
    {
       GoldBotLog("Compound governor blocked new M5 scalp entry.");
       GoldBotDashboardBlock("m5_scalp", direction, "M5 compound governor", score, confluenceCount, signalId);
       return false;
+   }
+
+   //--- Compensate GoldBotSplitLot's fixed ~0.33 per-leg weight for prop-authoritative sizing;
+   //--- see the matching comment at the M15 ladder call site (~line 1554) for the full rationale.
+   //--- Also divide back out InpScalpLotMultiplier*GoldBotM5ScalpRiskMultiplier(direction) --
+   //--- the same lotMultiplier passed to GoldBotPlaceLadder below -- so this setup's leftover
+   //--- notional-sizer scaling knob doesn't silently compress/inflate the prop sizer's target.
+   if(InpEnablePropMode && !InpPropMonitorOnly)
+   {
+      effectiveLotPer100Usd *= 3.0;
+      double setupLotMultiplier = MathMax(0.01, InpScalpLotMultiplier * GoldBotM5ScalpRiskMultiplier(direction));
+      effectiveLotPer100Usd /= setupLotMultiplier;
    }
 
    int holdSeconds = (InpScalpMaxHoldMinutes < 1 ? 1 : InpScalpMaxHoldMinutes) * 60;
@@ -3653,6 +3944,7 @@ bool GoldBotTryM5Scalp(const string symbol)
          holdSeconds = scalpTimeStopSeconds;
    }
    int pendingExpirySeconds = (InpScalpPendingExpiryMinutes < 1 ? 1 : InpScalpPendingExpiryMinutes) * 60;
+   double scalpRiskMultiplier = GoldBotM5ScalpRiskMultiplier(direction);
 
    bool placed = GoldBotPlaceLadder(
       symbol,
@@ -3683,7 +3975,7 @@ bool GoldBotTryM5Scalp(const string symbol)
       InpTrailAfterTp1 ? 1 : 0,
       InpEnableShortTermScalp ? InpScalpBreakEvenAtR : 0.0,
       InpEnableShortTermScalp ? InpScalpTrailStartR : 0.0,
-      InpScalpLotMultiplier * GoldBotSetupRiskMultiplier(GOLDBOT_SETUP_M5_SCALP),
+      InpScalpLotMultiplier * scalpRiskMultiplier,
       trade,
       spread,
       spreadToTpPct,
@@ -3698,7 +3990,8 @@ bool GoldBotTryM5Scalp(const string symbol)
       selectedZone.top,
       risk,
       InpScalpLotMultiplier,
-      GoldBotSetupRiskMultiplier(GOLDBOT_SETUP_M5_SCALP));
+      scalpRiskMultiplier,
+      InpStressExtraSpreadPrice);
    if(placed)
    {
       GoldBotMarkLadderPlaced();
@@ -3753,12 +4046,15 @@ bool GoldBotTryM1MicroScalp(const string symbol)
       GoldBotDashboardBlock("m1_micro_scalp", DIR_NONE, "M1 invalid bid/ask", 0.0, -1, "");
       return false;
    }
-   if(InpM1MicroMaxSpreadPrice > 0.0 && spread > InpM1MicroMaxSpreadPrice)
+   bool propExecutionControls = InpEnablePropMode && !InpPropMonitorOnly;
+   double m1SpreadCap = propExecutionControls ? GoldBotPropEffectiveSpreadCap(InpM1MicroMaxSpreadPrice, InpPropM1MaxSpreadPrice) : InpM1MicroMaxSpreadPrice;
+   if(m1SpreadCap > 0.0 && spread > m1SpreadCap)
    {
-      GoldBotJournal(StringFormat("M1 micro scalp blocked spread=%.2f max=%.2f",
+      GoldBotJournal(StringFormat("M1 micro scalp blocked spread=%.2f max=%.2f prop=%s",
          spread,
-         InpM1MicroMaxSpreadPrice));
-      GoldBotDashboardBlock("m1_micro_scalp", DIR_NONE, StringFormat("M1 spread %.2f > %.2f", spread, InpM1MicroMaxSpreadPrice), 0.0, -1, "");
+         m1SpreadCap,
+         propExecutionControls ? "yes" : "no"));
+      GoldBotDashboardBlock("m1_micro_scalp", DIR_NONE, StringFormat("M1 spread %.2f > %.2f", spread, m1SpreadCap), 0.0, -1, "");
       return false;
    }
 
@@ -3978,11 +4274,25 @@ bool GoldBotTryM1MicroScalp(const string symbol)
    }
 
    double effectiveLotPer100Usd = InpLotPer100Usd;
-   if(!GoldBotCompoundGovernorPass(symbol, GoldBotSetupName(GOLDBOT_SETUP_M1_MICRO_SCALP), GOLDBOT_SETUP_M1_MICRO_SCALP, direction, nowParts.hour, effectiveLotPer100Usd))
+   if(!GoldBotCompoundGovernorPass(symbol, GoldBotSetupName(GOLDBOT_SETUP_M1_MICRO_SCALP), GOLDBOT_SETUP_M1_MICRO_SCALP, direction, nowParts.hour, risk, spread, effectiveLotPer100Usd))
    {
       GoldBotLog("Compound governor blocked new M1 micro scalp entry.");
       GoldBotDashboardBlock("m1_micro_scalp", direction, "M1 compound governor", score, confluenceCount, signalId);
       return false;
+   }
+
+   //--- Compensate GoldBotSplitLot's fixed ~0.33 per-leg weight for prop-authoritative sizing;
+   //--- see the matching comment at the M15 ladder call site (~line 1554) for the full rationale.
+   //--- Also divide back out InpM1MicroLotMultiplier*GoldBotSetupRiskMultiplier(...) -- the
+   //--- same lotMultiplier passed to GoldBotPlaceLadder below -- so this setup's leftover
+   //--- notional-sizer scaling knob doesn't silently compress/inflate the prop sizer's target.
+   //--- (This is the dominant leakage case: InpM1MicroLotMultiplier=0.08 alone would otherwise
+   //--- compress realized risk to ~8% of the intended per-trade target.)
+   if(InpEnablePropMode && !InpPropMonitorOnly)
+   {
+      effectiveLotPer100Usd *= 3.0;
+      double setupLotMultiplier = MathMax(0.01, InpM1MicroLotMultiplier * GoldBotSetupRiskMultiplier(GOLDBOT_SETUP_M1_MICRO_SCALP));
+      effectiveLotPer100Usd /= setupLotMultiplier;
    }
 
    int holdSeconds = (InpM1MicroMaxHoldMinutes < 1 ? 1 : InpM1MicroMaxHoldMinutes) * 60;
@@ -4038,7 +4348,8 @@ bool GoldBotTryM1MicroScalp(const string symbol)
       selectedZone.top,
       risk,
       InpM1MicroLotMultiplier,
-      GoldBotSetupRiskMultiplier(GOLDBOT_SETUP_M1_MICRO_SCALP));
+      GoldBotSetupRiskMultiplier(GOLDBOT_SETUP_M1_MICRO_SCALP),
+      InpStressExtraSpreadPrice);
    if(placed)
    {
       GoldBotMarkLadderPlaced();
