@@ -13,6 +13,23 @@
 // off contract size 100 -- see the multiplier-leakage fix in GoldBot.mq5).
 double GoldBotPropCashPerPriceUnitPerLot(const string symbol);
 
+// Shadow-only failure-to-progress observation for the short-term scalp engines.
+// The active-close branch is deliberately absent during Stage 1: enabling this
+// config can write metadata/journal evidence, but cannot modify or close a trade.
+struct GoldBotScalpFailureConfig
+{
+   bool enabled;
+   bool shadowOnly;
+   double checkFraction;
+   double minMfeR;
+   double currentR;
+   int m5TimeStopSeconds;
+   int m1TimeStopSeconds;
+   int m5SetupCode;
+   int m1SetupCode;
+   double commissionPerLotUsd;
+};
+
 struct EntryZone
 {
    double bottom;
@@ -412,27 +429,31 @@ bool GoldBotPlaceLadder(
       if(risk <= 0.0 || lot <= 0.0)
          continue;
 
+      // Use the same broker-normalized cash conversion as the prop sizing gate. Some
+      // XAUUSD feeds expose tick value at a scale that makes riskCash about 100x too small;
+      // a normal stop then records roughly -100R and incorrectly halts short-term setups.
+      double propCashPerPriceUnit = GoldBotPropCashPerPriceUnitPerLot(symbol);
       double riskCash = 0.0;
-      double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
-      double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
-      if(tickSize > 0.0 && tickValue > 0.0)
-         riskCash = (risk / tickSize) * tickValue * lot;
+      if(propCashPerPriceUnit > 0.0)
+         riskCash = risk * propCashPerPriceUnit * lot;
+      else
+      {
+         // Preserve the legacy calculation only as a last-resort broker-data fallback.
+         double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+         double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+         if(tickSize > 0.0 && tickValue > 0.0)
+            riskCash = (risk / tickSize) * tickValue * lot;
+      }
 
       // Self-check: makes setup-multiplier leakage (lotMultiplier/setupRiskMultiplier
       // stacking on top of an already risk-correct prop lot) visible in the journal without
       // a manual audit -- compare this realizedRiskPct against the "Prop sizing gate ...
       // throttledPct=" line logged a few lines earlier in the same signal's journal entries.
-      // Uses GoldBotPropCashPerPriceUnitPerLot (contract-size-first) rather than the
-      // riskCash variable above (tickValue/tickSize), which some brokers report at a scale
-      // that doesn't match contract size for this symbol (e.g. this repo's demo XAUUSD
-      // reports tickValue=0.01, ~100x off contract size 100) -- riskCash itself is left
-      // untouched since it already feeds the rolling-performance-governor's global-variable
-      // state elsewhere in this function and that governor is out of scope for this fix.
-      double propCashPerPriceUnit = GoldBotPropCashPerPriceUnitPerLot(symbol);
-      double realizedRiskCashCheck = propCashPerPriceUnit > 0.0 ? risk * propCashPerPriceUnit * lot : riskCash;
-      double realizedRiskPct = equity > 0.0 ? (realizedRiskCashCheck / equity) * 100.0 : 0.0;
+      // The self-check and the stored risk basis intentionally share riskCash so the
+      // journal, short-term R control, and rolling governor all use one cash scale.
+      double realizedRiskPct = equity > 0.0 ? (riskCash / equity) * 100.0 : 0.0;
       GoldBotJournal(StringFormat("Realized risk check signalId=%s split=%d lot=%.2f riskCash=%.2f equity=%.2f realizedRiskPct=%.4f",
-         signalId, splitNumber, lot, realizedRiskCashCheck, equity, realizedRiskPct));
+         signalId, splitNumber, lot, riskCash, equity, realizedRiskPct));
 
       string comment = StringFormat("%s_%d", signalId, splitNumber);
       double brokerTp = 0.0; // TP is managed by the EA so TP1 can be a partial close.
@@ -611,6 +632,7 @@ void GoldBotManagePositions(
    const double breakEvenAtR,
    const bool trailAfterTp1,
    const bool useHtfTargets,
+   const GoldBotScalpFailureConfig &failureCfg,
    CTrade &trade
 )
 {
@@ -671,6 +693,91 @@ void GoldBotManagePositions(
          continue;
       if(!GlobalVariableCheck(baseKey + ".risk"))
          GlobalVariableSet(baseKey + ".risk", risk);
+
+      // Stage 1 telemetry is strictly observational. It is limited to positions
+      // whose copied order metadata identifies an M5/M1 scalp setup, and it never
+      // calls PositionClose/PositionModify regardless of the trigger result.
+      if(failureCfg.enabled)
+      {
+         long positionId = PositionGetInteger(POSITION_IDENTIFIER);
+         if(positionId <= 0)
+            positionId = (long)ticket;
+         string posKey = StringFormat("GoldBot.pos.%I64d", positionId);
+         int setupCode = (int)(GlobalVariableCheck(posKey + ".setup") ? GlobalVariableGet(posKey + ".setup") : 0.0);
+         bool isM5Scalp = setupCode == failureCfg.m5SetupCode;
+         bool isM1Scalp = setupCode == failureCfg.m1SetupCode;
+         if(isM5Scalp || isM1Scalp)
+         {
+            double riskDistance = GlobalVariableCheck(posKey + ".failureRiskDistance")
+               ? GlobalVariableGet(posKey + ".failureRiskDistance")
+               : (GlobalVariableCheck(posKey + ".slDistance") ? GlobalVariableGet(posKey + ".slDistance") : MathAbs(openPrice - sl));
+            if(riskDistance > 0.0)
+            {
+               if(!GlobalVariableCheck(posKey + ".failureRiskDistance"))
+                  GlobalVariableSet(posKey + ".failureRiskDistance", riskDistance);
+               if(!GlobalVariableCheck(posKey + ".failureOpenTime"))
+                  GlobalVariableSet(posKey + ".failureOpenTime", (double)openTime);
+
+               double grossR = type == POSITION_TYPE_BUY
+                  ? (price - openPrice) / riskDistance
+                  : (openPrice - price) / riskDistance;
+               double riskCash = GlobalVariableCheck(posKey + ".riskCash") ? GlobalVariableGet(posKey + ".riskCash") : 0.0;
+               if(riskCash <= 0.0)
+               {
+                  double cashPerPriceUnit = GoldBotPropCashPerPriceUnitPerLot(symbol);
+                  if(cashPerPriceUnit > 0.0)
+                     riskCash = riskDistance * cashPerPriceUnit * volume;
+               }
+               double commissionR = riskCash > 0.0
+                  ? MathMax(0.0, failureCfg.commissionPerLotUsd) * volume / riskCash
+                  : 0.0;
+               double swapR = riskCash > 0.0 ? PositionGetDouble(POSITION_SWAP) / riskCash : 0.0;
+               double netR = grossR - commissionR + swapR;
+
+               double mfeR = GlobalVariableCheck(posKey + ".mfeR")
+                  ? MathMax(GlobalVariableGet(posKey + ".mfeR"), netR)
+                  : netR;
+               double maeR = GlobalVariableCheck(posKey + ".maeR")
+                  ? MathMin(GlobalVariableGet(posKey + ".maeR"), netR)
+                  : netR;
+               GlobalVariableSet(posKey + ".mfeR", mfeR);
+               GlobalVariableSet(posKey + ".maeR", maeR);
+
+               bool checkpointLogged = GlobalVariableCheck(posKey + ".failureCheckpointLogged") &&
+                  GlobalVariableGet(posKey + ".failureCheckpointLogged") > 0.5;
+               int timeStopSeconds = isM5Scalp ? failureCfg.m5TimeStopSeconds : failureCfg.m1TimeStopSeconds;
+               int checkpointSeconds = (int)MathCeil((double)MathMax(1, timeStopSeconds) * failureCfg.checkFraction);
+               int ageSeconds = openTime > 0 ? (int)(TimeCurrent() - openTime) : 0;
+               if(!checkpointLogged && ageSeconds >= checkpointSeconds)
+               {
+                  bool triggered = mfeR < failureCfg.minMfeR && netR <= failureCfg.currentR;
+                  GlobalVariableSet(posKey + ".failureCheckpointLogged", 1.0);
+                  GlobalVariableSet(posKey + ".failureCheckpointR", netR);
+                  GlobalVariableSet(posKey + ".failureCheckpointGrossR", grossR);
+                  GlobalVariableSet(posKey + ".failureTriggered", triggered ? 1.0 : 0.0);
+                  long storedOpenTime = (long)GlobalVariableGet(posKey + ".failureOpenTime");
+                  string positionInstance = StringFormat("%I64d_%I64d", positionId, storedOpenTime);
+                  GoldBotJournal(StringFormat("Scalp failure checkpoint position=%I64d positionInstance=%s setup=%s dir=%d ageSeconds=%d timeStopSeconds=%d riskDistance=%.5f riskCash=%.2f mfeR=%.5f maeR=%.5f checkpointGrossR=%.5f checkpointR=%.5f triggered=%s thresholdMfeR=%.5f thresholdCurrentR=%.5f shadowOnly=%s",
+                     positionId,
+                     positionInstance,
+                     isM5Scalp ? "m5_scalp" : "m1_micro_scalp",
+                     type == POSITION_TYPE_BUY ? 1 : -1,
+                     ageSeconds,
+                     timeStopSeconds,
+                     riskDistance,
+                     riskCash,
+                     mfeR,
+                     maeR,
+                     grossR,
+                     netR,
+                     triggered ? "yes" : "no",
+                     failureCfg.minMfeR,
+                     failureCfg.currentR,
+                     failureCfg.shadowOnly ? "yes" : "no"));
+               }
+            }
+         }
+      }
 
       double configuredTp1R = GlobalVariableCheck(baseKey + ".tp1R") ? GlobalVariableGet(baseKey + ".tp1R") : tp1R;
       double configuredTp2R = GlobalVariableCheck(baseKey + ".tp2R") ? GlobalVariableGet(baseKey + ".tp2R") : tp2R;

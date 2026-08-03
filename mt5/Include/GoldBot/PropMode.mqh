@@ -70,6 +70,42 @@ struct GoldBotPropConfig
    double swapEstimatePerLotUsd;
 };
 
+// Tester-chain persistence is deliberately separate from the normal prop
+// accessors.  Ordinary tester, demo, and live runs never call these helpers.
+struct GoldBotPropTesterChainState
+{
+   double   originalChallengeBalance;
+   double   endingBalance;
+   double   endingEquity;
+   double   nextStartBalance;
+   double   equityPeak;
+   bool     phaseTargetCompleted;
+   datetime segmentEndTimestamp;
+};
+
+// Process-local immutable seed for the active tester segment.  Terminal
+// GlobalVariables remain the normal storage used by the prop engine, while
+// this explicit chain seed prevents any later read-or-seed call from silently
+// re-anchoring the challenge to the carried tester deposit.
+bool   gGoldBotPropTesterChainSeedActive = false;
+long   gGoldBotPropTesterChainSeedMagic = 0;
+double gGoldBotPropTesterChainOriginalBalance = 0.0;
+
+void GoldBotPropSeedTesterChainInitialBalance(const long magic, const double originalBalance)
+{
+   gGoldBotPropTesterChainSeedActive = true;
+   gGoldBotPropTesterChainSeedMagic = magic;
+   gGoldBotPropTesterChainOriginalBalance = originalBalance;
+   GlobalVariableSet(GoldBotPropKey(magic, "initialBalance"), originalBalance);
+}
+
+void GoldBotPropClearTesterChainInitialBalanceSeed()
+{
+   gGoldBotPropTesterChainSeedActive = false;
+   gGoldBotPropTesterChainSeedMagic = 0;
+   gGoldBotPropTesterChainOriginalBalance = 0.0;
+}
+
 //+------------------------------------------------------------------+
 //| GlobalVariable keys -- magic-scoped, distinct namespace from both |
 //| GoldBot's own non-magic-scoped daily key (Risk.mqh GoldBotDayKey, |
@@ -109,6 +145,12 @@ datetime GoldBotPropDayStart(const datetime now, const int resetHour)
 double GoldBotPropInitialBalance(const long magic)
 {
    string key = GoldBotPropKey(magic, "initialBalance");
+   if(gGoldBotPropTesterChainSeedActive && gGoldBotPropTesterChainSeedMagic == magic &&
+      gGoldBotPropTesterChainOriginalBalance > 0.0)
+   {
+      GlobalVariableSet(key, gGoldBotPropTesterChainOriginalBalance);
+      return gGoldBotPropTesterChainOriginalBalance;
+   }
    if(GlobalVariableCheck(key))
       return GlobalVariableGet(key);
    double b = AccountInfoDouble(ACCOUNT_BALANCE);
@@ -134,9 +176,119 @@ double GoldBotPropEquityPeak(const long magic, const double currentEquity)
 
 void GoldBotPropResetTesterAnchors(const long magic)
 {
+   GoldBotPropClearTesterChainInitialBalanceSeed();
    GlobalVariableDel(GoldBotPropKey(magic, "initialBalance"));
    GlobalVariableDel(GoldBotPropKey(magic, "equityPeak"));
    GlobalVariableDel(GoldBotPropKey(magic, "phaseTargetCompleted"));
+}
+
+// Return 0 when no seed exists (the first chain segment), 1 for a valid seed,
+// and -1 for a present-but-invalid seed.  Unknown rows are allowed so GoldBot
+// can append its non-prop governor state to the same versioned CSV.
+int GoldBotPropLoadTesterChainState(const string fileName,
+                                   const long magic,
+                                   GoldBotPropTesterChainState &state,
+                                   string &error)
+{
+   error = "";
+   if(StringLen(fileName) <= 0)
+   {
+      error = "empty state filename";
+      return -1;
+   }
+   ResetLastError();
+   int handle = FileOpen(fileName, FILE_READ | FILE_CSV | FILE_ANSI | FILE_COMMON, ',');
+   if(handle == INVALID_HANDLE)
+   {
+      int openError = GetLastError();
+      if(openError == 5004) // ERR_CANNOT_OPEN_FILE: normal only for chain segment 1
+         return 0;
+      error = StringFormat("cannot open state file error=%d", openError);
+      return -1;
+   }
+
+   bool seenSchema = false, seenValid = false, seenFlat = false;
+   bool seenOriginal = false, seenBalance = false, seenEquity = false;
+   bool seenNextStart = false, seenPeak = false, seenCompleted = false, seenTimestamp = false;
+   bool valid = false, flat = false;
+   int schemaVersion = 0;
+   while(!FileIsEnding(handle))
+   {
+      string key = FileReadString(handle);
+      if(FileIsEnding(handle) && StringLen(key) <= 0)
+         break;
+      string value = FileReadString(handle);
+      if(key == "schema_version") { schemaVersion = (int)StringToInteger(value); seenSchema = true; }
+      else if(key == "valid") { valid = (value == "true" || value == "1"); seenValid = true; }
+      else if(key == "flat") { flat = (value == "true" || value == "1"); seenFlat = true; }
+      else if(key == "original_challenge_balance") { state.originalChallengeBalance = StringToDouble(value); seenOriginal = true; }
+      else if(key == "ending_balance") { state.endingBalance = StringToDouble(value); seenBalance = true; }
+      else if(key == "ending_equity") { state.endingEquity = StringToDouble(value); seenEquity = true; }
+      else if(key == "next_start_balance") { state.nextStartBalance = StringToDouble(value); seenNextStart = true; }
+      else if(key == "equity_peak") { state.equityPeak = StringToDouble(value); seenPeak = true; }
+      else if(key == "phase_target_completed") { state.phaseTargetCompleted = (value == "true" || value == "1"); seenCompleted = true; }
+      else if(key == "segment_end_timestamp") { state.segmentEndTimestamp = (datetime)StringToInteger(value); seenTimestamp = true; }
+   }
+   FileClose(handle);
+
+   if(!seenSchema || schemaVersion != 1 || !seenValid || !seenFlat ||
+      !seenOriginal || !seenBalance || !seenEquity || !seenNextStart || !seenPeak ||
+      !seenCompleted || !seenTimestamp)
+   {
+      error = "missing or unsupported required state fields";
+      return -1;
+   }
+   if(!valid || !flat)
+   {
+      error = "previous segment state is invalid or non-flat";
+      return -1;
+   }
+   if(state.originalChallengeBalance <= 0.0 || state.endingBalance <= 0.0 ||
+      state.endingEquity <= 0.0 || state.nextStartBalance <= 0.0 || state.equityPeak <= 0.0 ||
+      state.segmentEndTimestamp <= 0)
+   {
+      error = "required state values are out of range";
+      return -1;
+   }
+   if(MathAbs(AccountInfoDouble(ACCOUNT_BALANCE) - state.nextStartBalance) > 0.005)
+   {
+      error = StringFormat("deposit carry mismatch tester=%.2f expectedStart=%.2f previousEnd=%.2f",
+         AccountInfoDouble(ACCOUNT_BALANCE), state.nextStartBalance, state.endingBalance);
+      return -1;
+   }
+
+   GoldBotPropSeedTesterChainInitialBalance(magic, state.originalChallengeBalance);
+   GlobalVariableSet(GoldBotPropKey(magic, "equityPeak"), state.equityPeak);
+   GlobalVariableSet(GoldBotPropKey(magic, "phaseTargetCompleted"), state.phaseTargetCompleted ? 1.0 : 0.0);
+   return 1;
+}
+
+bool GoldBotPropWriteTesterChainBase(const int handle,
+                                    const long magic,
+                                    const bool valid,
+                                    const bool flat,
+                                    const datetime segmentEndTimestamp)
+{
+   if(handle == INVALID_HANDLE)
+      return false;
+   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   double originalBalance = GoldBotPropInitialBalance(magic);
+   double peak = GoldBotPropEquityPeak(magic, equity);
+   FileWrite(handle, "schema_version", "1");
+   FileWrite(handle, "valid", valid ? "true" : "false");
+   FileWrite(handle, "flat", flat ? "true" : "false");
+   FileWrite(handle, "original_challenge_balance", DoubleToString(originalBalance, 2));
+   FileWrite(handle, "ending_balance", DoubleToString(balance, 2));
+   FileWrite(handle, "ending_equity", DoubleToString(equity, 2));
+   // MT5's tester INI parser accepts only whole-dollar deposits.  Carry the
+   // exact prior end for evidence and a separate explicit next-start value for
+   // the runner/loader handshake; never silently compare rounded and exact cash.
+   FileWrite(handle, "next_start_balance", DoubleToString(MathFloor(balance), 2));
+   FileWrite(handle, "equity_peak", DoubleToString(peak, 2));
+   FileWrite(handle, "phase_target_completed", GoldBotPropPhaseTargetCompleted(magic) ? "true" : "false");
+   FileWrite(handle, "segment_end_timestamp", IntegerToString((long)segmentEndTimestamp));
+   return true;
 }
 
 double GoldBotPropPhaseTargetLevel(const double initialBalance, const GoldBotPropConfig &cfg)

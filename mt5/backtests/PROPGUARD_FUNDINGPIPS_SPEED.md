@@ -1,5 +1,40 @@
 # FundingPips 2-Step Speed Study
 
+## Stateful Stage-1 shadow gate (2026-08-02)
+
+**FAIL — do not create or run an active failure-exit preset.**  The qualified
+stateful control/shadow chains are behavior-equivalent on both 2025 train halves:
+
+| Window | Control / shadow net | PF | Stitched equity DD | Trades | Scalp positions | Triggers | Negative full losses caught | Recall | Saved after costs |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 2025-01-01–2025-07-01 | +$3,466.51 / +6.9330% | 2.4447 | 2.4226% | 50 | 25 | 1 | 1 / 14 | 7.14% | +$93.73 |
+| 2025-07-01–2026-01-01 | +$4,019.89 / +8.0398% | 1.9849 | 4.6200% | 52 | 15 | 1 | 1 / 9 | 11.11% | +$85.98 |
+
+Artifacts are `GoldBot-fundingpips-p1-{h1,h2}-2025-{control,shadow}.manifest.json`.
+All four chains used EX5 SHA-256
+`459de14116987531968ef0241adeabe7a88904e9ed19b462f2a4c90c16ed25f6`.
+The load-bearing source hashes recorded in the manifests are GoldBot
+`dd68af547c9ebfc9d8267bde3c3de6fb983310475a9e94c36fbccca786f8d2de`
+and TradeManager
+`8b7107bc1afab806e6f7d884846dc186c9359fd0b6671fd5e39cf3be51a18af1`.
+The only control/shadow input-hash difference is the inert Stage-1 telemetry
+configuration (`7acfa892...` versus `8e211190...`).  Net, PF, drawdown, and trade
+count match exactly within each half.
+
+The initial report incorrectly counted every `DEAL_REASON_SL=4` exit as a full
+loss even when a trailing stop closed in profit.  The analyzer now requires both
+stop reason 4 and negative net profit.  This changes the combined negative
+full-loss denominator from 27 to 23; it does not change the two real triggers or
+their +$179.71 combined counterfactual saving.
+
+An exhaustive replay of every available midpoint `(MFE-R, current-R)` threshold
+found no conjunctive threshold that independently meets the frozen trigger,
+precision, recall, false-positive, and positive-savings gates in both halves.
+H2 also has only 15 scalp positions, below the predeclared 20-position minimum,
+which no threshold change can repair.  Tuning the same failed train data or
+loosening the sample/gate would be overfit, so no second threshold candidate is
+promoted from these artifacts.
+
 ## Corrected verdict (2026-07-31, post-sizing-fix)
 
 **Still effectively NO-GO at the current 0.50% preset, with one knife-edge exception.**

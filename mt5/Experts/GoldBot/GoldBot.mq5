@@ -89,6 +89,9 @@ input string          InpForwardEventFile = "GoldBot/forward_events.csv";
 input bool            InpPythonParityMode = false;
 input string          InpSessionFilter = "all";
 input string          InpPythonParityStart = "";
+input bool            InpTesterChainMode = false; // tester-only continuation harness; inert by default
+input string          InpTesterChainStateFile = "GoldBot/fundingpips-chain-state.csv";
+input bool            InpTesterChainRequireState = false; // false only for segment 1; fail closed thereafter
 input bool            InpLegacyParityMode = false;
 input bool            InpRequireHigherTfConfirmation = true;
 input double          InpMinRealModeScore = 68.75;
@@ -166,6 +169,8 @@ input bool            InpContinuationRequireEma = true;
 input bool            InpContinuationRequireM5Pullback = true;
 input int             InpContinuationPullbackChecks = 2;
 input double          InpContinuationZoneAtr = 0.35;
+input bool            InpEnableContinuationCausalShadow = false; // tester-only telemetry; never places or reserves an order
+input int             InpContinuationCausalShadowHorizonBars = 32;
 input bool            InpEnableBreakoutRetestSetup = false;
 input string          InpBreakoutLongHours = "";
 input string          InpBreakoutShortHours = "";
@@ -222,6 +227,11 @@ input double          InpScalpBreakoutBufferAtr = 0.05;
 input double          InpScalpBreakEvenAtR = 0.35;
 input double          InpScalpTrailStartR = 0.70;
 input int             InpScalpTimeStopMinutes = 45;
+input bool            InpEnableScalpFailureExit = false; // Stage 1 telemetry is opt-in and inert by default
+input bool            InpScalpFailureShadowOnly = true;  // active close is intentionally unavailable in Stage 1
+input double          InpScalpFailureCheckFraction = 0.50;
+input double          InpScalpFailureMinMfeR = 0.10;
+input double          InpScalpFailureCurrentR = -0.35;
 input double          InpSmcRiskMultiplier = 1.0;
 input double          InpBreakoutRiskMultiplier = 1.0;
 input double          InpM5ScalpRiskMultiplier = 1.0;
@@ -299,6 +309,51 @@ datetime lastM1Bar = 0;
 datetime lastParityClosedBar = 0;
 datetime parityStartTime = 0;
 datetime lastPropBreachLogDay = 0;
+bool testerChainStateLoaded = false;
+bool testerChainInitializationValid = false;
+
+// CS1 is deliberately a single frozen observer, not another strategy branch.
+// It owns no CTrade object and its state is never consulted by an order path.
+struct GoldBotContinuationCausalShadowRung
+{
+   bool     filled;
+   bool     terminal;
+   datetime fillTime;
+   datetime barrierTime;
+   double   entry;
+   double   riskDistance;
+   double   lot;
+   double   riskCash;
+   double   spreadR;
+   double   commissionR;
+   double   mfeR;
+   double   maeR;
+   double   grossR;
+   double   netR;
+   string   reason;
+};
+
+struct GoldBotContinuationCausalShadowState
+{
+   bool     active;
+   bool     metadataValid;
+   string   probeId;
+   datetime signalTime;
+   datetime expiryTime;
+   int      direction;
+   double   sl;
+   double   signalSpread;
+   bool     wouldDisplaceBase;
+   bool     baseResolved;
+   string   baseSignalId;
+   string   baseSetup;
+   long     baseSignalCode;
+   double   displacedBaseNet;
+};
+
+GoldBotContinuationCausalShadowState continuationCausalShadow;
+GoldBotContinuationCausalShadowRung continuationCausalShadowRungs[2];
+string continuationCausalShadowLastProbeId = "";
 
 //--- Builds the prop-mode config struct from Inp* inputs. Cheap (plain struct assignment), so
 //--- it is safe to call fresh every tick rather than caching -- keeps every prop-mode call site
@@ -332,6 +387,22 @@ GoldBotPropConfig GoldBotBuildPropConfig()
    cfg.forceNewsFilter = InpPropForceNewsFilter;
    cfg.commissionPerLotUsd = InpPropCommissionPerLotUsd;
    cfg.swapEstimatePerLotUsd = InpPropSwapEstimatePerLotUsd;
+   return cfg;
+}
+
+GoldBotScalpFailureConfig GoldBotBuildScalpFailureConfig()
+{
+   GoldBotScalpFailureConfig cfg;
+   cfg.enabled = InpEnableScalpFailureExit;
+   cfg.shadowOnly = InpScalpFailureShadowOnly;
+   cfg.checkFraction = InpScalpFailureCheckFraction;
+   cfg.minMfeR = InpScalpFailureMinMfeR;
+   cfg.currentR = InpScalpFailureCurrentR;
+   cfg.m5TimeStopSeconds = MathMax(1, InpScalpTimeStopMinutes) * 60;
+   cfg.m1TimeStopSeconds = MathMax(1, InpM1MicroTimeStopMinutes) * 60;
+   cfg.m5SetupCode = GOLDBOT_SETUP_M5_SCALP;
+   cfg.m1SetupCode = GOLDBOT_SETUP_M1_MICRO_SCALP;
+   cfg.commissionPerLotUsd = InpPropCommissionPerLotUsd;
    return cfg;
 }
 
@@ -478,14 +549,78 @@ string GoldBotForwardEventPath();
 void GoldBotForwardEvent(const string eventName, const string setupName, const GoldBotDirection direction, const string reason, const double score, const int confluences, const string signalId, const bool alwaysWrite);
 double GoldBotReadDailyPnlPct(bool &available);
 double GoldBotReadMonthlyPnlPct(bool &available);
+bool GoldBotTesterChainLoad(string &error);
+bool GoldBotTesterChainExport();
+void GoldBotContinuationCausalShadowReset();
+void GoldBotContinuationCausalShadowObserve(const string symbol);
+void GoldBotContinuationCausalShadowOnTick(const string symbol);
+void GoldBotContinuationCausalShadowRecordBaseSignal(const string signalId, const string setupName);
+void GoldBotContinuationCausalShadowRecordDeal(const long signalCode, const double netProfit);
+bool GoldBotContinuationCausalShadowLoadState(const int handle, string &error);
+void GoldBotContinuationCausalShadowWriteState(const int handle);
 
 int OnInit()
 {
    string symbol = GoldBotSymbol();
+   GoldBotContinuationCausalShadowReset();
+   continuationCausalShadowLastProbeId = "";
    if(!SymbolSelect(symbol, true))
    {
       Print("GoldBot: unable to select symbol ", symbol);
       return INIT_FAILED;
+   }
+   if(InpEnableContinuationCausalShadow && !(bool)MQLInfoInteger(MQL_TESTER))
+   {
+      Print("GoldBot: continuation causal shadow is tester-only");
+      return INIT_FAILED;
+   }
+   if(InpEnableContinuationCausalShadow && InpEnableContinuationPullbackSetup)
+   {
+      Print("GoldBot: causal shadow requires the retired active continuation setup to remain disabled");
+      return INIT_FAILED;
+   }
+   if(InpEnableContinuationCausalShadow && !InpEnablePropMode)
+   {
+      Print("GoldBot: continuation causal shadow requires prop mode for canonical cost and risk metadata");
+      return INIT_FAILED;
+   }
+   if(InpEnableContinuationCausalShadow && InpContinuationCausalShadowHorizonBars <= 0)
+   {
+      Print("GoldBot: invalid continuation causal shadow horizon");
+      return INIT_FAILED;
+   }
+
+   if(InpTesterChainMode && !(bool)MQLInfoInteger(MQL_TESTER))
+   {
+      Print("GoldBot: InpTesterChainMode is tester-only");
+      return INIT_FAILED;
+   }
+   if(InpTesterChainMode && (!InpEnablePropMode || StringLen(InpTesterChainStateFile) <= 0))
+   {
+      Print("GoldBot: tester chain mode requires prop mode and a state filename");
+      return INIT_FAILED;
+   }
+   if(InpEnableScalpFailureExit && !InpScalpFailureShadowOnly)
+   {
+      Print("GoldBot: active scalp failure exit is unavailable until Stage 1 shadow gates pass");
+      return INIT_FAILED;
+   }
+   if(InpEnableScalpFailureExit &&
+      (InpScalpFailureCheckFraction <= 0.0 || InpScalpFailureCheckFraction > 1.0 ||
+       InpScalpFailureMinMfeR < 0.0 || InpScalpFailureCurrentR >= 0.0))
+   {
+      Print("GoldBot: invalid scalp failure shadow thresholds");
+      return INIT_FAILED;
+   }
+
+   if(InpTesterChainMode)
+   {
+      string chainError = "";
+      if(!GoldBotTesterChainLoad(chainError))
+      {
+         Print("GoldBot: tester chain state rejected: ", chainError);
+         return INIT_FAILED;
+      }
    }
 
    trade.SetExpertMagicNumber(InpMagicNumber);
@@ -493,7 +628,12 @@ int OnInit()
       GoldBotPythonParityReset();
    else if(InpResetJournalOnInit)
       GoldBotResetJournal();
-   if((InpEnableCompoundGovernor || InpEnableMonthlyLossThrottle) && (bool)MQLInfoInteger(MQL_TESTER))
+   if(InpTesterChainMode && testerChainStateLoaded)
+      GoldBotJournal(StringFormat("Tester chain state imported originalChallengeBalance=%.2f testerStartBalance=%.2f file=%s",
+         GoldBotPropInitialBalance(InpMagicNumber),
+         AccountInfoDouble(ACCOUNT_BALANCE),
+         InpTesterChainStateFile));
+   if((InpEnableCompoundGovernor || InpEnableMonthlyLossThrottle) && (bool)MQLInfoInteger(MQL_TESTER) && !testerChainStateLoaded)
    {
       GlobalVariableDel(GoldBotMagicKey("CompoundPeakEquity"));
       GlobalVariableDel(GoldBotMagicKey("CompoundMonth"));
@@ -508,11 +648,11 @@ int OnInit()
       GlobalVariableDel(GoldBotMagicKey("RobustMonthlyHalt"));
       GoldBotJournal("Robust regime tester state reset");
    }
-   if(InpEnableRollingPerformanceGovernor && (bool)MQLInfoInteger(MQL_TESTER))
+   if(InpEnableRollingPerformanceGovernor && (bool)MQLInfoInteger(MQL_TESTER) && !testerChainStateLoaded)
       GoldBotResetRollingPerformanceState();
    if(InpEnablePropMode)
    {
-      if((bool)MQLInfoInteger(MQL_TESTER))
+      if((bool)MQLInfoInteger(MQL_TESTER) && !testerChainStateLoaded)
          GoldBotPropResetTesterAnchors(InpMagicNumber);
       GoldBotPropInitialBalance(InpMagicNumber);
       GoldBotPropEquityPeak(InpMagicNumber, AccountInfoDouble(ACCOUNT_EQUITY));
@@ -550,12 +690,16 @@ int OnInit()
    Print("GoldBot initialized for ", symbol, " magic=", InpMagicNumber);
    if(InpStressExtraSpreadPrice > 0.0)
       GoldBotJournal(StringFormat("Spread stress active extraSpreadPrice=%.4f", InpStressExtraSpreadPrice));
+   if(InpTesterChainMode)
+      testerChainInitializationValid = true;
    return INIT_SUCCEEDED;
 }
 
 void OnDeinit(const int reason)
 {
    GoldBotForwardEvent("ea_deinit", "", DIR_NONE, StringFormat("reason=%d", reason), 0.0, -1, "", true);
+   if(InpTesterChainMode && !GoldBotTesterChainExport())
+      Print("GoldBot: tester chain state export failed or was marked invalid");
    if(InpEnableChartDashboard)
    {
       EventKillTimer();
@@ -627,6 +771,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    int confluences = (int)GoldBotMetadataValue(posKey, "confluences", -1.0);
    int enabledConfluences = (int)GoldBotMetadataValue(posKey, "enabledConfluences", -1.0);
    double scoreBucket = GoldBotMetadataValue(posKey, "scoreBucket", -1.0);
+   bool setupMetadataAvailable = GoldBotMetadataValue(posKey, "setupMetadataValid", 0.0) > 0.5;
    int setupCode = (int)GoldBotMetadataValue(posKey, "setup", (double)GOLDBOT_SETUP_SMC);
    int scalpVariantCode = (int)GoldBotMetadataValue(posKey, "scalpVariant", 0.0);
    long signalCode = (long)GoldBotMetadataValue(posKey, "signalCode", (double)GoldBotSignalCodeFromComment(comment));
@@ -650,8 +795,21 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    double profit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT) +
                    HistoryDealGetDouble(trans.deal, DEAL_COMMISSION) +
                    HistoryDealGetDouble(trans.deal, DEAL_SWAP);
+   double grossProfit = HistoryDealGetDouble(trans.deal, DEAL_PROFIT);
+   GoldBotContinuationCausalShadowRecordDeal(signalCode, profit);
 
-   GoldBotJournal(StringFormat("Deal event deal=%I64u position=%I64d entry=%d type=%d reason=%d price=%.2f volume=%.2f profit=%.2f dir=%d split=%d hour=%d scoreBucket=%.0f confluences=%d/%d setup=%s scalpVariant=%d spread=%.2f spreadToTpPct=%.2f adx=%.2f diGap=%.2f atr=%.2f atrRatio=%.2f ema21=%.2f ema50=%.2f vwap=%.2f zoneBottom=%.2f zoneTop=%.2f zoneWidth=%.2f slDistance=%.2f lotMultiplier=%.2f setupRiskMultiplier=%.2f comment=%s",
+   bool failureScalpSetup = setupCode == GOLDBOT_SETUP_M5_SCALP || setupCode == GOLDBOT_SETUP_M1_MICRO_SCALP;
+   if(InpEnableScalpFailureExit && failureScalpSetup)
+   {
+      double failureNetProfit = GoldBotMetadataValue(posKey, "failureNetProfit", 0.0) + profit;
+      double failureGrossProfit = GoldBotMetadataValue(posKey, "failureGrossProfit", 0.0) + grossProfit;
+      GlobalVariableSet(posKey + ".failureNetProfit", failureNetProfit);
+      GlobalVariableSet(posKey + ".failureGrossProfit", failureGrossProfit);
+      if((dealEntry == DEAL_ENTRY_IN || dealEntry == DEAL_ENTRY_INOUT) && !GlobalVariableCheck(posKey + ".failureOpenTime"))
+         GlobalVariableSet(posKey + ".failureOpenTime", (double)dealTime);
+   }
+
+   GoldBotJournal(StringFormat("Deal event deal=%I64u position=%I64d entry=%d type=%d reason=%d price=%.2f volume=%.2f profit=%.2f dir=%d split=%d hour=%d scoreBucket=%.0f confluences=%d/%d setup=%s setupMetadata=%s riskCash=%.2f scalpVariant=%d spread=%.2f spreadToTpPct=%.2f adx=%.2f diGap=%.2f atr=%.2f atrRatio=%.2f ema21=%.2f ema50=%.2f vwap=%.2f zoneBottom=%.2f zoneTop=%.2f zoneWidth=%.2f slDistance=%.2f lotMultiplier=%.2f setupRiskMultiplier=%.2f comment=%s",
       trans.deal,
       positionId,
       dealEntry,
@@ -667,6 +825,8 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
       confluences,
       enabledConfluences,
       setupName,
+      setupMetadataAvailable ? "yes" : "no",
+      riskCash,
       scalpVariantCode,
       featureSpread,
       featureSpreadToTpPct,
@@ -709,6 +869,47 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
          GoldBotUpdateShortTermScalpState(profit, riskCash);
       if(finalPositionClose)
       {
+         if(InpEnableScalpFailureExit && failureScalpSetup)
+         {
+            bool checkpointLogged = GoldBotMetadataValue(posKey, "failureCheckpointLogged", 0.0) > 0.5;
+            bool triggered = GoldBotMetadataValue(posKey, "failureTriggered", 0.0) > 0.5;
+            double checkpointR = GoldBotMetadataValue(posKey, "failureCheckpointR", 0.0);
+            double checkpointGrossR = GoldBotMetadataValue(posKey, "failureCheckpointGrossR", 0.0);
+            double mfeR = GoldBotMetadataValue(posKey, "mfeR", 0.0);
+            double maeR = GoldBotMetadataValue(posKey, "maeR", 0.0);
+            double failureNetProfit = GoldBotMetadataValue(posKey, "failureNetProfit", cumulativeProfit);
+            double failureGrossProfit = GoldBotMetadataValue(posKey, "failureGrossProfit", cumulativeProfit);
+            double eventualNetR = riskCash > 0.0 ? failureNetProfit / riskCash : 0.0;
+            double eventualGrossR = riskCash > 0.0 ? failureGrossProfit / riskCash : 0.0;
+            double savedBeforeCosts = checkpointLogged && triggered
+               ? checkpointGrossR * riskCash - failureGrossProfit
+               : 0.0;
+            double savedAfterCosts = checkpointLogged && triggered
+               ? checkpointR * riskCash - failureNetProfit
+               : 0.0;
+            long storedOpenTime = (long)GoldBotMetadataValue(posKey, "failureOpenTime", (double)dealTime);
+            string positionInstance = StringFormat("%I64d_%I64d", positionId, storedOpenTime);
+            GoldBotJournal(StringFormat("Scalp failure outcome position=%I64d positionInstance=%s setup=%s dir=%d checkpointLogged=%s triggered=%s checkpointGrossR=%.5f checkpointR=%.5f mfeR=%.5f maeR=%.5f exitReason=%d eventualGrossR=%.5f netR=%.5f grossProfit=%.2f netProfit=%.2f riskCash=%.2f counterfactualCashSavedBeforeCosts=%.2f counterfactualCashSavedAfterCosts=%.2f shadowOnly=%s",
+               positionId,
+               positionInstance,
+               setupName,
+               metaDirection,
+               checkpointLogged ? "yes" : "no",
+               triggered ? "yes" : "no",
+               checkpointGrossR,
+               checkpointR,
+               mfeR,
+               maeR,
+               (int)dealReason,
+               eventualGrossR,
+               eventualNetR,
+               failureGrossProfit,
+               failureNetProfit,
+               riskCash,
+               savedBeforeCosts,
+               savedAfterCosts,
+               InpScalpFailureShadowOnly ? "yes" : "no"));
+         }
          GoldBotIncrementMonthlyCompletedTrades(dealTime);
          GoldBotUpdateRollingPerformanceState(cumulativeProfit, riskCash, setupCode);
       }
@@ -721,6 +922,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
 void OnTick()
 {
    string symbol = GoldBotSymbol();
+   GoldBotScalpFailureConfig failureCfg = GoldBotBuildScalpFailureConfig();
    dashboardLastTick = TimeCurrent();
    if(InpPythonParityMode)
    {
@@ -729,6 +931,11 @@ void OnTick()
       GoldBotDashboardRefresh();
       return;
    }
+
+   // Shadow lifecycle is tick-driven for conservative bid/ask first-touch
+   // ordering.  This observer is side-effect-free with respect to trading.
+   if(InpEnableContinuationCausalShadow)
+      GoldBotContinuationCausalShadowOnTick(symbol);
 
    //--- Prop-mode intra-bar hard-breach monitor. Must run every tick, not just on new bars --
    //--- a daily hard-flatten or max-DD breach can happen mid-bar and must be flattened
@@ -793,7 +1000,7 @@ void OnTick()
    bool newM1Bar = GoldBotIsNewM1Bar(symbol);
    if(!newM15Bar && !newM5Bar && !newM1Bar)
    {
-      GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), InpMaxHoldBars, InpTp1R, InpTp2R, InpTp3R, InpBreakEvenAtR, InpTrailAfterTp1, InpUseHtfTargetsForTp2Tp3, trade);
+      GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), InpMaxHoldBars, InpTp1R, InpTp2R, InpTp3R, InpBreakEvenAtR, InpTrailAfterTp1, InpUseHtfTargetsForTp2Tp3, failureCfg, trade);
       GoldBotDashboardRefresh();
       return;
    }
@@ -801,7 +1008,7 @@ void OnTick()
    GoldBotExpirePendingOrders(symbol, InpMagicNumber, trade);
    GoldBotCancelPendingOnStopBreach(symbol, InpMagicNumber, trade);
    GoldBotCancelLongPendingAfterSessionEnd(symbol, InpMagicNumber, InpLongSessionEndHour, trade);
-   GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), InpMaxHoldBars, InpTp1R, InpTp2R, InpTp3R, InpBreakEvenAtR, InpTrailAfterTp1, InpUseHtfTargetsForTp2Tp3, trade);
+   GoldBotManagePositions(symbol, InpMagicNumber, MathMax(GoldBotATR(symbol, PERIOD_H1, 14, 1), 0.0), InpMaxHoldBars, InpTp1R, InpTp2R, InpTp3R, InpBreakEvenAtR, InpTrailAfterTp1, InpUseHtfTargetsForTp2Tp3, failureCfg, trade);
 
    double pnlPct = 0.0;
    if(!GoldBotDailyRiskAllowed(InpMaxDailyLossPct, InpDailyTargetPct, pnlPct))
@@ -1384,6 +1591,11 @@ void OnTick()
    }
    if(!zone.valid)
    {
+      // The causal observer is attached at the existing no-zone branch, after
+      // every canonical entry gate above has passed.  It remains telemetry
+      // only and cannot turn the retired continuation branch back on.
+      if(InpEnableContinuationCausalShadow)
+         GoldBotContinuationCausalShadowObserve(symbol);
       if(!InpLegacyParityMode && GoldBotContinuationSetupPass(symbol, direction, indicators, emaPass, vwapPass, score, confluenceCount, enabledConfluences, zone))
       {
          setupCode = GOLDBOT_SETUP_CONTINUATION;
@@ -1627,6 +1839,7 @@ void OnTick()
       InpStressExtraSpreadPrice);
    if(m15Placed)
    {
+      GoldBotContinuationCausalShadowRecordBaseSignal(signalId, setupName);
       GoldBotMarkLadderPlaced();
       GoldBotJournal(StringFormat("Pending ladder placed signalId=%s setup=%s orderCount=%d firstSplit=%d", signalId, setupName, ladderOrderCount, ladderFirstSplit));
       GoldBotDashboardOrderPlaced(setupName, direction, signalId, ladderOrderCount);
@@ -1647,9 +1860,776 @@ string GoldBotSymbol()
    return InpSymbol == "" ? _Symbol : InpSymbol;
 }
 
+void GoldBotContinuationCausalShadowResetRung(GoldBotContinuationCausalShadowRung &rung)
+{
+   rung.filled = false;
+   rung.terminal = false;
+   rung.fillTime = 0;
+   rung.barrierTime = 0;
+   rung.entry = 0.0;
+   rung.riskDistance = 0.0;
+   rung.lot = 0.0;
+   rung.riskCash = 0.0;
+   rung.spreadR = 0.0;
+   rung.commissionR = 0.0;
+   rung.mfeR = 0.0;
+   rung.maeR = 0.0;
+   rung.grossR = 0.0;
+   rung.netR = 0.0;
+   rung.reason = "";
+}
+
+void GoldBotContinuationCausalShadowReset()
+{
+   continuationCausalShadow.active = false;
+   continuationCausalShadow.metadataValid = true;
+   continuationCausalShadow.probeId = "";
+   continuationCausalShadow.signalTime = 0;
+   continuationCausalShadow.expiryTime = 0;
+   continuationCausalShadow.direction = DIR_NONE;
+   continuationCausalShadow.sl = 0.0;
+   continuationCausalShadow.signalSpread = 0.0;
+   continuationCausalShadow.wouldDisplaceBase = false;
+   continuationCausalShadow.baseResolved = true;
+   continuationCausalShadow.baseSignalId = "none";
+   continuationCausalShadow.baseSetup = "none";
+   continuationCausalShadow.baseSignalCode = 0;
+   continuationCausalShadow.displacedBaseNet = 0.0;
+   for(int i = 0; i < 2; i++)
+      GoldBotContinuationCausalShadowResetRung(continuationCausalShadowRungs[i]);
+}
+
+string GoldBotCausalShadowYesNo(const bool value)
+{
+   return value ? "yes" : "no";
+}
+
+bool GoldBotContinuationCausalShadowAllRungsTerminal()
+{
+   return continuationCausalShadowRungs[0].terminal && continuationCausalShadowRungs[1].terminal;
+}
+
+void GoldBotContinuationCausalShadowLogImmediateFinal(const string probeId,
+                                                       const int direction,
+                                                       const int rungNumber,
+                                                       const bool eligible,
+                                                       const bool slotFree,
+                                                       const bool suppressed,
+                                                       const string reason)
+{
+   GoldBotJournal(StringFormat("Continuation causal shadow final probeId=%s rung=%d dir=%d eligible=%s deployable=no overlapSuppressed=%s slotFreeAtSignal=%s filled=no virtualEntry=0.00000 fillTime=0 expiryTime=0 sl=0.00000 riskDistance=0.00000 modeledRiskCash=0.00000 firstBarrierReason=%s firstBarrierTime=0 mfeR=0.00000 maeR=0.00000 grossR=0.00000 spreadR=0.00000 commissionR=0.00000 netR=0.00000 wouldDisplaceBase=no displacedBaseSignal=none displacedBaseSetup=none displacedBaseNet=0.00 costsIncluded=yes stateFlat=yes metadataValid=yes",
+      probeId,
+      rungNumber,
+      direction,
+      GoldBotCausalShadowYesNo(eligible),
+      GoldBotCausalShadowYesNo(suppressed),
+      GoldBotCausalShadowYesNo(slotFree),
+      reason));
+}
+
+void GoldBotContinuationCausalShadowFinalizeActive()
+{
+   if(!continuationCausalShadow.active || !GoldBotContinuationCausalShadowAllRungsTerminal())
+      return;
+   if(continuationCausalShadow.wouldDisplaceBase && !continuationCausalShadow.baseResolved)
+      return;
+
+   for(int i = 0; i < 2; i++)
+   {
+      GoldBotContinuationCausalShadowRung rung = continuationCausalShadowRungs[i];
+      GoldBotJournal(StringFormat("Continuation causal shadow final probeId=%s rung=%d dir=%d eligible=yes deployable=yes overlapSuppressed=no slotFreeAtSignal=yes filled=%s virtualEntry=%.5f fillTime=%I64d expiryTime=%I64d sl=%.5f riskDistance=%.5f modeledRiskCash=%.5f firstBarrierReason=%s firstBarrierTime=%I64d mfeR=%.5f maeR=%.5f grossR=%.5f spreadR=%.5f commissionR=%.5f netR=%.5f wouldDisplaceBase=%s displacedBaseSignal=%s displacedBaseSetup=%s displacedBaseNet=%.2f costsIncluded=yes stateFlat=yes metadataValid=%s",
+         continuationCausalShadow.probeId,
+         i + 1,
+         continuationCausalShadow.direction,
+         GoldBotCausalShadowYesNo(rung.filled),
+         rung.entry,
+         (long)rung.fillTime,
+         (long)continuationCausalShadow.expiryTime,
+         continuationCausalShadow.sl,
+         rung.riskDistance,
+         rung.riskCash,
+         rung.reason,
+         (long)rung.barrierTime,
+         rung.mfeR,
+         rung.maeR,
+         rung.grossR,
+         rung.spreadR,
+         rung.commissionR,
+         rung.netR,
+         GoldBotCausalShadowYesNo(continuationCausalShadow.wouldDisplaceBase),
+         continuationCausalShadow.baseSignalId,
+         continuationCausalShadow.baseSetup,
+         continuationCausalShadow.displacedBaseNet,
+         GoldBotCausalShadowYesNo(continuationCausalShadow.metadataValid)));
+   }
+   GoldBotContinuationCausalShadowReset();
+}
+
+bool GoldBotContinuationCausalShadowBaseExposureOpen()
+{
+   if(!continuationCausalShadow.wouldDisplaceBase || continuationCausalShadow.baseSignalCode <= 0)
+      return false;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = OrderGetTicket(i);
+      if(ticket == 0 || !OrderSelect(ticket))
+         continue;
+      if(OrderGetString(ORDER_SYMBOL) != GoldBotSymbol() || OrderGetInteger(ORDER_MAGIC) != InpMagicNumber)
+         continue;
+      if(GoldBotSignalCodeFromComment(OrderGetString(ORDER_COMMENT)) == continuationCausalShadow.baseSignalCode)
+         return true;
+   }
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0 || !PositionSelectByTicket(ticket))
+         continue;
+      if(PositionGetString(POSITION_SYMBOL) != GoldBotSymbol() || PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
+         continue;
+      string key = StringFormat("GoldBot.pos.%I64d", PositionGetInteger(POSITION_IDENTIFIER));
+      long code = (long)GoldBotMetadataValue(key, "signalCode", (double)GoldBotSignalCodeFromComment(PositionGetString(POSITION_COMMENT)));
+      if(code == continuationCausalShadow.baseSignalCode)
+         return true;
+   }
+   return false;
+}
+
+void GoldBotContinuationCausalShadowOnTick(const string symbol)
+{
+   if(!InpEnableContinuationCausalShadow || !continuationCausalShadow.active)
+      return;
+
+   double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
+   double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   if(bid <= 0.0 || ask <= 0.0 || ask < bid)
+   {
+      continuationCausalShadow.metadataValid = false;
+      testerChainInitializationValid = false;
+      return;
+   }
+
+   const int direction = continuationCausalShadow.direction;
+   const datetime now = TimeCurrent();
+   const int horizonSeconds = MathMax(1, InpContinuationCausalShadowHorizonBars) * PeriodSeconds(PERIOD_M15);
+   for(int i = 0; i < 2; i++)
+   {
+      if(continuationCausalShadowRungs[i].terminal)
+         continue;
+      if(!continuationCausalShadowRungs[i].filled)
+      {
+         // An order with ORDER_TIME_SPECIFIED expires before a same-timestamp
+         // quote may fill it.  Checking expiry first is the conservative order.
+         if(now >= continuationCausalShadow.expiryTime)
+         {
+            continuationCausalShadowRungs[i].terminal = true;
+            continuationCausalShadowRungs[i].barrierTime = now;
+            continuationCausalShadowRungs[i].reason = "pending_expiry";
+            // An unfilled limit has no realized spread or commission.
+            continuationCausalShadowRungs[i].spreadR = 0.0;
+            continuationCausalShadowRungs[i].commissionR = 0.0;
+            continuationCausalShadowRungs[i].grossR = 0.0;
+            continuationCausalShadowRungs[i].netR = 0.0;
+            continue;
+         }
+         bool filled = direction == DIR_LONG
+            ? ask <= continuationCausalShadowRungs[i].entry
+            : bid >= continuationCausalShadowRungs[i].entry;
+         if(!filled)
+            continue;
+         continuationCausalShadowRungs[i].filled = true;
+         continuationCausalShadowRungs[i].fillTime = now;
+      }
+
+      double executableExit = direction == DIR_LONG ? bid : ask;
+      double signedR = direction == DIR_LONG
+         ? (executableExit - continuationCausalShadowRungs[i].entry) / continuationCausalShadowRungs[i].riskDistance
+         : (continuationCausalShadowRungs[i].entry - executableExit) / continuationCausalShadowRungs[i].riskDistance;
+      continuationCausalShadowRungs[i].mfeR = MathMax(continuationCausalShadowRungs[i].mfeR, signedR);
+      continuationCausalShadowRungs[i].maeR = MathMax(continuationCausalShadowRungs[i].maeR, -signedR);
+
+      // Stop is checked before TP on every tick.  This deliberately resolves
+      // ambiguous/gapped ticks against the hypothesis.
+      bool stopTouched = direction == DIR_LONG ? bid <= continuationCausalShadow.sl : ask >= continuationCausalShadow.sl;
+      bool tpTouched = direction == DIR_LONG
+         ? bid >= continuationCausalShadowRungs[i].entry + 1.65 * continuationCausalShadowRungs[i].riskDistance
+         : ask <= continuationCausalShadowRungs[i].entry - 1.65 * continuationCausalShadowRungs[i].riskDistance;
+      if(stopTouched)
+      {
+         continuationCausalShadowRungs[i].terminal = true;
+         continuationCausalShadowRungs[i].barrierTime = now;
+         continuationCausalShadowRungs[i].reason = "sl";
+         continuationCausalShadowRungs[i].grossR = -1.0;
+      }
+      else if(tpTouched)
+      {
+         continuationCausalShadowRungs[i].terminal = true;
+         continuationCausalShadowRungs[i].barrierTime = now;
+         continuationCausalShadowRungs[i].reason = "tp1";
+         continuationCausalShadowRungs[i].grossR = 1.65;
+      }
+      else if(now >= continuationCausalShadowRungs[i].fillTime + horizonSeconds)
+      {
+         continuationCausalShadowRungs[i].terminal = true;
+         continuationCausalShadowRungs[i].barrierTime = now;
+         continuationCausalShadowRungs[i].reason = "horizon";
+         continuationCausalShadowRungs[i].grossR = signedR;
+      }
+      if(continuationCausalShadowRungs[i].terminal)
+         continuationCausalShadowRungs[i].netR = continuationCausalShadowRungs[i].grossR
+            - continuationCausalShadowRungs[i].spreadR
+            - continuationCausalShadowRungs[i].commissionR;
+   }
+
+   if(continuationCausalShadow.wouldDisplaceBase && !GoldBotContinuationCausalShadowBaseExposureOpen())
+      continuationCausalShadow.baseResolved = true;
+   GoldBotContinuationCausalShadowFinalizeActive();
+}
+
+void GoldBotContinuationCausalShadowRecordBaseSignal(const string signalId, const string setupName)
+{
+   if(!InpEnableContinuationCausalShadow || !continuationCausalShadow.active)
+      return;
+   long code = GoldBotSignalCodeFromComment(signalId + "_1");
+   if(code <= 0)
+   {
+      continuationCausalShadow.metadataValid = false;
+      testerChainInitializationValid = false;
+      return;
+   }
+   if(continuationCausalShadow.wouldDisplaceBase && !continuationCausalShadow.baseResolved &&
+      continuationCausalShadow.baseSignalCode != code)
+   {
+      continuationCausalShadow.metadataValid = false;
+      testerChainInitializationValid = false;
+      GoldBotJournal(StringFormat("Continuation causal shadow displacement invalid probeId=%s reason=multiple_base_signals existing=%s new=%s",
+         continuationCausalShadow.probeId, continuationCausalShadow.baseSignalId, signalId));
+      return;
+   }
+   if(continuationCausalShadow.wouldDisplaceBase && continuationCausalShadow.baseResolved &&
+      continuationCausalShadow.baseSignalCode != code)
+   {
+      continuationCausalShadow.baseSignalId += "|" + signalId;
+      continuationCausalShadow.baseSetup += "|" + setupName;
+   }
+   else
+   {
+      continuationCausalShadow.baseSignalId = signalId;
+      continuationCausalShadow.baseSetup = setupName;
+   }
+   continuationCausalShadow.wouldDisplaceBase = true;
+   continuationCausalShadow.baseResolved = false;
+   continuationCausalShadow.baseSignalCode = code;
+   GoldBotJournal(StringFormat("Continuation causal shadow displacement probeId=%s wouldDisplaceBase=yes displacedBaseSignal=%s displacedBaseSetup=%s displacedBaseNetPending=yes",
+      continuationCausalShadow.probeId, signalId, setupName));
+}
+
+void GoldBotContinuationCausalShadowRecordDeal(const long signalCode, const double netProfit)
+{
+   if(!InpEnableContinuationCausalShadow || !continuationCausalShadow.active ||
+      !continuationCausalShadow.wouldDisplaceBase || signalCode <= 0 ||
+      signalCode != continuationCausalShadow.baseSignalCode)
+      return;
+   continuationCausalShadow.displacedBaseNet += netProfit;
+}
+
+void GoldBotContinuationCausalShadowObserve(const string symbol)
+{
+   if(!InpEnableContinuationCausalShadow || InpPythonParityMode || InpLegacyParityMode)
+      return;
+
+   IndicatorSnapshot indicators;
+   if(!GoldBotIndicatorSnapshot(symbol, InpRsiLongMax, InpRsiShortMin, InpAdxMin,
+      InpAtrMin, InpAtrMax, InpRsiPeriod, InpMacdFast, InpMacdSlow, InpMacdSignal,
+      InpBbPeriod, InpBbDeviation, InpStochKPeriod, InpStochDPeriod, InpStochSlowing,
+      InpStochLongMax, InpStochShortMin, indicators))
+      return;
+
+   SMCResult smc;
+   GoldBotResetSMC(smc);
+   if(!GoldBotRunSMC(symbol, smc) || !smc.allPass || smc.direction == DIR_NONE)
+      return;
+   GoldBotDirection direction = smc.direction;
+   if(!InpEnableSmcSetup ||
+      !GoldBotOptionalDirectionHourPass(direction, InpSmcAllowedLongHours, InpSmcAllowedShortHours) ||
+      (InpSmcMinScore > 0.0 && smc.score < InpSmcMinScore) ||
+      (InpSmcRequireHtfContext && !smc.gateH4 && !smc.gateH1) ||
+      (InpRequireHigherTfConfirmation && !smc.gateH4 && !smc.gateH1) ||
+      (InpRequireHtfSmcContext && !smc.gateH4 && !smc.gateH1) ||
+      (InpRequireSmcSequence && !smc.m15SequenceOk) ||
+      (InpRequireLiquiditySweepForSmc && !smc.m15RecentSweep) ||
+      (InpRequireDisplacementForSmc && !smc.m15Displacement) ||
+      (InpRequireObFvgOverlap && !smc.m15ObFvgOverlap))
+      return;
+
+   bool emaPass = direction == DIR_LONG ? indicators.emaLong : indicators.emaShort;
+   bool rsiPass = direction == DIR_LONG ? indicators.rsiLong : indicators.rsiShort;
+   bool legacyVwapPass = direction == DIR_LONG ? indicators.vwapLong : indicators.vwapShort;
+   bool adxPass = direction == DIR_LONG ? indicators.adxLong : indicators.adxShort;
+   bool macdPass = direction == DIR_LONG ? indicators.macdLong : indicators.macdShort;
+   bool bbPass = direction == DIR_LONG ? indicators.bbLong : indicators.bbShort;
+   bool stochPass = direction == DIR_LONG ? indicators.stochLong : indicators.stochShort;
+   int confluences = 0;
+   int enabledConfluences = 5;
+   if(emaPass) confluences++;
+   if(rsiPass) confluences++;
+   if(legacyVwapPass) confluences++;
+   if(indicators.atrPass) confluences++;
+   if(adxPass) confluences++;
+   if(InpUseMacdConfluence) { enabledConfluences++; if(macdPass) confluences++; }
+   if(InpUseBollingerConfluence) { enabledConfluences++; if(bbPass) confluences++; }
+   if(InpUseStochasticConfluence) { enabledConfluences++; if(stochPass) confluences++; }
+   double weight = enabledConfluences > 0 ? 62.5 / enabledConfluences : 0.0;
+   double score = smc.score + weight * confluences;
+   int monthTrades = GoldBotMonthlyCompletedTradeCount(TimeCurrent());
+   double threshold = GoldBotEffectiveScoreThreshold(MathMax(InpScoreThreshold, InpMinRealModeScore), monthTrades, TimeCurrent());
+   if(score < threshold)
+      return;
+
+   EntryZone baseZone = GoldBotBuildEntryZone(smc.fvg, smc.orderBlock, indicators.ema21, indicators.atr);
+   if(baseZone.valid)
+      return;
+
+   datetime signalTime = iTime(symbol, PERIOD_M15, 1);
+   string probeId = StringFormat("%I64d_%d", (long)signalTime, direction);
+   if(probeId == continuationCausalShadowLastProbeId)
+      return;
+   continuationCausalShadowLastProbeId = probeId;
+
+   EntryZone zone;
+   bool zoneOk = GoldBotBuildContinuationEntryZone(symbol, indicators, zone);
+   bool candlePattern = false;
+   bool rsiShift = false;
+   bool microChoCH = false;
+   int checksHit = 0;
+   bool legacyAggregate = zoneOk && GoldBotPullbackConfirmed(symbol, zone, direction,
+      InpRsiPeriod, MathMax(1, MathMin(3, InpContinuationPullbackChecks)),
+      candlePattern, rsiShift, microChoCH, checksHit);
+   double m15Close = iClose(symbol, PERIOD_M15, 1);
+   double h1Close = iClose(symbol, PERIOD_H1, 1);
+   double signedDiGap = direction == DIR_LONG
+      ? indicators.plusDI - indicators.minusDI
+      : indicators.minusDI - indicators.plusDI;
+   double signedVwapAtr = indicators.atr > 0.0
+      ? (direction == DIR_LONG ? m15Close - indicators.vwap : indicators.vwap - m15Close) / indicators.atr
+      : 0.0;
+   bool adxOk = indicators.adx >= 18.0;
+   bool diOk = signedDiGap >= 4.0;
+   bool trendSideVwapOk = direction == DIR_LONG ? m15Close > indicators.vwap : m15Close < indicators.vwap;
+   bool slotFree = GoldBotPropOpenAndPendingCount(symbol, InpMagicNumber) < MathMax(1, InpPropMaxOpenAndPending)
+      && GoldBotCountManagedPositions(symbol, InpMagicNumber) < InpMaxOpenTrades;
+   bool causalEligible = adxOk && diOk && emaPass && trendSideVwapOk && microChoCH && zoneOk;
+
+   string failed = "none";
+   if(!adxOk) failed = "adx";
+   if(!diOk) failed = failed == "none" ? "directional_di" : failed + "|directional_di";
+   if(!emaPass) failed = failed == "none" ? "ema" : failed + "|ema";
+   if(!trendSideVwapOk) failed = failed == "none" ? "trend_vwap" : failed + "|trend_vwap";
+   if(!microChoCH) failed = failed == "none" ? "m5_choch" : failed + "|m5_choch";
+   if(!zoneOk) failed = failed == "none" ? "zone" : failed + "|zone";
+   if(!slotFree) failed = failed == "none" ? "slot" : failed + "|slot";
+   bool suppressed = causalEligible && slotFree && continuationCausalShadow.active;
+
+   MqlDateTime parts;
+   TimeToStruct(signalTime, parts);
+   string sessionId = StringFormat("%04d%02d%02d", parts.year, parts.mon, parts.day);
+   GoldBotJournal(StringFormat("Continuation causal shadow candidate probeId=%s time=%I64d dir=%d hour=%d sessionId=%s score=%.2f threshold=%.2f confluences=%d/%d m15Close=%.5f h1Close=%.5f ema21=%.5f ema50=%.5f ema200=%.5f vwap=%.5f atr=%.5f adx=%.5f plusDI=%.5f minusDI=%.5f signedVwapAtr=%.5f signedDiGap=%.5f legacyVwapPass=%s trendSideVwapPass=%s emaPass=%s zoneValid=%s zoneBottom=%.5f zoneTop=%.5f candlePatternM15=%s rsiShiftM15=%s microChoCHM5=%s legacyAggregate=%s legacyChecks=%d slotFreeAtSignal=%s causalEligible=%s deployable=%s overlapSuppressed=%s failed=%s horizonBars=%d",
+      probeId, (long)signalTime, direction, parts.hour, sessionId, score, threshold,
+      confluences, enabledConfluences, m15Close, h1Close, indicators.ema21,
+      indicators.ema50, indicators.ema200, indicators.vwap, indicators.atr,
+      indicators.adx, indicators.plusDI, indicators.minusDI, signedVwapAtr,
+      signedDiGap, GoldBotCausalShadowYesNo(legacyVwapPass),
+      GoldBotCausalShadowYesNo(trendSideVwapOk), GoldBotCausalShadowYesNo(emaPass),
+      GoldBotCausalShadowYesNo(zoneOk), zone.bottom, zone.top,
+      GoldBotCausalShadowYesNo(candlePattern), GoldBotCausalShadowYesNo(rsiShift),
+      GoldBotCausalShadowYesNo(microChoCH), GoldBotCausalShadowYesNo(legacyAggregate),
+      checksHit, GoldBotCausalShadowYesNo(slotFree), GoldBotCausalShadowYesNo(causalEligible),
+      GoldBotCausalShadowYesNo(causalEligible && slotFree && !suppressed),
+      GoldBotCausalShadowYesNo(suppressed), failed,
+      InpContinuationCausalShadowHorizonBars));
+
+   if(!causalEligible || !slotFree || suppressed)
+   {
+      string finalReason = suppressed ? "overlap_suppressed" : (causalEligible ? "slot_blocked" : "ineligible");
+      for(int i = 0; i < 2; i++)
+         GoldBotContinuationCausalShadowLogImmediateFinal(probeId, direction, i + 1,
+            causalEligible, slotFree, suppressed, finalReason);
+      return;
+   }
+
+   double entryReference = m15Close;
+   double sl = direction == DIR_LONG
+      ? MathMin(zone.bottom, entryReference - indicators.atr * InpSlAtr)
+      : MathMax(zone.top, entryReference + indicators.atr * InpSlAtr);
+   double midRisk = MathAbs(zone.midpoint - sl);
+   double cashPerPriceUnit = GoldBotPropCashPerPriceUnitPerLot(symbol);
+   GoldBotPropConfig cfg = GoldBotBuildPropConfig();
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   double initial = GoldBotPropInitialBalance(InpMagicNumber);
+   double peak = GoldBotPropEquityPeak(InpMagicNumber, equity);
+   datetime dayStart = GoldBotPropDayStart(TimeCurrent(), cfg.dailyResetServerHour);
+   double dayBaseline = GoldBotPropDayBaseline(symbol, InpMagicNumber, dayStart);
+   double riskPct = GoldBotPropThrottledRiskPct(equity, initial, cfg);
+   double riskBudget = GoldBotPropRiskCash(equity, riskPct,
+      GoldBotPropDailyHardFloor(dayBaseline, cfg), GoldBotPropMaxDdFloor(initial, peak, cfg),
+      cfg.dailyRiskDivisor, cfg.totalRiskDivisor);
+   double baseLot = GoldBotNormalizeLot(symbol, GoldBotPropRawLot(symbol, midRisk, riskBudget), InpMinLot, InpMaxLot);
+   if(score >= InpHighConvictionScore)
+      baseLot = GoldBotNormalizeLot(symbol, baseLot * 1.5, InpMinLot, InpMaxLot);
+   double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
+   double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   double spread = ask > bid && bid > 0.0 ? ask - bid : 0.0;
+   if(sl <= 0.0 || midRisk <= 0.0 || cashPerPriceUnit <= 0.0 || baseLot <= 0.0 || spread <= 0.0)
+   {
+      continuationCausalShadow.metadataValid = false;
+      testerChainInitializationValid = false;
+      GoldBotJournal(StringFormat("Continuation causal shadow invalid probeId=%s reason=missing_cost_or_risk_metadata sl=%.5f midRisk=%.5f cashPerPriceUnit=%.5f lot=%.5f spread=%.5f",
+         probeId, sl, midRisk, cashPerPriceUnit, baseLot, spread));
+      return;
+   }
+
+   GoldBotContinuationCausalShadowReset();
+   continuationCausalShadow.active = true;
+   continuationCausalShadow.metadataValid = true;
+   continuationCausalShadow.probeId = probeId;
+   continuationCausalShadow.signalTime = signalTime;
+   continuationCausalShadow.expiryTime = TimeCurrent() + InpContinuationCausalShadowHorizonBars * PeriodSeconds(PERIOD_M15);
+   continuationCausalShadow.direction = direction;
+   continuationCausalShadow.sl = sl;
+   continuationCausalShadow.signalSpread = spread;
+   double entries[2];
+   entries[0] = direction == DIR_LONG ? zone.top : zone.bottom;
+   entries[1] = zone.midpoint;
+   for(int i = 0; i < 2; i++)
+   {
+      continuationCausalShadowRungs[i].entry = entries[i];
+      continuationCausalShadowRungs[i].riskDistance = MathAbs(entries[i] - sl);
+      continuationCausalShadowRungs[i].lot = baseLot;
+      continuationCausalShadowRungs[i].riskCash = continuationCausalShadowRungs[i].riskDistance * cashPerPriceUnit * baseLot;
+      continuationCausalShadowRungs[i].spreadR = spread * cashPerPriceUnit * baseLot / continuationCausalShadowRungs[i].riskCash;
+      continuationCausalShadowRungs[i].commissionR = MathMax(0.0, InpPropCommissionPerLotUsd) * baseLot / continuationCausalShadowRungs[i].riskCash;
+   }
+}
+
 string GoldBotMagicKey(const string suffix)
 {
    return StringFormat("GoldBot_%s_%I64d", suffix, InpMagicNumber);
+}
+
+bool GoldBotContinuationCausalShadowLoadState(const int handle, string &error)
+{
+   if(!InpEnableContinuationCausalShadow)
+      return true;
+   if(handle == INVALID_HANDLE)
+   {
+      error = "causal shadow state handle is invalid";
+      return false;
+   }
+   FileSeek(handle, 0, SEEK_SET);
+   bool seenEnabled = false, seenVersion = false, seenValid = false, seenComplete = false;
+   bool seenActiveCount = false, seenLastProbe = false;
+   bool seenProbe = false, seenSignal = false, seenExpiry = false, seenDirection = false;
+   bool seenSl = false, seenSpread = false, seenDisplace = false, seenBaseResolved = false;
+   bool seenBaseSignal = false, seenBaseSetup = false, seenBaseCode = false, seenBaseNet = false;
+   bool enabled = false, stateValid = false, stateComplete = false;
+   int version = 0, activeCount = 0;
+   int rungMask[2];
+   for(int i = 0; i < 2; i++) rungMask[i] = 0;
+
+   while(!FileIsEnding(handle))
+   {
+      string key = FileReadString(handle);
+      if(FileIsEnding(handle) && StringLen(key) <= 0)
+         break;
+      string value = FileReadString(handle);
+      bool yes = value == "true" || value == "1" || value == "yes";
+      double numeric = StringToDouble(value);
+      if(key == "causal_shadow_enabled") { enabled = yes; seenEnabled = true; }
+      else if(key == "causal_shadow_state_version") { version = (int)numeric; seenVersion = true; }
+      else if(key == "causal_shadow_state_valid") { stateValid = yes; seenValid = true; }
+      else if(key == "causal_shadow_state_complete") { stateComplete = yes; seenComplete = true; }
+      else if(key == "causal_shadow_active_probe_count") { activeCount = (int)numeric; seenActiveCount = true; }
+      else if(key == "causal_shadow_last_probe_id") { continuationCausalShadowLastProbeId = value; seenLastProbe = true; }
+      else if(key == "causal_shadow_probe_id") { continuationCausalShadow.probeId = value; seenProbe = true; }
+      else if(key == "causal_shadow_signal_time") { continuationCausalShadow.signalTime = (datetime)StringToInteger(value); seenSignal = true; }
+      else if(key == "causal_shadow_expiry_time") { continuationCausalShadow.expiryTime = (datetime)StringToInteger(value); seenExpiry = true; }
+      else if(key == "causal_shadow_direction") { continuationCausalShadow.direction = (int)numeric; seenDirection = true; }
+      else if(key == "causal_shadow_sl") { continuationCausalShadow.sl = numeric; seenSl = true; }
+      else if(key == "causal_shadow_signal_spread") { continuationCausalShadow.signalSpread = numeric; seenSpread = true; }
+      else if(key == "causal_shadow_would_displace_base") { continuationCausalShadow.wouldDisplaceBase = yes; seenDisplace = true; }
+      else if(key == "causal_shadow_base_resolved") { continuationCausalShadow.baseResolved = yes; seenBaseResolved = true; }
+      else if(key == "causal_shadow_base_signal_id") { continuationCausalShadow.baseSignalId = value; seenBaseSignal = true; }
+      else if(key == "causal_shadow_base_setup") { continuationCausalShadow.baseSetup = value; seenBaseSetup = true; }
+      else if(key == "causal_shadow_base_signal_code") { continuationCausalShadow.baseSignalCode = (long)StringToInteger(value); seenBaseCode = true; }
+      else if(key == "causal_shadow_displaced_base_net") { continuationCausalShadow.displacedBaseNet = numeric; seenBaseNet = true; }
+      else
+      {
+         for(int i = 0; i < 2; i++)
+         {
+            string prefix = StringFormat("causal_shadow_rung_%d_", i + 1);
+            if(StringFind(key, prefix) != 0)
+               continue;
+            string field = StringSubstr(key, StringLen(prefix));
+            if(field == "filled") { continuationCausalShadowRungs[i].filled = yes; rungMask[i] |= 1; }
+            else if(field == "terminal") { continuationCausalShadowRungs[i].terminal = yes; rungMask[i] |= 2; }
+            else if(field == "fill_time") { continuationCausalShadowRungs[i].fillTime = (datetime)StringToInteger(value); rungMask[i] |= 4; }
+            else if(field == "barrier_time") { continuationCausalShadowRungs[i].barrierTime = (datetime)StringToInteger(value); rungMask[i] |= 8; }
+            else if(field == "entry") { continuationCausalShadowRungs[i].entry = numeric; rungMask[i] |= 16; }
+            else if(field == "risk_distance") { continuationCausalShadowRungs[i].riskDistance = numeric; rungMask[i] |= 32; }
+            else if(field == "lot") { continuationCausalShadowRungs[i].lot = numeric; rungMask[i] |= 64; }
+            else if(field == "risk_cash") { continuationCausalShadowRungs[i].riskCash = numeric; rungMask[i] |= 128; }
+            else if(field == "spread_r") { continuationCausalShadowRungs[i].spreadR = numeric; rungMask[i] |= 256; }
+            else if(field == "commission_r") { continuationCausalShadowRungs[i].commissionR = numeric; rungMask[i] |= 512; }
+            else if(field == "mfe_r") { continuationCausalShadowRungs[i].mfeR = numeric; rungMask[i] |= 1024; }
+            else if(field == "mae_r") { continuationCausalShadowRungs[i].maeR = numeric; rungMask[i] |= 2048; }
+            else if(field == "gross_r") { continuationCausalShadowRungs[i].grossR = numeric; rungMask[i] |= 4096; }
+            else if(field == "net_r") { continuationCausalShadowRungs[i].netR = numeric; rungMask[i] |= 8192; }
+            else if(field == "reason") { continuationCausalShadowRungs[i].reason = value; rungMask[i] |= 16384; }
+            else continue;
+         }
+      }
+   }
+
+   if(!seenEnabled || !enabled || !seenVersion || version != 1 || !seenValid || !stateValid ||
+      !seenComplete || !stateComplete || !seenActiveCount || activeCount < 0 || activeCount > 1 ||
+      !seenLastProbe)
+   {
+      error = "missing/corrupt causal shadow state metadata";
+      return false;
+   }
+   continuationCausalShadow.metadataValid = true;
+   continuationCausalShadow.active = activeCount == 1;
+   if(!continuationCausalShadow.active)
+      return true;
+   if(!seenProbe || !seenSignal || !seenExpiry || !seenDirection || !seenSl || !seenSpread ||
+      !seenDisplace || !seenBaseResolved || !seenBaseSignal || !seenBaseSetup || !seenBaseCode ||
+      !seenBaseNet || rungMask[0] != 32767 || rungMask[1] != 32767 || StringLen(continuationCausalShadow.probeId) <= 0 ||
+      continuationCausalShadow.signalTime <= 0 || continuationCausalShadow.expiryTime <= 0 ||
+      (continuationCausalShadow.direction != DIR_LONG && continuationCausalShadow.direction != DIR_SHORT) ||
+      continuationCausalShadow.sl <= 0.0)
+   {
+      error = "incomplete active causal shadow probe state";
+      return false;
+   }
+   for(int i = 0; i < 2; i++)
+   {
+      if(continuationCausalShadowRungs[i].entry <= 0.0 ||
+         continuationCausalShadowRungs[i].riskDistance <= 0.0 ||
+         continuationCausalShadowRungs[i].lot <= 0.0 ||
+         continuationCausalShadowRungs[i].riskCash <= 0.0 ||
+         continuationCausalShadowRungs[i].spreadR < 0.0 ||
+         continuationCausalShadowRungs[i].commissionR < 0.0)
+      {
+         error = "active causal shadow rung state is out of range";
+         return false;
+      }
+   }
+   return true;
+}
+
+void GoldBotContinuationCausalShadowWriteState(const int handle)
+{
+   if(handle == INVALID_HANDLE)
+      return;
+   FileWrite(handle, "causal_shadow_enabled", InpEnableContinuationCausalShadow ? "true" : "false");
+   FileWrite(handle, "causal_shadow_state_version", "1");
+   FileWrite(handle, "causal_shadow_state_valid", continuationCausalShadow.metadataValid ? "true" : "false");
+   FileWrite(handle, "causal_shadow_state_complete", "true");
+   FileWrite(handle, "causal_shadow_active_probe_count", continuationCausalShadow.active ? "1" : "0");
+   FileWrite(handle, "causal_shadow_last_probe_id", continuationCausalShadowLastProbeId);
+   if(!InpEnableContinuationCausalShadow || !continuationCausalShadow.active)
+      return;
+   FileWrite(handle, "causal_shadow_probe_id", continuationCausalShadow.probeId);
+   FileWrite(handle, "causal_shadow_signal_time", IntegerToString((long)continuationCausalShadow.signalTime));
+   FileWrite(handle, "causal_shadow_expiry_time", IntegerToString((long)continuationCausalShadow.expiryTime));
+   FileWrite(handle, "causal_shadow_direction", IntegerToString(continuationCausalShadow.direction));
+   FileWrite(handle, "causal_shadow_sl", DoubleToString(continuationCausalShadow.sl, 8));
+   FileWrite(handle, "causal_shadow_signal_spread", DoubleToString(continuationCausalShadow.signalSpread, 8));
+   FileWrite(handle, "causal_shadow_would_displace_base", continuationCausalShadow.wouldDisplaceBase ? "true" : "false");
+   FileWrite(handle, "causal_shadow_base_resolved", continuationCausalShadow.baseResolved ? "true" : "false");
+   FileWrite(handle, "causal_shadow_base_signal_id", continuationCausalShadow.baseSignalId);
+   FileWrite(handle, "causal_shadow_base_setup", continuationCausalShadow.baseSetup);
+   FileWrite(handle, "causal_shadow_base_signal_code", IntegerToString(continuationCausalShadow.baseSignalCode));
+   FileWrite(handle, "causal_shadow_displaced_base_net", DoubleToString(continuationCausalShadow.displacedBaseNet, 8));
+   for(int i = 0; i < 2; i++)
+   {
+      string prefix = StringFormat("causal_shadow_rung_%d_", i + 1);
+      FileWrite(handle, prefix + "filled", continuationCausalShadowRungs[i].filled ? "true" : "false");
+      FileWrite(handle, prefix + "terminal", continuationCausalShadowRungs[i].terminal ? "true" : "false");
+      FileWrite(handle, prefix + "fill_time", IntegerToString((long)continuationCausalShadowRungs[i].fillTime));
+      FileWrite(handle, prefix + "barrier_time", IntegerToString((long)continuationCausalShadowRungs[i].barrierTime));
+      FileWrite(handle, prefix + "entry", DoubleToString(continuationCausalShadowRungs[i].entry, 8));
+      FileWrite(handle, prefix + "risk_distance", DoubleToString(continuationCausalShadowRungs[i].riskDistance, 8));
+      FileWrite(handle, prefix + "lot", DoubleToString(continuationCausalShadowRungs[i].lot, 8));
+      FileWrite(handle, prefix + "risk_cash", DoubleToString(continuationCausalShadowRungs[i].riskCash, 8));
+      FileWrite(handle, prefix + "spread_r", DoubleToString(continuationCausalShadowRungs[i].spreadR, 8));
+      FileWrite(handle, prefix + "commission_r", DoubleToString(continuationCausalShadowRungs[i].commissionR, 8));
+      FileWrite(handle, prefix + "mfe_r", DoubleToString(continuationCausalShadowRungs[i].mfeR, 8));
+      FileWrite(handle, prefix + "mae_r", DoubleToString(continuationCausalShadowRungs[i].maeR, 8));
+      FileWrite(handle, prefix + "gross_r", DoubleToString(continuationCausalShadowRungs[i].grossR, 8));
+      FileWrite(handle, prefix + "net_r", DoubleToString(continuationCausalShadowRungs[i].netR, 8));
+      FileWrite(handle, prefix + "reason", continuationCausalShadowRungs[i].reason);
+   }
+}
+
+bool GoldBotTesterChainLoad(string &error)
+{
+   testerChainStateLoaded = false;
+   error = "";
+   GoldBotPropTesterChainState propState;
+   int propLoad = GoldBotPropLoadTesterChainState(InpTesterChainStateFile, InpMagicNumber, propState, error);
+   if(propLoad < 0)
+      return false;
+   if(propLoad == 0)
+   {
+      if(InpTesterChainRequireState)
+      {
+         error = "required prior tester chain state is missing";
+         return false;
+      }
+      return true; // first segment starts from the normal fresh tester state
+   }
+
+   int handle = FileOpen(InpTesterChainStateFile, FILE_READ | FILE_CSV | FILE_ANSI | FILE_COMMON, ',');
+   if(handle == INVALID_HANDLE)
+   {
+      error = StringFormat("cannot reopen state file error=%d", GetLastError());
+      return false;
+   }
+   if(!GoldBotContinuationCausalShadowLoadState(handle, error))
+   {
+      FileClose(handle);
+      return false;
+   }
+   FileSeek(handle, 0, SEEK_SET);
+
+   bool seenCompoundPeak = false, seenCompoundMonth = false;
+   bool seenCompoundStart = false, seenCompoundLock = false;
+   bool seenMonthlyMonth = false, seenMonthlyStart = false, seenMonthlyHalt = false;
+   bool seenTradeMonth = false, seenTradeCount = false;
+   bool seenCooldown = false, seenLosses = false;
+   bool seenRollingCount = false, seenRollingIndex = false;
+   bool seenRollingFail = false, seenRollingPause = false, seenRollingLookback = false;
+   int storedRollingLookback = 0;
+
+   while(!FileIsEnding(handle))
+   {
+      string key = FileReadString(handle);
+      if(FileIsEnding(handle) && StringLen(key) <= 0)
+         break;
+      string value = FileReadString(handle);
+      double numeric = StringToDouble(value);
+      if(key == "compound_peak_equity") { GlobalVariableSet(GoldBotMagicKey("CompoundPeakEquity"), numeric); seenCompoundPeak = true; }
+      else if(key == "compound_month") { GlobalVariableSet(GoldBotMagicKey("CompoundMonth"), numeric); seenCompoundMonth = true; }
+      else if(key == "compound_month_start_equity") { GlobalVariableSet(GoldBotMagicKey("CompoundMonthStartEquity"), numeric); seenCompoundStart = true; }
+      else if(key == "compound_month_profit_lock") { GlobalVariableSet(GoldBotMagicKey("CompoundMonthProfitLock"), numeric); seenCompoundLock = true; }
+      else if(key == "monthly_loss_month") { GlobalVariableSet(GoldBotMagicKey("MonthYear"), numeric); seenMonthlyMonth = true; }
+      else if(key == "monthly_loss_start_equity") { GlobalVariableSet(GoldBotMagicKey("MonthStartEquity"), numeric); seenMonthlyStart = true; }
+      else if(key == "monthly_loss_halt") { GlobalVariableSet(GoldBotMagicKey("MonthlyHalt"), numeric); seenMonthlyHalt = true; }
+      else if(key == "completed_trade_month") { GlobalVariableSet(GoldBotMagicKey("CompletedTradeMonth"), numeric); seenTradeMonth = true; }
+      else if(key == "completed_trade_count") { GlobalVariableSet(GoldBotMagicKey("CompletedTrades"), numeric); seenTradeCount = true; }
+      else if(key == "streak_cooldown_end") { GlobalVariableSet(GoldBotMagicKey("StreakCooldownEnd"), numeric); seenCooldown = true; }
+      else if(key == "streak_consecutive_losses") { GlobalVariableSet(GoldBotMagicKey("ConsecLosses"), numeric); seenLosses = true; }
+      else if(key == "rolling_count") { GlobalVariableSet(GoldBotMagicKey("RollingPerfCount"), numeric); seenRollingCount = true; }
+      else if(key == "rolling_index") { GlobalVariableSet(GoldBotMagicKey("RollingPerfIndex"), numeric); seenRollingIndex = true; }
+      else if(key == "rolling_fail_streak") { GlobalVariableSet(GoldBotMagicKey("RollingPerfFailStreak"), numeric); seenRollingFail = true; }
+      else if(key == "rolling_pause_until") { GlobalVariableSet(GoldBotMagicKey("RollingPerfPauseUntil"), numeric); seenRollingPause = true; }
+      else if(key == "rolling_lookback") { storedRollingLookback = (int)numeric; seenRollingLookback = true; }
+      else if(StringFind(key, "rolling_r_") == 0)
+      {
+         int slot = (int)StringToInteger(StringSubstr(key, StringLen("rolling_r_")));
+         if(slot >= 0 && slot < 200)
+            GlobalVariableSet(GoldBotMagicKey(StringFormat("RollingPerfR%d", slot)), numeric);
+      }
+      else if(StringFind(key, "rolling_setup_") == 0)
+      {
+         int slot = (int)StringToInteger(StringSubstr(key, StringLen("rolling_setup_")));
+         if(slot >= 0 && slot < 200)
+            GlobalVariableSet(GoldBotMagicKey(StringFormat("RollingPerfSetup%d", slot)), numeric);
+      }
+   }
+   FileClose(handle);
+
+   if(!seenCompoundPeak || !seenCompoundMonth || !seenCompoundStart || !seenCompoundLock ||
+      !seenMonthlyMonth || !seenMonthlyStart || !seenMonthlyHalt ||
+      !seenTradeMonth || !seenTradeCount || !seenCooldown || !seenLosses ||
+      !seenRollingCount || !seenRollingIndex || !seenRollingFail ||
+      !seenRollingPause || !seenRollingLookback)
+   {
+      error = "missing carried GoldBot control state";
+      return false;
+   }
+   if(storedRollingLookback < 0 || storedRollingLookback > 200 ||
+      (InpEnableRollingPerformanceGovernor && storedRollingLookback != MathMax(1, MathMin(200, InpRollingLookbackClosedTrades))))
+   {
+      error = "rolling-governor state/input mismatch";
+      return false;
+   }
+
+   testerChainStateLoaded = true;
+   return true;
+}
+
+void GoldBotTesterChainWriteGlobal(const int handle, const string stateKey, const string magicSuffix)
+{
+   string key = GoldBotMagicKey(magicSuffix);
+   double value = GlobalVariableCheck(key) ? GlobalVariableGet(key) : 0.0;
+   FileWrite(handle, stateKey, DoubleToString(value, 8));
+}
+
+bool GoldBotTesterChainExport()
+{
+   string symbol = GoldBotSymbol();
+   int positionCount = GoldBotCountManagedPositions(symbol, InpMagicNumber);
+   int pendingCount = GoldBotCountManagedPendingOrders(symbol, InpMagicNumber);
+   bool flat = positionCount == 0 && pendingCount == 0;
+   bool validState = flat && testerChainInitializationValid;
+   if(InpEnableContinuationCausalShadow)
+      validState = validState && continuationCausalShadow.metadataValid;
+   FolderCreate("GoldBot", FILE_COMMON);
+   int handle = FileOpen(InpTesterChainStateFile, FILE_WRITE | FILE_CSV | FILE_ANSI | FILE_COMMON, ',');
+   if(handle == INVALID_HANDLE)
+   {
+      Print("GoldBot: cannot create tester chain state error=", GetLastError());
+      return false;
+   }
+
+   bool wroteBase = GoldBotPropWriteTesterChainBase(handle, InpMagicNumber, validState, flat, TimeCurrent());
+   GoldBotTesterChainWriteGlobal(handle, "compound_peak_equity", "CompoundPeakEquity");
+   GoldBotTesterChainWriteGlobal(handle, "compound_month", "CompoundMonth");
+   GoldBotTesterChainWriteGlobal(handle, "compound_month_start_equity", "CompoundMonthStartEquity");
+   GoldBotTesterChainWriteGlobal(handle, "compound_month_profit_lock", "CompoundMonthProfitLock");
+   GoldBotTesterChainWriteGlobal(handle, "monthly_loss_month", "MonthYear");
+   GoldBotTesterChainWriteGlobal(handle, "monthly_loss_start_equity", "MonthStartEquity");
+   GoldBotTesterChainWriteGlobal(handle, "monthly_loss_halt", "MonthlyHalt");
+   GoldBotTesterChainWriteGlobal(handle, "completed_trade_month", "CompletedTradeMonth");
+   GoldBotTesterChainWriteGlobal(handle, "completed_trade_count", "CompletedTrades");
+   GoldBotTesterChainWriteGlobal(handle, "streak_cooldown_end", "StreakCooldownEnd");
+   GoldBotTesterChainWriteGlobal(handle, "streak_consecutive_losses", "ConsecLosses");
+   GoldBotTesterChainWriteGlobal(handle, "rolling_count", "RollingPerfCount");
+   GoldBotTesterChainWriteGlobal(handle, "rolling_index", "RollingPerfIndex");
+   GoldBotTesterChainWriteGlobal(handle, "rolling_fail_streak", "RollingPerfFailStreak");
+   GoldBotTesterChainWriteGlobal(handle, "rolling_pause_until", "RollingPerfPauseUntil");
+
+   int lookback = MathMax(1, MathMin(200, InpRollingLookbackClosedTrades));
+   FileWrite(handle, "rolling_lookback", IntegerToString(lookback));
+   for(int i = 0; i < lookback; i++)
+   {
+      GoldBotTesterChainWriteGlobal(handle, StringFormat("rolling_r_%d", i), StringFormat("RollingPerfR%d", i));
+      GoldBotTesterChainWriteGlobal(handle, StringFormat("rolling_setup_%d", i), StringFormat("RollingPerfSetup%d", i));
+   }
+   GoldBotContinuationCausalShadowWriteState(handle);
+   FileFlush(handle);
+   FileClose(handle);
+
+   GoldBotJournal(StringFormat("Tester chain state exported valid=%s flat=%s positions=%d pending=%d file=%s",
+      (wroteBase && validState) ? "true" : "false", flat ? "true" : "false",
+      positionCount, pendingCount, InpTesterChainStateFile));
+   if(InpEnableContinuationCausalShadow)
+      GoldBotJournal(StringFormat("Continuation causal shadow state boundary stateValid=%s stateComplete=yes activeProbeCount=%d probeId=%s metadataValid=%s",
+         validState ? "yes" : "no", continuationCausalShadow.active ? 1 : 0,
+         continuationCausalShadow.active ? continuationCausalShadow.probeId : "none",
+         continuationCausalShadow.metadataValid ? "yes" : "no"));
+   return wroteBase && validState;
 }
 
 int GoldBotMonthCode(const datetime timeValue)
@@ -3994,6 +4974,7 @@ bool GoldBotTryM5Scalp(const string symbol)
       InpStressExtraSpreadPrice);
    if(placed)
    {
+      GoldBotContinuationCausalShadowRecordBaseSignal(signalId, "m5_scalp");
       GoldBotMarkLadderPlaced();
       GoldBotMarkM5ScalpPlaced();
       GoldBotJournal(StringFormat("Pending ladder placed signalId=%s setup=m5_scalp orderCount=%d firstSplit=1 dailyScalpsBefore=%d",
@@ -4352,6 +5333,7 @@ bool GoldBotTryM1MicroScalp(const string symbol)
       InpStressExtraSpreadPrice);
    if(placed)
    {
+      GoldBotContinuationCausalShadowRecordBaseSignal(signalId, "m1_micro_scalp");
       GoldBotMarkLadderPlaced();
       GoldBotMarkM1MicroPlaced();
       GoldBotJournal(StringFormat("Pending ladder placed signalId=%s setup=m1_micro_scalp orderCount=%d firstSplit=1 dailyMicroBefore=%d",
@@ -4695,6 +5677,7 @@ void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long posi
    string orderKey = StringFormat("GoldBot.order.%I64u", orderTicket);
    string posKey = StringFormat("GoldBot.pos.%I64d", positionId);
    double directionFallback = dealType == DEAL_TYPE_BUY ? (double)DIR_LONG : (dealType == DEAL_TYPE_SELL ? (double)DIR_SHORT : 0.0);
+   GlobalVariableSet(posKey + ".setupMetadataValid", GlobalVariableCheck(orderKey + ".setup") ? 1.0 : 0.0);
    GlobalVariableSet(posKey + ".dir", GoldBotMetadataValue(orderKey, "dir", directionFallback));
    GlobalVariableSet(posKey + ".split", GoldBotMetadataValue(orderKey, "split", (double)GoldBotSplitFromComment(comment)));
    GlobalVariableSet(posKey + ".hour", GoldBotMetadataValue(orderKey, "hour", 0.0));
@@ -4751,6 +5734,20 @@ void GoldBotCopyOrderMetadataToPosition(const ulong orderTicket, const long posi
    if(GlobalVariableCheck(orderKey + ".setupRiskMultiplier"))
       GlobalVariableSet(posKey + ".setupRiskMultiplier", GoldBotMetadataValue(orderKey, "setupRiskMultiplier", 0.0));
 
+   // A tester/live terminal can retain globals across EA restarts. Clear the
+   // observation namespace on every new fill so a reused position identifier
+   // can never inherit a prior trade's excursion or checkpoint state.
+   GlobalVariableDel(posKey + ".mfeR");
+   GlobalVariableDel(posKey + ".maeR");
+   GlobalVariableDel(posKey + ".failureCheckpointLogged");
+   GlobalVariableDel(posKey + ".failureCheckpointR");
+   GlobalVariableDel(posKey + ".failureCheckpointGrossR");
+   GlobalVariableDel(posKey + ".failureTriggered");
+   GlobalVariableDel(posKey + ".failureRiskDistance");
+   GlobalVariableDel(posKey + ".failureOpenTime");
+   GlobalVariableDel(posKey + ".failureNetProfit");
+   GlobalVariableDel(posKey + ".failureGrossProfit");
+
    GlobalVariableDel(orderKey + ".dir");
    GlobalVariableDel(orderKey + ".split");
    GlobalVariableDel(orderKey + ".hour");
@@ -4796,6 +5793,7 @@ void GoldBotDeletePositionMetadata(const long positionId)
    GlobalVariableDel(posKey + ".scoreBucket");
    GlobalVariableDel(posKey + ".confluences");
    GlobalVariableDel(posKey + ".enabledConfluences");
+   GlobalVariableDel(posKey + ".setupMetadataValid");
    GlobalVariableDel(posKey + ".setup");
    GlobalVariableDel(posKey + ".scalpVariant");
    GlobalVariableDel(posKey + ".signalCode");
@@ -4823,6 +5821,16 @@ void GoldBotDeletePositionMetadata(const long positionId)
    GlobalVariableDel(posKey + ".lotMultiplier");
    GlobalVariableDel(posKey + ".setupRiskMultiplier");
    GlobalVariableDel(posKey + ".closedProfit");
+   GlobalVariableDel(posKey + ".mfeR");
+   GlobalVariableDel(posKey + ".maeR");
+   GlobalVariableDel(posKey + ".failureCheckpointLogged");
+   GlobalVariableDel(posKey + ".failureCheckpointR");
+   GlobalVariableDel(posKey + ".failureCheckpointGrossR");
+   GlobalVariableDel(posKey + ".failureTriggered");
+   GlobalVariableDel(posKey + ".failureRiskDistance");
+   GlobalVariableDel(posKey + ".failureOpenTime");
+   GlobalVariableDel(posKey + ".failureNetProfit");
+   GlobalVariableDel(posKey + ".failureGrossProfit");
 }
 
 GoldBotDirection GoldBotLegacySignalDirection(const string symbol, const IndicatorSnapshot &indicators)

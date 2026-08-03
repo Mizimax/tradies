@@ -91,6 +91,84 @@ Check these artifacts after each run:
 
 Real-mode acceptance is based on Strategy Tester reports, broker-style order behavior, and `trades.csv`. `parity_trades.csv` is not a real-mode acceptance artifact.
 
+## FundingPips Continuation Chain
+
+Dry-run the six-segment FundingPips qualification chain before launching MT5:
+
+```bash
+python3 scripts/run-mt5-fundingpips-chain.py --dry-run
+python3 scripts/run-mt5-fundingpips-chain.py --window h1-2025 --dry-run
+```
+
+The printed ranges use `[FromDate, ToDate)` notation because the tester journal
+treats `ToDate` as an exclusive upper bound. The final segment therefore ends at
+`2026.01.01` so the last requested H2 day, `2025.12.31`, is included. The stitched
+manifest records `total_trades`, `total_deals`, and `balance_point_count`
+separately; per-segment deposit rows are balance points, not trades or deals. A
+manifest also pins `preset_sha256` in addition to source, EX5, inputs, report, and
+journal hashes. Select a preset explicitly with `--preset`; the default remains
+the canonical Phase-1 FundingPips preset.
+
+### Frozen causal-continuation shadow (CS1)
+
+The original `continuation-core` candidate is retired after accepting zero H1
+opportunities. CS1 is telemetry-only and uses
+`GoldBot/prop-fundingpips-2step-continuation-causal-shadow.set`. Its effective
+input additions to the canonical Phase-1 preset are restricted to exactly:
+
+```text
+InpEnableContinuationCausalShadow=true
+InpContinuationCausalShadowHorizonBars=32
+```
+
+The observer evaluates the frozen ADX 18, directional DI gap 4, EMA,
+trend-side VWAP, actual M5 micro-ChoCH, and EMA21/VWAP-zone predicates. It
+models two virtual rungs through expiry, fill, SL/TP1/horizon and explicit
+spread/commission costs. It never calls `CTrade`, reserves a slot, or changes
+the retired continuation gate, risk, hours, SL, or TP.
+
+Run the rows in
+`mt5/backtests/FUNDINGPIPS_CONTINUATION_RUN_MATRIX.csv` strictly in stage/order
+sequence. The matrix contains only fresh control/shadow pairs and analyses for
+the already-consumed H1/H2 2025 train halves. No 2024/2026 holdout row is
+available until CS1 and a later real active CS2 both pass their frozen gates.
+
+Extract whole-window/monthly causal evidence with its fresh paired control:
+
+```bash
+python3 scripts/analyze-mt5-trades.py --continuation-causal-shadow-study \
+  --chain-manifest mt5/backtests/reports/GoldBot-fundingpips-continuation-cs1-h1-2025-shadow.manifest.json \
+  --control-chain-manifest mt5/backtests/reports/GoldBot-fundingpips-continuation-cs1-h1-2025-control.manifest.json
+```
+
+The study requires exact real-deal parity with control and fails closed on
+duplicate/missing records, missing costs, unexplained displacement, malformed
+reports, source/input drift, or broken virtual-state carry. Incomplete virtual
+probes are serialized across intermediate weekend boundaries; the final chain
+boundary must be virtual-flat.
+
+The falsified Stage-1 failure-to-progress observation remains opt-in and
+shadow-only for archived evidence only. The active
+close mode intentionally fails initialization until the shadow gates pass. Run
+the frozen rule by adding all five explicit overrides to a named-window chain:
+
+```bash
+python3 scripts/run-mt5-fundingpips-chain.py \
+  --window h1-2025 \
+  --chain-name GoldBot-fundingpips-p1-h1-2025-shadow \
+  --set InpEnableScalpFailureExit=true \
+  --set InpScalpFailureShadowOnly=true \
+  --set InpScalpFailureCheckFraction=0.50 \
+  --set InpScalpFailureMinMfeR=0.10 \
+  --set InpScalpFailureCurrentR=-0.35
+python3 scripts/analyze-mt5-trades.py --failure-checkpoints \
+  --chain-manifest mt5/backtests/reports/GoldBot-fundingpips-p1-h1-2025-shadow.manifest.json
+```
+
+The checkpoint report includes trigger precision, full-loss recall, profitable
+false-trigger rate, average eventual R, and counterfactual savings both before
+and after estimated costs. `non_shadow_outcomes` must remain zero.
+
 ## Optional Parity Diagnostic
 
 Python parity mode is disabled by default. Use it only when intentionally debugging the old Python simulator:

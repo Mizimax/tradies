@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
+import json
 import re
 import sys
 from html import unescape
@@ -92,12 +94,75 @@ def summarize(path: Path) -> dict[str, str]:
     }
 
 
+def summarize_chain_manifest(path: Path) -> list[dict[str, str]]:
+    try:
+        manifest = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid chain manifest {path}: {exc}") from exc
+    if manifest.get("schema_version") != 1 or not isinstance(manifest.get("segments"), list):
+        raise ValueError(f"unsupported chain manifest: {path}")
+
+    rows: list[dict[str, str]] = []
+    previous_end = ""
+    for segment in manifest["segments"]:
+        if not segment.get("valid") or not segment.get("flat") or not segment.get("report_fresh"):
+            raise ValueError(f"chain manifest contains invalid/non-flat/stale segment: {path}")
+        start, end = str(segment.get("start", "")), str(segment.get("end", ""))
+        if previous_end and start <= previous_end:
+            raise ValueError(f"chain manifest segments overlap or are unordered: {path}")
+        previous_end = end
+        report = Path(str(segment.get("report", "")))
+        if not report.is_absolute():
+            report = path.parent / report
+        if not report.exists():
+            raise ValueError(f"chain report missing: {report}")
+        expected_hash = str(segment.get("report_sha256", ""))
+        actual_hash = hashlib.sha256(report.read_bytes()).hexdigest()
+        if not expected_hash or actual_hash != expected_hash:
+            raise ValueError(f"chain report hash mismatch: {report}")
+        rows.append(summarize(report))
+
+    stitched = manifest.get("stitched")
+    if not isinstance(stitched, dict):
+        raise ValueError(f"stitched metrics missing: {path}")
+    stitched_total_trades = stitched.get("total_trades")
+    if stitched_total_trades is None:
+        # Legacy manifests mislabeled Deals-table balance points (including one
+        # deposit per segment) as trades. Segment reports remain authoritative.
+        stitched_total_trades = sum(int(row["total_trades"] or 0) for row in rows)
+    rows.append(
+        {
+            "report": f"{manifest.get('chain_name', path.stem)}::stitched",
+            "net_profit": str(stitched.get("net_profit", "")),
+            "profit_factor": str(stitched.get("profit_factor", "")),
+            "expected_payoff": "",
+            "total_trades": str(stitched_total_trades),
+            "win_rate_pct": "",
+            "loss_rate_pct": "",
+            "profit_trades": "",
+            "loss_trades": "",
+            "max_balance_drawdown_pct": str(stitched.get("stitched_equity_drawdown_pct", "")),
+            "max_equity_drawdown_pct": str(stitched.get("stitched_equity_drawdown_pct", "")),
+            "gross_profit": str(stitched.get("gross_profit", "")),
+            "gross_loss": str(stitched.get("gross_loss", "")),
+        }
+    )
+    return rows
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("reports", nargs="+", type=Path, help="MT5 HTML report paths")
+    parser.add_argument("reports", nargs="*", type=Path, help="MT5 HTML report paths")
+    parser.add_argument("--chain-manifest", action="append", default=[], type=Path, help="FundingPips chain manifest JSON")
     args = parser.parse_args()
 
     rows = [summarize(path) for path in args.reports if path.exists()]
+    try:
+        for manifest in args.chain_manifest:
+            rows.extend(summarize_chain_manifest(manifest))
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     if not rows:
         print("No readable reports found.", file=sys.stderr)
         return 1
