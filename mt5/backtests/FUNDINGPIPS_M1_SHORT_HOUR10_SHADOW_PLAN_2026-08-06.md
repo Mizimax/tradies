@@ -13,14 +13,15 @@ qualification runs. It does not change live or tester order behavior.
 The H1 2026 attribution control found two setup/direction/hour cohorts that
 passed the preliminary sample/PF screen:
 
-| Cohort | Closed positions | Net | PF | Win rate |
+| Cohort | Closed deal records | Net | PF | Win rate |
 |---|---:|---:|---:|---:|
 | `m1_micro_scalp`, short, hour 10 | 11 | -$363.86 | 0.67 | 54.55% |
 | `m5_scalp`, short, hour 8 | 14 | -$125.28 | 0.89 | 64.29% |
 
 The first cohort is frozen because it has the larger loss and materially lower
-PF. H1 2026 is discovery evidence only and is consumed; it cannot qualify the
-hypothesis.
+PF. These discovery counts are closing-deal records; the qualification analyzer
+reconstructs and gates complete positions independently. H1 2026 is discovery
+evidence only and is consumed; it cannot qualify the hypothesis.
 
 ## Frozen hypothesis
 
