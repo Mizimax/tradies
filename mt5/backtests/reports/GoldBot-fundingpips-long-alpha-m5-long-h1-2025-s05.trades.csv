@@ -1,0 +1,5 @@
+time	message
+2025.05.05 00:00:00	Tester chain state imported originalChallengeBalance=50000.00 testerStartBalance=54010.00 file=GoldBot/fundingpips-chain-state.csv
+2025.05.05 00:00:00	Prop mode enabled monitorOnly=no challengeRiskPct=0.500 phaseTargetPct=8.00 firmDailyLossPct=5.00 firmMaxDrawdownPct=10.00 ddIsTrailing=no
+2025.05.05 00:00:00	Prop symbol specification symbol=XAUUSD contractSize=100.0000 tickSize=0.01000000 tickValue=0.01000000 tickValueProfit=0.01000000 tickValueLoss=0.01000000 cashPerPriceUnit=100.0000 volumeMin=0.0100 volumeStep=0.0100 volumeMax=5.0000 commissionPerLotUsd=7.00
+2025.05.30 23:49:59	Tester chain state exported valid=true flat=true positions=0 pending=0 file=GoldBot/fundingpips-chain-state.csv
