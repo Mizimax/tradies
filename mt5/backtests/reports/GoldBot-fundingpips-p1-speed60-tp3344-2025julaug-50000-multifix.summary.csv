@@ -1,0 +1,2 @@
+report,net_profit,profit_factor,expected_payoff,total_trades,win_rate_pct,loss_rate_pct,profit_trades,loss_trades,max_balance_drawdown_pct,max_equity_drawdown_pct,gross_profit,gross_loss
+GoldBot-fundingpips-p1-speed60-tp3344-2025julaug-50000-multifix.htm,479.44,1.55,29.97,16,68.75,31.25,11,5,0.85,1.22,1358.90,-879.46

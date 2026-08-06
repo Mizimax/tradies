@@ -1,0 +1,16 @@
+gate,passed,actual,required
+h1-2025:sample,True,16,>=4
+h1-2025:negative,True,-143.51,<0
+h2-2025:sample,False,3,>=4
+h2-2025:negative,False,431.61,<0
+train:sample,True,19,>=10
+train:pf,False,1.208455,<=0.95
+h1-2024:sample,True,10,>=4
+h1-2024:non_profitable,False,281.0,<=0
+h1-2024:dd,True,-0.003783,<=0.05 pct points
+h2-2024:sample,True,6,>=4
+h2-2024:non_profitable,False,58.73,<=0
+h2-2024:dd,False,0.080886,<=0.05 pct points
+validation:sample,True,16,>=10
+validation:pf,False,1.316892,<=0.95
+validation:benefit,False,-0.67946,>=0.25%

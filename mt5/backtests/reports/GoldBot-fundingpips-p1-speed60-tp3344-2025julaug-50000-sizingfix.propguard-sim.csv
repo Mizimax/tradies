@@ -1,0 +1,16 @@
+timestamp,engine,direction,entry,sl,tp,lots,risk_cash,clamp_bound,spread_price,cost_to_stop_pct,atr,range_width,vol_ratio,phase,ticket,event,reason,exit_price,r_multiple
+2025.07.07 16:25:44,GoldBot,,,,,,,,,,,,,,,close,report_replay,3310.17000,-0.000325
+2025.07.09 09:26:32,GoldBot,,,,,,,,,,,,,,,close,report_replay,3286.25000,0.001802
+2025.07.09 10:00:54,GoldBot,,,,,,,,,,,,,,,close,report_replay,3293.81000,0.000160
+2025.07.24 09:25:42,GoldBot,,,,,,,,,,,,,,,close,report_replay,3374.09000,0.000368
+2025.07.24 09:29:44,GoldBot,,,,,,,,,,,,,,,close,report_replay,3372.74000,0.000151
+2025.07.24 09:29:44,GoldBot,,,,,,,,,,,,,,,close,report_replay,3372.70000,0.000152
+2025.07.24 12:27:15,GoldBot,,,,,,,,,,,,,,,close,report_replay,3363.27000,0.001806
+2025.07.24 15:01:00,GoldBot,,,,,,,,,,,,,,,close,report_replay,3360.53000,0.001256
+2025.07.24 15:01:00,GoldBot,,,,,,,,,,,,,,,close,report_replay,3360.40000,0.000632
+2025.07.29 10:58:53,GoldBot,,,,,,,,,,,,,,,close,report_replay,3318.13000,-0.002470
+2025.08.01 10:15:07,GoldBot,,,,,,,,,,,,,,,close,report_replay,3293.33000,-0.002008
+2025.08.11 15:28:37,GoldBot,,,,,,,,,,,,,,,close,report_replay,3348.84000,0.000299
+2025.08.11 15:30:33,GoldBot,,,,,,,,,,,,,,,close,report_replay,3345.70000,0.000364
+2025.08.12 10:33:08,GoldBot,,,,,,,,,,,,,,,close,report_replay,3351.13000,-0.002107
+2025.08.22 10:09:56,GoldBot,,,,,,,,,,,,,,,close,report_replay,3333.94000,-0.000422

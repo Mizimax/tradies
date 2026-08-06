@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-08-06T06:50:28+00:00",
+  "purpose": "descriptive_realized_window_pass_speed_diagnostic",
+  "initial_balance": 50000.0,
+  "phase_1_target_pct": 8.0,
+  "phase_1_target_cash": 4000.0,
+  "accepted_challenge_risk_pct": 0.5,
+  "windows": [
+    {
+      "window": "h1-2024",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-validation-h1-2024.manifest.json",
+      "initial_balance": 50000.0,
+      "net_profit": 3506.94,
+      "profit_factor": 3.068894,
+      "equity_drawdown_pct": 1.969939,
+      "closed_trades": 41,
+      "journal_deals": 62
+    },
+    {
+      "window": "h2-2024",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-validation-h2-2024.manifest.json",
+      "initial_balance": 50000.0,
+      "net_profit": 1465.29,
+      "profit_factor": 1.841768,
+      "equity_drawdown_pct": 99.999315,
+      "closed_trades": 23,
+      "journal_deals": 37
+    },
+    {
+      "window": "h1-2025",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-train-h1-2025.manifest.json",
+      "initial_balance": 50000.0,
+      "net_profit": 3466.51,
+      "profit_factor": 2.444692,
+      "equity_drawdown_pct": 2.422627,
+      "closed_trades": 50,
+      "journal_deals": 79
+    },
+    {
+      "window": "h2-2025",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-train-h2-2025.manifest.json",
+      "initial_balance": 50000.0,
+      "net_profit": 4019.89,
+      "profit_factor": 1.984881,
+      "equity_drawdown_pct": 4.619961,
+      "closed_trades": 52,
+      "journal_deals": 84
+    },
+    {
+      "window": "h1-2026",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-p1-h1-2026-negative-window-control.manifest.json",
+      "initial_balance": 50000.0,
+      "net_profit": 578.09,
+      "profit_factor": 1.180001,
+      "equity_drawdown_pct": 3.90918,
+      "closed_trades": 45,
+      "journal_deals": 70
+    }
+  ],
+  "calendar_month_summary": {
+    "months": 28,
+    "target_hit_months": 0,
+    "average_net_profit": 465.6,
+    "median_net_profit": 232.57,
+    "best_net_profit": 3211.59,
+    "worst_net_profit": -857.15
+  },
+  "rolling_horizons": {
+    "30": {
+      "eligible_windows": 693,
+      "target_hit_windows": 0,
+      "target_hit_rate_pct": 0.0,
+      "target_cash": 4000.0,
+      "average_net_profit": 319.49,
+      "median_net_profit": 0.0,
+      "p25_net_profit": -225.96,
+      "p75_net_profit": 776.68,
+      "best_net_profit": 3211.59,
+      "worst_net_profit": -1275.18,
+      "fastest_days_to_target": null,
+      "median_days_to_target_when_hit": null
+    },
+    "60": {
+      "eligible_windows": 543,
+      "target_hit_windows": 0,
+      "target_hit_rate_pct": 0.0,
+      "target_cash": 4000.0,
+      "average_net_profit": 715.71,
+      "median_net_profit": 575.51,
+      "p25_net_profit": 0.0,
+      "p75_net_profit": 1325.93,
+      "best_net_profit": 3376.39,
+      "worst_net_profit": -1562.71,
+      "fastest_days_to_target": null,
+      "median_days_to_target_when_hit": null
+    }
+  },
+  "limitations": [
+    "Rolling windows are descriptive slices of realized stateful chains, not fresh-account restart simulations.",
+    "Closed-balance drawdown does not replace MT5 floating-equity drawdown.",
+    "Do not increase raw risk or loosen prop gates to force a 30/60-day pass."
+  ]
+}

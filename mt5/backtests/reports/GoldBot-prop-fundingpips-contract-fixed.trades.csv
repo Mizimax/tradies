@@ -1,0 +1,401 @@
+time	message
+2026.01.01 00:00:00	Compound governor tester state reset
+2026.01.01 00:00:00	Prop mode enabled challengeRiskPct=0.950 phaseTargetPct=8.00 firmDailyLossPct=5.00 firmMaxDrawdownPct=10.00 ddIsTrailing=no
+2026.01.01 00:00:00	Prop symbol specification symbol=XAUUSD contractSize=100.0000 tickSize=0.01000000 tickValue=0.01000000 tickValueProfit=0.01000000 tickValueLoss=0.01000000 cashPerPriceUnit=100.0000 volumeMin=0.0100 volumeStep=0.0100 volumeMax=5.0000 commissionPerLotUsd=7.00
+2026.01.02 01:00:00	Monthly risk baseline reset month=202601 equity=50000.00
+2026.01.02 01:05:00	M5 scalp blocked spread=2.04 max=0.35 prop=yes
+2026.01.02 01:25:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=1 spread=0.14 adx=44.27 minAdx=18.00 adxOk=yes diGap=29.05 minDiGap=4.00 diOk=yes h1=no m15=no m15Long=no m15Short=no atr=5.03 atrRatio=0.92 atrOk=yes zone=yes hourOk=no
+2026.01.02 01:35:01	M5 scalp blocked spread=2.03 max=0.35 prop=yes
+2026.01.02 01:40:00	M5 scalp blocked spread=0.80 max=0.35 prop=yes
+2026.01.02 01:50:01	M5 scalp blocked reason=no_setup hour=1 close=4343.04 ema21=4329.55 vwap=4337.08 low=4342.19 high=4345.99 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 01:55:00	M5 scalp blocked reason=no_setup hour=1 close=4347.46 ema21=4331.17 vwap=4337.91 low=4341.75 high=4347.55 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 02:05:00	M5 scalp blocked reason=no_setup hour=2 close=4346.49 ema21=4333.98 vwap=4339.86 low=4345.20 high=4349.07 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 02:10:00	M5 scalp blocked reason=no_setup hour=2 close=4350.07 ema21=4335.44 vwap=4340.60 low=4344.51 high=4350.48 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 02:20:00	M5 scalp blocked reason=no_setup hour=2 close=4344.72 ema21=4337.32 vwap=4341.61 low=4344.65 high=4349.35 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 02:25:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=2 spread=0.14 adx=58.68 minAdx=18.00 adxOk=yes diGap=8.78 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=5.06 atrRatio=1.01 atrOk=yes zone=yes hourOk=no
+2026.01.02 02:35:00	M5 scalp blocked reason=no_setup hour=2 close=4348.45 ema21=4339.63 vwap=4342.55 low=4346.88 high=4349.25 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 02:40:00	M5 scalp blocked reason=no_setup hour=2 close=4348.66 ema21=4340.45 vwap=4343.00 low=4347.58 high=4350.88 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 02:50:00	M5 scalp blocked reason=no_setup hour=2 close=4351.96 ema21=4342.26 vwap=4343.88 low=4349.70 high=4353.53 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 02:55:00	M5 scalp blocked reason=no_setup hour=2 close=4352.43 ema21=4343.18 vwap=4344.28 low=4350.78 high=4353.21 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 03:05:00	M5 scalp blocked reason=no_setup hour=3 close=4347.98 ema21=4344.53 vwap=4345.05 low=4347.31 high=4356.21 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 03:10:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=3 spread=0.14 adx=41.29 minAdx=18.00 adxOk=yes diGap=6.89 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=4.77 atrRatio=0.98 atrOk=yes zone=yes hourOk=no
+2026.01.02 03:20:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=3 spread=0.14 adx=35.00 minAdx=18.00 adxOk=yes diGap=4.42 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=4.75 atrRatio=0.99 atrOk=yes zone=yes hourOk=no
+2026.01.02 03:25:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=3 spread=0.14 adx=32.11 minAdx=18.00 adxOk=yes diGap=4.18 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=4.58 atrRatio=0.96 atrOk=yes zone=yes hourOk=no
+2026.01.02 03:35:00	M5 scalp blocked reason=no_setup hour=3 close=4349.80 ema21=4346.08 vwap=4345.86 low=4348.90 high=4351.51 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 03:40:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=3 spread=0.14 adx=25.78 minAdx=18.00 adxOk=yes diGap=4.83 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=4.22 atrRatio=0.89 atrOk=yes zone=yes hourOk=no
+2026.01.02 03:50:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=3 spread=0.14 adx=21.19 minAdx=18.00 adxOk=yes diGap=1.91 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=4.55 atrRatio=0.96 atrOk=yes zone=yes hourOk=no
+2026.01.02 03:55:00	M5 scalp blocked reason=no_setup hour=3 close=4350.37 ema21=4347.22 vwap=4346.42 low=4350.37 high=4354.45 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 04:05:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=4 spread=0.14 adx=17.08 minAdx=18.00 adxOk=no diGap=0.34 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=4.62 atrRatio=0.98 atrOk=yes zone=yes hourOk=no
+2026.01.02 04:10:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=4 spread=0.14 adx=15.80 minAdx=18.00 adxOk=no diGap=3.12 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=4.49 atrRatio=0.96 atrOk=yes zone=yes hourOk=no
+2026.01.02 04:20:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=4 spread=0.14 adx=18.11 minAdx=18.00 adxOk=yes diGap=10.49 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.86 atrRatio=0.83 atrOk=yes zone=yes hourOk=no
+2026.01.02 04:25:00	M5 scalp blocked dir=-1 setupVariant=classic_pullback hour=4 spread=0.14 adx=19.72 minAdx=18.00 adxOk=yes diGap=10.85 minDiGap=4.00 diOk=yes h1=no m15=no m15Long=yes m15Short=no atr=3.71 atrRatio=0.80 atrOk=yes zone=yes hourOk=no
+2026.01.02 04:35:00	M5 scalp blocked reason=no_setup hour=4 close=4346.88 ema21=4347.41 vwap=4346.64 low=4345.75 high=4350.66 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 04:40:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=4 spread=0.14 adx=17.14 minAdx=18.00 adxOk=no diGap=6.00 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=3.85 atrRatio=0.82 atrOk=yes zone=yes hourOk=no
+2026.01.02 04:50:00	M5 scalp blocked reason=no_setup hour=4 close=4355.10 ema21=4348.81 vwap=4346.98 low=4351.19 high=4355.70 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 04:55:00	M5 scalp blocked reason=no_setup hour=4 close=4359.37 ema21=4349.77 vwap=4347.27 low=4355.02 high=4360.03 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 05:00:00	Breakout retest setup blocked dir=1 hour=5 close=4362.81 level=4356.25 prevHigh=4356.25 prevLow=4313.84 bodyAtr=0.60 minBodyAtr=0.35 bodyRatio=0.96 minBodyRatio=0.35 body=yes bodyRatioOk=yes volume=2684 avgVolume=2086.35 requiredVolume=2294.99 volumeOk=yes hourOk=no adx=26.90 minAdx=18.00 adxOk=yes diGap=10.81 minDiGap=4.00 diOk=yes ema=no vwap=yes h1=no zone=yes
+2026.01.02 05:05:00	M5 scalp blocked reason=no_setup hour=5 close=4363.97 ema21=4352.14 vwap=4348.02 low=4362.19 high=4364.56 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 05:10:00	M5 scalp blocked reason=no_setup hour=5 close=4365.32 ema21=4353.34 vwap=4348.35 low=4363.93 high=4366.53 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 05:15:00	Breakout retest setup blocked dir=1 hour=5 close=4368.99 level=4363.08 prevHigh=4363.08 prevLow=4324.35 bodyAtr=0.32 minBodyAtr=0.35 bodyRatio=0.64 minBodyRatio=0.35 body=no bodyRatioOk=yes volume=2603 avgVolume=2133.15 requiredVolume=2346.47 volumeOk=yes hourOk=no adx=26.90 minAdx=18.00 adxOk=yes diGap=10.81 minDiGap=4.00 diOk=yes ema=no vwap=yes h1=no zone=yes
+2026.01.02 05:20:00	M5 scalp blocked reason=no_setup hour=5 close=4366.68 ema21=4355.84 vwap=4349.31 low=4365.52 high=4369.07 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 05:25:00	M5 scalp blocked reason=no_setup hour=5 close=4369.69 ema21=4357.10 vwap=4349.67 low=4365.72 high=4370.69 spread=0.21 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 05:35:00	M5 scalp blocked reason=no_setup hour=5 close=4371.19 ema21=4359.38 vwap=4350.49 low=4367.97 high=4373.19 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 05:40:00	M5 scalp blocked reason=no_setup hour=5 close=4371.13 ema21=4360.45 vwap=4350.89 low=4369.30 high=4372.10 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 05:45:00	Breakout retest setup blocked dir=1 hour=5 close=4373.77 level=4371.73 prevHigh=4371.73 prevLow=4338.75 bodyAtr=0.25 minBodyAtr=0.35 bodyRatio=0.71 minBodyRatio=0.35 body=no bodyRatioOk=yes volume=2568 avgVolume=2263.40 requiredVolume=2489.74 volumeOk=yes hourOk=no adx=26.90 minAdx=18.00 adxOk=yes diGap=10.81 minDiGap=4.00 diOk=yes ema=no vwap=yes h1=no zone=yes
+2026.01.02 05:50:00	M5 scalp blocked reason=no_setup hour=5 close=4373.65 ema21=4362.75 vwap=4351.70 low=4372.71 high=4375.79 spread=0.15 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 05:55:00	M5 scalp blocked reason=no_setup hour=5 close=4373.99 ema21=4363.77 vwap=4352.06 low=4372.72 high=4375.57 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 06:05:02	M5 scalp blocked reason=no_setup hour=6 close=4377.48 ema21=4365.96 vwap=4352.88 low=4374.01 high=4377.72 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 06:10:00	M5 scalp blocked reason=no_setup hour=6 close=4375.74 ema21=4366.85 vwap=4353.27 low=4375.63 high=4378.66 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 06:20:00	M5 scalp blocked reason=no_setup hour=6 close=4375.11 ema21=4368.27 vwap=4353.90 low=4374.04 high=4375.81 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 06:25:00	M5 scalp blocked reason=no_setup hour=6 close=4372.88 ema21=4368.69 vwap=4354.23 low=4371.46 high=4375.47 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 06:35:00	M5 scalp blocked reason=no_setup hour=6 close=4373.38 ema21=4369.52 vwap=4354.76 low=4371.51 high=4374.70 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 06:40:00	M5 scalp blocked reason=no_setup hour=6 close=4373.17 ema21=4369.85 vwap=4354.99 low=4371.91 high=4373.93 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 06:50:01	M5 scalp blocked volatilityRegime hour=6 atr=3.00 avgAtr=4.35 atrRatio=0.69 min=0.70 max=1.80
+2026.01.02 06:55:00	M5 scalp blocked volatilityRegime hour=6 atr=2.93 avgAtr=4.35 atrRatio=0.67 min=0.70 max=1.80
+2026.01.02 07:05:00	M5 scalp blocked volatilityRegime hour=7 atr=2.86 avgAtr=4.31 atrRatio=0.66 min=0.70 max=1.80
+2026.01.02 07:10:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=7 spread=0.14 adx=26.27 minAdx=18.00 adxOk=yes diGap=1.49 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.06 atrRatio=0.71 atrOk=yes zone=yes hourOk=no
+2026.01.02 07:20:00	M5 scalp blocked volatilityRegime hour=7 atr=2.95 avgAtr=4.25 atrRatio=0.69 min=0.70 max=1.80
+2026.01.02 07:25:00	M5 scalp blocked reason=no_setup hour=7 close=4378.38 ema21=4373.26 vwap=4357.31 low=4375.25 high=4380.23 spread=0.15 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 07:35:00	M5 scalp blocked reason=no_setup hour=7 close=4379.09 ema21=4374.22 vwap=4357.78 low=4377.97 high=4379.56 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 07:40:02	M5 scalp blocked volatilityRegime hour=7 atr=2.80 avgAtr=4.12 atrRatio=0.68 min=0.70 max=1.80
+2026.01.02 07:50:01	M5 scalp blocked volatilityRegime hour=7 atr=2.67 avgAtr=4.01 atrRatio=0.66 min=0.70 max=1.80
+2026.01.02 07:55:00	M5 scalp blocked volatilityRegime hour=7 atr=2.69 avgAtr=3.95 atrRatio=0.68 min=0.70 max=1.80
+2026.01.02 08:05:01	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=8 spread=0.14 adx=24.21 minAdx=18.00 adxOk=yes diGap=3.12 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=2.81 atrRatio=0.72 atrOk=yes zone=yes hourOk=no
+2026.01.02 08:10:00	M5 scalp blocked reason=no_setup hour=8 close=4374.91 ema21=4376.36 vwap=4359.30 low=4373.92 high=4377.42 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 08:20:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=8 spread=0.14 adx=22.90 minAdx=18.00 adxOk=yes diGap=7.78 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=2.80 atrRatio=0.71 atrOk=yes zone=yes hourOk=no
+2026.01.02 08:25:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=8 spread=0.14 adx=20.38 minAdx=18.00 adxOk=yes diGap=1.36 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=2.83 atrRatio=0.72 atrOk=yes zone=yes hourOk=no
+2026.01.02 08:35:00	M5 scalp blocked volatilityRegime hour=8 atr=2.71 avgAtr=3.94 atrRatio=0.69 min=0.70 max=1.80
+2026.01.02 08:40:00	M5 scalp blocked reason=no_setup hour=8 close=4376.47 ema21=4376.92 vwap=4360.58 low=4376.42 high=4378.97 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 08:50:00	M5 scalp blocked reason=no_setup hour=8 close=4375.83 ema21=4376.62 vwap=4360.90 low=4373.52 high=4376.22 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 08:55:00	M5 scalp blocked reason=no_setup hour=8 close=4374.44 ema21=4376.42 vwap=4361.08 low=4373.41 high=4376.29 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 09:05:00	M5 scalp blocked reason=no_setup hour=9 close=4374.02 ema21=4376.06 vwap=4361.39 low=4373.29 high=4375.93 spread=0.16 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 09:10:00	M5 scalp blocked reason=no_setup hour=9 close=4373.42 ema21=4375.82 vwap=4361.52 low=4373.26 high=4375.79 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 09:20:00	M5 scalp blocked reason=no_setup hour=9 close=4374.89 ema21=4375.88 vwap=4361.90 low=4374.39 high=4377.56 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 09:25:00	M5 scalp blocked reason=no_setup hour=9 close=4372.56 ema21=4375.58 vwap=4362.04 low=4372.07 high=4375.64 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 09:35:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=9 spread=0.13 adx=24.70 minAdx=18.00 adxOk=yes diGap=0.47 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.35 atrRatio=0.90 atrOk=yes zone=yes hourOk=no
+2026.01.02 09:40:00	M5 scalp blocked reason=no_setup hour=9 close=4379.71 ema21=4376.10 vwap=4362.54 low=4378.67 high=4380.64 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 09:50:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=9 spread=0.12 adx=22.08 minAdx=18.00 adxOk=yes diGap=5.30 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.41 atrRatio=0.93 atrOk=yes zone=yes hourOk=no
+2026.01.02 09:55:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=9 spread=0.12 adx=20.68 minAdx=18.00 adxOk=yes diGap=4.03 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=3.64 atrRatio=1.00 atrOk=yes zone=yes hourOk=no
+2026.01.02 10:05:00	M5 scalp blocked reason=no_setup hour=10 close=4382.84 ema21=4377.64 vwap=4363.50 low=4380.38 high=4384.82 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 10:10:00	M5 scalp blocked reason=no_setup hour=10 close=4385.94 ema21=4378.39 vwap=4363.71 low=4381.54 high=4385.96 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 10:15:00	Breakout retest setup blocked dir=1 hour=10 close=4385.08 level=4383.33 prevHigh=4383.33 prevLow=4370.85 bodyAtr=0.19 minBodyAtr=0.35 bodyRatio=0.44 minBodyRatio=0.35 body=no bodyRatioOk=yes volume=2659 avgVolume=2388.35 requiredVolume=2627.18 volumeOk=yes hourOk=no adx=45.87 minAdx=18.00 adxOk=yes diGap=21.35 minDiGap=4.00 diOk=yes ema=no vwap=yes h1=no zone=yes
+2026.01.02 10:20:00	M5 scalp blocked reason=no_setup hour=10 close=4383.09 ema21=4379.37 vwap=4364.06 low=4382.75 high=4385.32 spread=0.13 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 10:25:00	M5 scalp blocked reason=no_setup hour=10 close=4383.64 ema21=4379.76 vwap=4364.26 low=4381.59 high=4383.99 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 10:35:00	M5 scalp blocked reason=no_setup hour=10 close=4388.75 ema21=4381.04 vwap=4364.69 low=4384.23 high=4389.34 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 10:40:00	M5 scalp blocked reason=no_setup hour=10 close=4388.66 ema21=4381.73 vwap=4364.92 low=4387.48 high=4389.22 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 10:45:00	Breakout retest setup blocked dir=1 hour=10 close=4390.33 level=4386.57 prevHigh=4386.57 prevLow=4370.85 bodyAtr=0.34 minBodyAtr=0.35 bodyRatio=0.80 minBodyRatio=0.35 body=no bodyRatioOk=yes volume=2947 avgVolume=2412.45 requiredVolume=2653.70 volumeOk=yes hourOk=no adx=45.87 minAdx=18.00 adxOk=yes diGap=21.35 minDiGap=4.00 diOk=yes ema=no vwap=yes h1=no zone=yes
+2026.01.02 10:50:00	M5 scalp blocked reason=no_setup hour=10 close=4395.05 ema21=4383.65 vwap=4365.64 low=4390.34 high=4397.51 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 10:55:00	M5 scalp blocked reason=no_setup hour=10 close=4392.58 ema21=4384.47 vwap=4365.92 low=4391.64 high=4395.90 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 11:05:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=11 spread=0.12 adx=35.04 minAdx=18.00 adxOk=yes diGap=8.17 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=3.70 atrRatio=1.06 atrOk=yes zone=yes hourOk=no
+2026.01.02 11:10:00	M5 scalp blocked reason=no_setup hour=11 close=4390.99 ema21=4385.60 vwap=4366.58 low=4387.97 high=4391.15 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 11:20:00	M5 scalp blocked reason=no_setup hour=11 close=4388.84 ema21=4386.28 vwap=4367.04 low=4388.02 high=4391.69 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 11:25:00	M5 scalp blocked reason=no_setup hour=11 close=4386.22 ema21=4386.27 vwap=4367.26 low=4383.48 high=4388.85 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 11:35:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=11 spread=0.12 adx=24.11 minAdx=18.00 adxOk=yes diGap=6.22 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=3.82 atrRatio=1.11 atrOk=yes zone=yes hourOk=no
+2026.01.02 11:40:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=11 spread=0.12 adx=21.53 minAdx=18.00 adxOk=yes diGap=2.02 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.82 atrRatio=1.11 atrOk=yes zone=yes hourOk=no
+2026.01.02 11:50:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=11 spread=0.12 adx=18.15 minAdx=18.00 adxOk=yes diGap=3.59 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.72 atrRatio=1.10 atrOk=yes zone=yes hourOk=no
+2026.01.02 11:55:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=11 spread=0.12 adx=17.15 minAdx=18.00 adxOk=no diGap=3.11 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.72 atrRatio=1.10 atrOk=yes zone=yes hourOk=no
+2026.01.02 12:05:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=12 spread=0.12 adx=20.26 minAdx=18.00 adxOk=yes diGap=9.11 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.45 atrRatio=1.02 atrOk=yes zone=yes hourOk=no
+2026.01.02 12:10:00	M5 scalp blocked reason=no_setup hour=12 close=4386.85 ema21=4387.13 vwap=4368.66 low=4386.21 high=4388.59 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 12:20:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=12 spread=0.17 adx=18.82 minAdx=18.00 adxOk=yes diGap=2.74 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.03 atrRatio=0.90 atrOk=yes zone=yes hourOk=no
+2026.01.02 12:25:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=12 spread=0.12 adx=19.63 minAdx=18.00 adxOk=yes diGap=7.07 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=2.95 atrRatio=0.88 atrOk=yes zone=yes hourOk=no
+2026.01.02 12:35:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=12 spread=0.12 adx=16.56 minAdx=18.00 adxOk=no diGap=3.78 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=2.90 atrRatio=0.87 atrOk=yes zone=yes hourOk=no
+2026.01.02 12:40:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=12 spread=0.12 adx=17.57 minAdx=18.00 adxOk=no diGap=9.44 minDiGap=4.00 diOk=yes h1=no m15=yes m15Long=yes m15Short=no atr=3.09 atrRatio=0.92 atrOk=yes zone=yes hourOk=no
+2026.01.02 12:50:00	M5 scalp blocked reason=no_setup hour=12 close=4394.93 ema21=4389.20 vwap=4369.97 low=4393.71 high=4396.71 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 12:55:00	M5 scalp blocked reason=no_setup hour=12 close=4396.82 ema21=4389.89 vwap=4370.19 low=4394.92 high=4398.55 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 13:05:00	M5 scalp blocked reason=no_setup hour=13 close=4396.97 ema21=4391.06 vwap=4370.86 low=4395.24 high=4398.02 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 13:10:00	M5 scalp blocked reason=no_setup hour=13 close=4395.62 ema21=4391.47 vwap=4371.13 low=4395.46 high=4397.49 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 13:20:00	M5 scalp blocked reason=no_setup hour=13 close=4396.99 ema21=4392.28 vwap=4371.68 low=4395.07 high=4397.21 spread=0.13 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 13:25:00	M5 scalp blocked reason=no_setup hour=13 close=4398.01 ema21=4392.80 vwap=4371.99 low=4396.10 high=4398.14 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 13:35:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=13 spread=0.13 adx=21.52 minAdx=18.00 adxOk=yes diGap=5.02 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.35 atrRatio=1.04 atrOk=yes zone=yes hourOk=no
+2026.01.02 13:40:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=13 spread=0.12 adx=20.22 minAdx=18.00 adxOk=yes diGap=4.35 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=3.28 atrRatio=1.01 atrOk=yes zone=yes hourOk=no
+2026.01.02 13:50:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=13 spread=0.12 adx=15.27 minAdx=18.00 adxOk=no diGap=0.11 minDiGap=4.00 diOk=no h1=no m15=yes m15Long=yes m15Short=no atr=2.91 atrRatio=0.91 atrOk=yes zone=yes hourOk=no
+2026.01.02 13:55:00	M5 scalp blocked reason=no_setup hour=13 close=4391.73 ema21=4393.18 vwap=4373.79 low=4390.87 high=4394.39 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 14:05:01	M5 scalp blocked reason=no_setup hour=14 close=4391.43 ema21=4393.01 vwap=4374.41 low=4391.18 high=4393.10 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 14:10:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=14 spread=0.12 adx=17.72 minAdx=18.00 adxOk=no diGap=2.40 minDiGap=4.00 diOk=no h1=yes m15=yes m15Long=yes m15Short=no atr=2.94 atrRatio=0.92 atrOk=yes zone=yes hourOk=no
+2026.01.02 14:20:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=14 spread=0.12 adx=18.18 minAdx=18.00 adxOk=yes diGap=6.80 minDiGap=4.00 diOk=yes h1=yes m15=yes m15Long=yes m15Short=no atr=3.16 atrRatio=0.97 atrOk=yes zone=yes hourOk=no
+2026.01.02 14:25:02	M5 scalp blocked reason=no_setup hour=14 close=4395.62 ema21=4394.00 vwap=4375.65 low=4395.56 high=4398.27 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 14:35:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=14 spread=0.12 adx=20.01 minAdx=18.00 adxOk=yes diGap=9.55 minDiGap=4.00 diOk=no h1=yes m15=yes m15Long=yes m15Short=no atr=3.28 atrRatio=1.02 atrOk=yes zone=yes hourOk=no
+2026.01.02 14:40:00	M5 scalp blocked reason=no_setup hour=14 close=4392.07 ema21=4393.77 vwap=4376.61 low=4391.37 high=4394.19 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 14:50:00	M5 scalp blocked reason=no_setup hour=14 close=4387.93 ema21=4392.77 vwap=4377.21 low=4385.46 high=4389.11 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 14:55:00	M5 scalp blocked reason=no_setup hour=14 close=4390.05 ema21=4392.52 vwap=4377.47 low=4387.26 high=4390.23 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 15:05:00	M5 scalp blocked dir=1 setupVariant=classic_pullback hour=15 spread=0.12 adx=26.08 minAdx=18.00 adxOk=yes diGap=9.65 minDiGap=4.00 diOk=yes h1=yes m15=yes m15Long=yes m15Short=no atr=3.72 atrRatio=1.11 atrOk=yes zone=yes hourOk=no
+2026.01.02 15:10:00	M5 scalp blocked reason=no_setup hour=15 close=4397.23 ema21=4393.50 vwap=4378.52 low=4395.41 high=4398.23 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 15:20:00	M5 scalp blocked reason=no_setup hour=15 close=4398.74 ema21=4394.50 vwap=4379.38 low=4397.76 high=4402.49 spread=0.17 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 15:25:00	M5 scalp blocked reason=no_setup hour=15 close=4381.43 ema21=4393.31 vwap=4379.73 low=4379.77 high=4399.28 spread=0.13 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 15:30:00	Breakout retest setup blocked dir=-1 hour=15 close=4374.54 level=4383.48 prevHigh=4400.84 prevLow=4383.48 bodyAtr=1.88 minBodyAtr=0.35 bodyRatio=0.84 minBodyRatio=0.35 body=yes bodyRatioOk=yes volume=4522 avgVolume=2823.55 requiredVolume=3105.91 volumeOk=yes hourOk=no adx=59.48 minAdx=18.00 adxOk=yes diGap=16.89 minDiGap=4.00 diOk=no ema=no vwap=yes h1=no zone=yes
+2026.01.02 15:35:00	M5 scalp blocked reason=no_setup hour=15 close=4372.69 ema21=4389.89 vwap=4380.15 low=4368.60 high=4377.11 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 15:40:00	M5 scalp blocked reason=no_setup hour=15 close=4369.40 ema21=4388.03 vwap=4380.28 low=4366.06 high=4374.82 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 15:50:00	M5 scalp blocked dir=-1 setupVariant=classic_pullback hour=15 spread=0.16 adx=21.23 minAdx=18.00 adxOk=yes diGap=0.39 minDiGap=4.00 diOk=no h1=no m15=no m15Long=no m15Short=no atr=6.88 atrRatio=1.79 atrOk=yes zone=yes hourOk=no
+2026.01.02 15:55:00	M5 scalp blocked reason=no_setup hour=15 close=4366.71 ema21=4383.51 vwap=4380.62 low=4365.68 high=4371.65 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 16:00:00	SMC candidate h4=no h1=no m15=yes dir=-1 h4Dir=-1 h1Dir=1 m15Dir=0 smcScore=25.00 fvg=yes ob=yes h4PD=no h4Sweep=no h4Disp=no h4Bos=no h4Overlap=yes h1Aligned=no h1Sweep=yes h1Disp=yes h1Bos=no h1Overlap=no m15Sweep=no m15RecentSweep=yes m15Disp=no m15Bos=yes m15HasZone=yes m15Overlap=no m15Retest=yes m15Sequence=yes
+2026.01.02 16:00:00	SMC setup allocation blocked reason=hour dir=-1 hour=16 allowedLong=7;12;18 allowedShort=8 score=25.00
+2026.01.02 16:05:00	M5 scalp blocked volatilityRegime hour=16 atr=7.47 avgAtr=3.97 atrRatio=1.88 min=0.70 max=1.80
+2026.01.02 16:10:00	M5 scalp blocked volatilityRegime hour=16 atr=7.39 avgAtr=3.98 atrRatio=1.86 min=0.70 max=1.80
+2026.01.02 16:20:00	M5 scalp blocked volatilityRegime hour=16 atr=7.42 avgAtr=3.98 atrRatio=1.86 min=0.70 max=1.80
+2026.01.02 16:25:00	M5 scalp blocked volatilityRegime hour=16 atr=7.50 avgAtr=4.00 atrRatio=1.87 min=0.70 max=1.80
+2026.01.02 16:35:00	M5 scalp blocked reason=no_setup hour=16 close=4355.32 ema21=4374.82 vwap=4380.97 low=4354.78 high=4370.19 spread=0.19 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 16:40:00	M5 scalp blocked reason=no_setup hour=16 close=4351.26 ema21=4372.68 vwap=4380.74 low=4349.97 high=4359.87 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 16:45:00	SMC candidate h4=no h1=no m15=yes dir=-1 h4Dir=-1 h1Dir=1 m15Dir=0 smcScore=25.00 fvg=yes ob=yes h4PD=no h4Sweep=no h4Disp=no h4Bos=no h4Overlap=yes h1Aligned=no h1Sweep=yes h1Disp=yes h1Bos=no h1Overlap=no m15Sweep=no m15RecentSweep=yes m15Disp=yes m15Bos=yes m15HasZone=yes m15Overlap=no m15Retest=no m15Sequence=yes
+2026.01.02 16:45:00	SMC setup allocation blocked reason=hour dir=-1 hour=16 allowedLong=7;12;18 allowedShort=8 score=25.00
+2026.01.02 16:45:00	Breakout retest setup blocked dir=-1 hour=16 close=4356.39 level=4361.59 prevHigh=4402.49 prevLow=4361.59 bodyAtr=0.85 minBodyAtr=0.35 bodyRatio=0.54 minBodyRatio=0.35 body=yes bodyRatioOk=yes volume=5833 avgVolume=3218.10 requiredVolume=3539.91 volumeOk=yes hourOk=no adx=54.09 minAdx=18.00 adxOk=yes diGap=6.94 minDiGap=4.00 diOk=no ema=no vwap=yes h1=no zone=yes
+2026.01.02 16:50:00	M5 scalp blocked reason=no_setup hour=16 close=4361.55 ema21=4370.32 vwap=4380.37 low=4353.95 high=4362.89 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 16:55:00	M5 scalp blocked reason=no_setup hour=16 close=4359.05 ema21=4369.30 vwap=4380.23 low=4354.97 high=4363.00 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 17:05:00	M5 scalp blocked spread=0.64 max=0.35 prop=yes
+2026.01.02 17:10:00	M5 scalp blocked reason=no_setup hour=17 close=4347.31 ema21=4363.83 vwap=4379.35 low=4339.38 high=4350.34 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 17:15:00	SMC candidate h4=no h1=no m15=yes dir=-1 h4Dir=-1 h1Dir=1 m15Dir=0 smcScore=25.00 fvg=yes ob=yes h4PD=no h4Sweep=no h4Disp=no h4Bos=no h4Overlap=yes h1Aligned=no h1Sweep=yes h1Disp=yes h1Bos=no h1Overlap=no m15Sweep=no m15RecentSweep=yes m15Disp=yes m15Bos=yes m15HasZone=yes m15Overlap=no m15Retest=no m15Sequence=yes
+2026.01.02 17:15:00	SMC setup allocation blocked reason=hour dir=-1 hour=17 allowedLong=7;12;18 allowedShort=8 score=25.00
+2026.01.02 17:15:00	Breakout retest setup blocked dir=-1 hour=17 close=4340.30 level=4348.04 prevHigh=4402.49 prevLow=4348.04 bodyAtr=0.89 minBodyAtr=0.35 bodyRatio=0.57 minBodyRatio=0.35 body=yes bodyRatioOk=yes volume=5553 avgVolume=3512.50 requiredVolume=3863.75 volumeOk=yes hourOk=no adx=47.25 minAdx=18.00 adxOk=yes diGap=1.08 minDiGap=4.00 diOk=no ema=no vwap=yes h1=no zone=yes
+2026.01.02 17:20:00	M5 scalp blocked volatilityRegime hour=17 atr=8.90 avgAtr=4.82 atrRatio=1.85 min=0.70 max=1.80
+2026.01.02 17:25:00	M5 scalp blocked volatilityRegime hour=17 atr=9.46 avgAtr=4.90 atrRatio=1.93 min=0.70 max=1.80
+2026.01.02 17:35:00	M5 scalp blocked volatilityRegime hour=17 atr=9.80 avgAtr=4.94 atrRatio=1.98 min=0.70 max=1.80
+2026.01.02 17:40:00	M5 scalp blocked volatilityRegime hour=17 atr=9.87 avgAtr=4.97 atrRatio=1.99 min=0.70 max=1.80
+2026.01.02 17:50:00	M5 scalp blocked reason=no_setup hour=17 close=4342.81 ema21=4351.27 vwap=4375.96 low=4340.93 high=4346.98 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 17:55:00	M5 scalp blocked reason=no_setup hour=17 close=4341.57 ema21=4350.39 vwap=4375.57 low=4338.64 high=4343.92 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 18:05:00	M5 scalp blocked reason=no_setup hour=18 close=4327.59 ema21=4347.08 vwap=4374.53 low=4324.21 high=4337.35 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 18:10:00	M5 scalp blocked reason=no_setup hour=18 close=4326.70 ema21=4345.22 vwap=4373.90 low=4322.44 high=4329.48 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 18:15:00	SMC candidate h4=no h1=no m15=yes dir=-1 h4Dir=-1 h1Dir=1 m15Dir=0 smcScore=25.00 fvg=yes ob=yes h4PD=no h4Sweep=no h4Disp=no h4Bos=no h4Overlap=yes h1Aligned=no h1Sweep=yes h1Disp=yes h1Bos=no h1Overlap=no m15Sweep=no m15RecentSweep=yes m15Disp=yes m15Bos=yes m15HasZone=yes m15Overlap=no m15Retest=no m15Sequence=yes
+2026.01.02 18:15:00	SMC setup allocation blocked reason=hour dir=-1 hour=18 allowedLong=7;12;18 allowedShort=8 score=25.00
+2026.01.02 18:15:00	Breakout retest setup blocked dir=-1 hour=18 close=4322.55 level=4330.26 prevHigh=4402.49 prevLow=4330.26 bodyAtr=0.81 minBodyAtr=0.35 bodyRatio=0.76 minBodyRatio=0.35 body=yes bodyRatioOk=yes volume=5622 avgVolume=4048.60 requiredVolume=4453.46 volumeOk=yes hourOk=no adx=44.05 minAdx=18.00 adxOk=yes diGap=9.87 minDiGap=4.00 diOk=yes ema=no vwap=yes h1=no zone=yes
+2026.01.02 18:20:00	M5 scalp blocked reason=no_setup hour=18 close=4317.37 ema21=4340.82 vwap=4372.65 low=4315.38 high=4324.94 spread=0.14 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 18:25:00	M5 scalp blocked reason=no_setup hour=18 close=4318.64 ema21=4338.80 vwap=4372.00 low=4314.58 high=4320.95 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 18:35:00	M5 scalp blocked reason=no_setup hour=18 close=4316.11 ema21=4335.31 vwap=4370.91 low=4315.04 high=4322.12 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 18:40:00	M5 scalp blocked reason=no_setup hour=18 close=4322.28 ema21=4334.13 vwap=4370.43 low=4315.34 high=4324.77 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 18:50:00	M5 scalp blocked reason=no_setup hour=18 close=4324.67 ema21=4332.58 vwap=4369.59 low=4323.13 high=4328.28 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 18:55:00	M5 scalp blocked reason=no_setup hour=18 close=4323.72 ema21=4331.78 vwap=4369.21 low=4322.24 high=4326.89 spread=0.12 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 19:05:00	M5 scalp blocked reason=no_setup hour=19 close=4332.02 ema21=4331.36 vwap=4368.44 low=4324.83 high=4332.21 spread=0.23 classicLong=no classicShort=no sweepLong=no sweepShort=no breakoutLong=no breakoutShort=no
+2026.01.02 19:10:00	M5 scalp blocked dir=-1 setupVariant=classic_pullback hour=19 spread=0.12 adx=27.78 minAdx=18.00 adxOk=yes diGap=6.59 minDiGap=4.00 diOk=no h1=yes m15=yes m15Long=no m15Short=yes atr=7.14 atrRatio=1.28 atrOk=yes zone=yes hourOk=no
+2026.01.02 19:20:00	M5 scalp blocked dir=-1 setupVariant=classic_pullback hour=19 spread=0.12 adx=27.16 minAdx=18.00 adxOk=yes diGap=9.38 minDiGap=4.00 diOk=no h1=yes m15=yes m15Long=no m15Short=yes atr=6.30 atrRatio=1.13 atrOk=yes zone=yes hourOk=no
+2026.01.02 19:25:00	M5 scalp blocked dir=-1 setupVariant=classic_pullback hour=19 spread=0.12 adx=24.05 minAdx=18.00 adxOk=yes diGap=1.28 minDiGap=4.00 diOk=no h1=yes m15=yes m15Long=no m15Short=yes atr=6.19 atrRatio=1.11 atrOk=yes zone=yes hourOk=no
+2026.01.02 19:35:00	M5 scalp blocked dir=-1 setupVariant=classic_pullback hour=19 spread=0.12 adx=20.48 minAdx=18.00 adxOk=yes diGap=3.22 minDiGap=4.00 diOk=no h1=yes m15=yes m15Long=no m15Short=yes atr=5.75 atrRatio=1.02 atrOk=yes zone=yes hourOk=no
+2026.01.02 19:40:00	M5 scalp blocked dir=-1 setupVariant=classic_pullback hour=19 spread=0.12 adx=18.55 minAdx=18.00 adxOk=yes diGap=2.13 minDiGap=4.00 diOk=no h1=yes m15=yes m15Long=no m15Short=yes atr=5.71 atrRatio=1.01 atrOk=yes zone=yes hourOk=no
+2026.01.02 19:50:00	M5 scalp blocked dir=-1 setupVariant=classic_pullback hour=19 spread=0.12 adx=16.81 minAdx=18.00 adxOk=no diGap=2.05 minDiGap=4.00 diOk=no h1=yes m15=yes m15Long=no m15Short=yes atr=5.03 atrRatio=0.89 atrOk=yes zone=yes hourOk=no
+2026.01.02 19:55:00	M5 scalp blocked dir=-1 setupVariant=classic_pullback hour=19 spread=0.12 adx=16.53 minAdx=18.00 adxOk=no diGap=4.77 minDiGap=4.00 diOk=yes h1=yes m15=yes m15Long=no m15Short=yes atr=4.79 atrRatio=0.84 atrOk=yes zone=yes hourOk=no
+2026.01.02 20:00:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:01:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:02:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:03:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:04:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:05:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:06:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:07:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:08:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:09:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:10:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:11:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:12:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:13:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:14:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:15:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:16:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:17:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:18:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:19:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:20:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:21:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:22:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:23:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:24:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:25:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:26:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:27:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:28:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:29:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:30:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:31:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:32:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:33:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:34:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:35:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:36:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:37:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:38:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:39:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:40:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:41:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:42:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:43:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:44:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:45:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:46:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:47:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:48:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:49:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:50:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:51:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:52:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:53:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:54:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:55:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:56:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:57:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:58:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 20:59:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:00:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:01:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:02:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:03:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:04:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:05:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:06:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:07:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:08:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:09:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:10:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:11:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:12:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:13:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:14:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:15:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:16:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:17:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:18:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:19:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:20:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:21:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:22:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:23:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:24:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:25:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:26:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:27:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:28:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:29:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:30:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:31:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:32:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:33:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:34:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:35:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:36:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:37:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:38:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:39:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:40:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:41:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:42:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:43:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:44:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:45:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:46:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:47:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:48:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:49:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:50:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:51:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:52:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:53:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:54:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:55:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:56:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:57:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:58:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 21:59:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:00:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:01:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:02:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:03:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:04:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:05:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:06:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:07:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:08:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:09:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:10:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:11:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:12:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:13:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:14:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:15:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:16:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:17:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:18:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:19:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:20:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:21:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:22:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:23:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:24:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:25:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:26:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:27:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:28:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:29:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:30:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:31:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:32:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:33:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:34:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:35:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:36:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:37:01	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:38:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:39:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:40:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:41:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:42:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:43:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:44:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:45:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:46:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:47:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:48:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:49:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:50:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:51:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:52:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:53:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:54:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:55:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:56:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:57:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:58:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 22:59:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:00:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:01:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:02:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:03:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:04:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:05:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:06:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:07:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:08:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:09:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:10:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:11:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:12:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:13:04	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:14:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:15:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:16:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:17:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:18:02	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:19:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:20:01	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:21:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:22:02	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:23:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:24:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:25:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:26:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:27:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:28:01	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:29:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:30:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:31:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:32:01	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:33:01	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:34:05	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:35:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:36:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:37:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:38:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:39:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:40:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:41:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:42:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:43:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:44:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:45:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:46:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:47:00	Prop entry gate blocked reason=Prop weekend flatten window
+2026.01.02 23:48:01	Prop entry gate blocked reason=Prop weekend flatten window

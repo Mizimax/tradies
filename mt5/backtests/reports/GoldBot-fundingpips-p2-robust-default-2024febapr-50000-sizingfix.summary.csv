@@ -1,0 +1,2 @@
+report,net_profit,profit_factor,expected_payoff,total_trades,win_rate_pct,loss_rate_pct,profit_trades,loss_trades,max_balance_drawdown_pct,max_equity_drawdown_pct,gross_profit,gross_loss
+GoldBot-fundingpips-p2-robust-default-2024febapr-50000-sizingfix.htm,-282.81,0.50,-35.35,8,62.50,37.50,5,3,0.80,1.08,278.80,-561.61

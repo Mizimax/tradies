@@ -1,0 +1,220 @@
+{
+  "schema_version": 2,
+  "created_at_utc": "2026-08-06T04:21:37+00:00",
+  "accounting_basis": "one record per closing deal; opening deal costs folded into next close",
+  "frozen_cohort": {
+    "setup": "m1_micro_scalp",
+    "direction": "-1",
+    "hour": "10"
+  },
+  "result": "FALSIFIED",
+  "rows": [
+    {
+      "label": "h1-2025",
+      "role": "train",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-train-h1-2025.manifest.json",
+      "initial_balance": 50000.0,
+      "base_net_profit": 3466.51,
+      "closed_trades": 50,
+      "journal_deals": 79,
+      "cohort_trades": 16,
+      "cohort_net_profit": -143.51,
+      "cohort_profit_factor": 0.896163,
+      "cohort_win_rate_pct": 50.0,
+      "counterfactual_net_profit": 3610.02,
+      "counterfactual_benefit": 143.51,
+      "counterfactual_benefit_pct": 0.28702,
+      "base_closed_balance_dd_pct": 1.195619,
+      "counterfactual_closed_balance_dd_pct": 0.487995,
+      "closed_balance_dd_delta_pct_points": -0.707624
+    },
+    {
+      "label": "h2-2025",
+      "role": "train",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-train-h2-2025.manifest.json",
+      "initial_balance": 50000.0,
+      "base_net_profit": 4019.89,
+      "closed_trades": 52,
+      "journal_deals": 84,
+      "cohort_trades": 3,
+      "cohort_net_profit": 431.61,
+      "cohort_profit_factor": 431.61,
+      "cohort_win_rate_pct": 100.0,
+      "counterfactual_net_profit": 3588.28,
+      "counterfactual_benefit": -431.61,
+      "counterfactual_benefit_pct": -0.86322,
+      "base_closed_balance_dd_pct": 2.85995,
+      "counterfactual_closed_balance_dd_pct": 2.883996,
+      "closed_balance_dd_delta_pct_points": 0.024047
+    },
+    {
+      "label": "train-2025",
+      "role": "train_combined",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-train-h1-2025.manifest.json;/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-train-h2-2025.manifest.json",
+      "initial_balance": 50000.0,
+      "base_net_profit": 7486.4,
+      "closed_trades": 102,
+      "journal_deals": 163,
+      "cohort_trades": 19,
+      "cohort_net_profit": 288.1,
+      "cohort_profit_factor": 1.208455,
+      "cohort_win_rate_pct": 57.894737,
+      "counterfactual_net_profit": 7198.3,
+      "counterfactual_benefit": -288.1,
+      "counterfactual_benefit_pct": -0.5762,
+      "base_closed_balance_dd_pct": "",
+      "counterfactual_closed_balance_dd_pct": "",
+      "closed_balance_dd_delta_pct_points": ""
+    },
+    {
+      "label": "h1-2024",
+      "role": "locked_validation",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-validation-h1-2024.manifest.json",
+      "initial_balance": 50000.0,
+      "base_net_profit": 3506.94,
+      "closed_trades": 41,
+      "journal_deals": 62,
+      "cohort_trades": 10,
+      "cohort_net_profit": 281.0,
+      "cohort_profit_factor": 1.481899,
+      "cohort_win_rate_pct": 60.0,
+      "counterfactual_net_profit": 3225.94,
+      "counterfactual_benefit": -281.0,
+      "counterfactual_benefit_pct": -0.562,
+      "base_closed_balance_dd_pct": 1.007739,
+      "counterfactual_closed_balance_dd_pct": 1.003957,
+      "closed_balance_dd_delta_pct_points": -0.003783
+    },
+    {
+      "label": "h2-2024",
+      "role": "locked_validation",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-validation-h2-2024.manifest.json",
+      "initial_balance": 50000.0,
+      "base_net_profit": 1465.29,
+      "closed_trades": 23,
+      "journal_deals": 37,
+      "cohort_trades": 6,
+      "cohort_net_profit": 58.73,
+      "cohort_profit_factor": 1.120112,
+      "cohort_win_rate_pct": 66.666667,
+      "counterfactual_net_profit": 1406.56,
+      "counterfactual_benefit": -58.73,
+      "counterfactual_benefit_pct": -0.11746,
+      "base_closed_balance_dd_pct": 1.512561,
+      "counterfactual_closed_balance_dd_pct": 1.593447,
+      "closed_balance_dd_delta_pct_points": 0.080886
+    },
+    {
+      "label": "validation-2024",
+      "role": "validation_combined",
+      "manifest": "/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-validation-h1-2024.manifest.json;/Users/tammanoonjomjaturong/Desktop/trade/mt5/backtests/reports/GoldBot-fundingpips-m1-short-hour10-shadow-validation-h2-2024.manifest.json",
+      "initial_balance": 50000.0,
+      "base_net_profit": 4972.23,
+      "closed_trades": 64,
+      "journal_deals": 99,
+      "cohort_trades": 16,
+      "cohort_net_profit": 339.73,
+      "cohort_profit_factor": 1.316892,
+      "cohort_win_rate_pct": 62.5,
+      "counterfactual_net_profit": 4632.5,
+      "counterfactual_benefit": -339.73,
+      "counterfactual_benefit_pct": -0.67946,
+      "base_closed_balance_dd_pct": "",
+      "counterfactual_closed_balance_dd_pct": "",
+      "closed_balance_dd_delta_pct_points": ""
+    }
+  ],
+  "gate_checks": [
+    {
+      "gate": "h1-2025:sample",
+      "passed": true,
+      "actual": 16,
+      "required": ">=4"
+    },
+    {
+      "gate": "h1-2025:negative",
+      "passed": true,
+      "actual": -143.51,
+      "required": "<0"
+    },
+    {
+      "gate": "h2-2025:sample",
+      "passed": false,
+      "actual": 3,
+      "required": ">=4"
+    },
+    {
+      "gate": "h2-2025:negative",
+      "passed": false,
+      "actual": 431.61,
+      "required": "<0"
+    },
+    {
+      "gate": "train:sample",
+      "passed": true,
+      "actual": 19,
+      "required": ">=10"
+    },
+    {
+      "gate": "train:pf",
+      "passed": false,
+      "actual": 1.208455,
+      "required": "<=0.95"
+    },
+    {
+      "gate": "h1-2024:sample",
+      "passed": true,
+      "actual": 10,
+      "required": ">=4"
+    },
+    {
+      "gate": "h1-2024:non_profitable",
+      "passed": false,
+      "actual": 281.0,
+      "required": "<=0"
+    },
+    {
+      "gate": "h1-2024:dd",
+      "passed": true,
+      "actual": -0.003783,
+      "required": "<=0.05 pct points"
+    },
+    {
+      "gate": "h2-2024:sample",
+      "passed": true,
+      "actual": 6,
+      "required": ">=4"
+    },
+    {
+      "gate": "h2-2024:non_profitable",
+      "passed": false,
+      "actual": 58.73,
+      "required": "<=0"
+    },
+    {
+      "gate": "h2-2024:dd",
+      "passed": false,
+      "actual": 0.080886,
+      "required": "<=0.05 pct points"
+    },
+    {
+      "gate": "validation:sample",
+      "passed": true,
+      "actual": 16,
+      "required": ">=10"
+    },
+    {
+      "gate": "validation:pf",
+      "passed": false,
+      "actual": 1.316892,
+      "required": "<=0.95"
+    },
+    {
+      "gate": "validation:benefit",
+      "passed": false,
+      "actual": -0.67946,
+      "required": ">=0.25%"
+    }
+  ],
+  "interpretation": "Passing permits only a reviewed tester-only shadow gate."
+}

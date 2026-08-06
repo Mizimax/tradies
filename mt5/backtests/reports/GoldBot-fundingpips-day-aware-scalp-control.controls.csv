@@ -1,0 +1,6 @@
+window,pause_activations,m1_short_term_blocks,m5_short_term_blocks,total_short_term_blocks,max_logged_pause_losses,max_logged_block_losses,worst_logged_pause_daily_r,worst_logged_block_daily_r
+h1-2024,1,487,70,557,2,2,-1.97,-1.97
+h2-2024,0,0,0,0,0,0,0.0,0.0
+h1-2025,2,742,106,848,2,2,-1.97,-1.97
+h2-2025,1,598,86,684,2,2,-2.09,-2.09
+h1-2026,1,465,66,531,2,2,-2.0,-2.0
