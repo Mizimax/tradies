@@ -43,11 +43,73 @@ def as_float(value, context: str) -> float:
         raise StudyError(f"invalid {context}: {value!r}") from exc
 
 
+def deal_ledger(label: str, rows: list[tuple[int, str, str]]) -> tuple[list[dict[str, object]], int]:
+    """Build one record per MT5 closing trade and fold opening costs forward.
+
+    The FundingPips preset allows only one open/pending position at a time. Entry
+    deals may carry the full round-trip commission, while the closing deal has
+    zero commission. The journal stores that cost in the entry deal's ``profit``
+    field, so accumulate entry debits and attach them to the next close. This is
+    the same accounting contract used by ``goldbot-prop-simulate.py``.
+
+    Do not group by MT5 position ID: the tester uses netting semantics, so
+    multiple trades/ladder legs can share one position identifier.
+    """
+    records: list[dict[str, object]] = []
+    pending_debit = 0.0
+    current_segment: int | None = None
+    deal_events = 0
+
+    for segment, timestamp, message in rows:
+        if current_segment is None:
+            current_segment = segment
+        elif segment != current_segment:
+            if abs(pending_debit) > 0.005:
+                raise StudyError(
+                    f"{label}: segment {current_segment} ended with unmatched entry debit "
+                    f"{pending_debit:.2f}"
+                )
+            pending_debit = 0.0
+            current_segment = segment
+
+        if "deal event" not in message.lower():
+            continue
+        fields = A.parse_message_fields(message)
+        entry = fields.get("entry", "")
+        if entry not in {"0", "1", "2", "3"}:
+            continue
+        deal_events += 1
+        profit = as_float(fields.get("profit", "0"), f"{label} deal profit")
+
+        if entry == "0":
+            pending_debit += profit
+            continue
+
+        net_profit = profit + pending_debit
+        pending_debit = 0.0
+        records.append(
+            {
+                "segment": segment,
+                "close": timestamp,
+                "deal": fields.get("deal", ""),
+                "position": fields.get("position", ""),
+                "profit": net_profit,
+                "match": (
+                    fields.get("setup") == SETUP
+                    and fields.get("dir") == DIRECTION
+                    and fields.get("hour") == HOUR
+                ),
+            }
+        )
+
+    if abs(pending_debit) > 0.005:
+        raise StudyError(f"{label}: final segment has unmatched entry debit {pending_debit:.2f}")
+    return records, deal_events
+
+
 def load_window(label: str, role: str, path: Path) -> dict[str, object]:
     try:
-        manifest = json.loads(path.read_text())
-        _, rows = A.read_chain_manifest(path)
-        positions = A._position_cohorts(rows)
+        manifest, rows = A._load_continuation_manifest(path)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         raise StudyError(f"{label}: {exc}") from exc
 
@@ -56,35 +118,24 @@ def load_window(label: str, role: str, path: Path) -> dict[str, object]:
         raise StudyError(f"{label}: stitched metrics missing")
     initial = as_float(stitched.get("initial_balance"), f"{label} initial balance")
     base_net = as_float(stitched.get("net_profit"), f"{label} net profit")
-    expected = int(stitched.get("total_trades", -1))
+    expected_trades = int(stitched.get("total_trades", -1))
+    expected_deals = int(stitched.get("total_deals", -1))
 
-    complete = []
-    for cohort in positions.values():
-        close_times = cohort.get("close_times")
-        fields = cohort.get("fields")
-        if not isinstance(close_times, list) or not close_times or not isinstance(fields, dict):
-            continue
-        complete.append(
-            {
-                "close": max(str(value) for value in close_times),
-                "profit": as_float(cohort.get("profit", 0), f"{label} position profit"),
-                "match": (
-                    fields.get("setup") == SETUP
-                    and fields.get("dir") == DIRECTION
-                    and fields.get("hour") == HOUR
-                ),
-            }
-        )
-    complete.sort(key=lambda row: str(row["close"]))
-    if expected >= 0 and len(complete) != expected:
-        raise StudyError(f"{label}: position/trade mismatch {len(complete)} != {expected}")
-    position_net = sum(float(row["profit"]) for row in complete)
-    if abs(position_net - base_net) > 0.05:
+    trades, journal_deals = deal_ledger(label, rows)
+    if expected_trades >= 0 and len(trades) != expected_trades:
         raise StudyError(
-            f"{label}: position P&L does not reconcile {position_net:.2f} != {base_net:.2f}"
+            f"{label}: closing-trade mismatch {len(trades)} != {expected_trades}"
+        )
+    if expected_deals >= 0 and journal_deals != expected_deals:
+        raise StudyError(f"{label}: deal-count mismatch {journal_deals} != {expected_deals}")
+
+    trade_net = sum(float(row["profit"]) for row in trades)
+    if abs(trade_net - base_net) > 0.05:
+        raise StudyError(
+            f"{label}: trade P&L does not reconcile {trade_net:.2f} != {base_net:.2f}"
         )
 
-    cohort = [row for row in complete if bool(row["match"])]
+    cohort = [row for row in trades if bool(row["match"])]
     values = [float(row["profit"]) for row in cohort]
     gross_profit = sum(value for value in values if value > 0)
     gross_loss = sum(value for value in values if value < 0)
@@ -93,7 +144,7 @@ def load_window(label: str, role: str, path: Path) -> dict[str, object]:
     def dd(suppress: bool) -> float:
         balance = peak = initial
         worst = 0.0
-        for row in complete:
+        for row in trades:
             if suppress and bool(row["match"]):
                 continue
             balance += float(row["profit"])
@@ -109,8 +160,9 @@ def load_window(label: str, role: str, path: Path) -> dict[str, object]:
         "manifest": str(path),
         "initial_balance": round(initial, 2),
         "base_net_profit": round(base_net, 2),
-        "complete_positions": len(complete),
-        "cohort_positions": len(cohort),
+        "closed_trades": len(trades),
+        "journal_deals": journal_deals,
+        "cohort_trades": len(cohort),
         "cohort_net_profit": round(cohort_net, 2),
         "cohort_profit_factor": round(pf, 6),
         "cohort_win_rate_pct": round(
@@ -145,8 +197,9 @@ def combine(label: str, role: str, halves: list[dict[str, object]]) -> dict[str,
         "manifest": ";".join(str(row["manifest"]) for row in halves),
         "initial_balance": initial,
         "base_net_profit": round(sum(float(row["base_net_profit"]) for row in halves), 2),
-        "complete_positions": sum(int(row["complete_positions"]) for row in halves),
-        "cohort_positions": len(values),
+        "closed_trades": sum(int(row["closed_trades"]) for row in halves),
+        "journal_deals": sum(int(row["journal_deals"]) for row in halves),
+        "cohort_trades": len(values),
         "cohort_net_profit": round(net, 2),
         "cohort_profit_factor": round(
             gross_profit / abs(gross_loss) if gross_loss < 0 else gross_profit, 6
@@ -175,28 +228,68 @@ def evaluate(train: list[dict[str, object]], validation: list[dict[str, object]]
         gates.append({"gate": name, "passed": passed, "actual": actual, "required": required})
 
     for row in train:
-        gate(f"{row['label']}:sample", int(row["cohort_positions"]) >= MIN_HALF,
-             row["cohort_positions"], f">={MIN_HALF}")
-        gate(f"{row['label']}:negative", float(row["cohort_net_profit"]) < 0,
-             row["cohort_net_profit"], "<0")
-    gate("train:sample", int(train_all["cohort_positions"]) >= MIN_COMBINED,
-         train_all["cohort_positions"], f">={MIN_COMBINED}")
-    gate("train:pf", float(train_all["cohort_profit_factor"]) <= MAX_PF,
-         train_all["cohort_profit_factor"], f"<={MAX_PF}")
+        gate(
+            f"{row['label']}:sample",
+            int(row["cohort_trades"]) >= MIN_HALF,
+            row["cohort_trades"],
+            f">={MIN_HALF}",
+        )
+        gate(
+            f"{row['label']}:negative",
+            float(row["cohort_net_profit"]) < 0,
+            row["cohort_net_profit"],
+            "<0",
+        )
+    gate(
+        "train:sample",
+        int(train_all["cohort_trades"]) >= MIN_COMBINED,
+        train_all["cohort_trades"],
+        f">={MIN_COMBINED}",
+    )
+    gate(
+        "train:pf",
+        float(train_all["cohort_profit_factor"]) <= MAX_PF,
+        train_all["cohort_profit_factor"],
+        f"<={MAX_PF}",
+    )
 
     for row in validation:
-        gate(f"{row['label']}:sample", int(row["cohort_positions"]) >= MIN_HALF,
-             row["cohort_positions"], f">={MIN_HALF}")
-        gate(f"{row['label']}:non_profitable", float(row["cohort_net_profit"]) <= 0,
-             row["cohort_net_profit"], "<=0")
-        gate(f"{row['label']}:dd", float(row["closed_balance_dd_delta_pct_points"]) <= MAX_DD_WORSENING,
-             row["closed_balance_dd_delta_pct_points"], f"<={MAX_DD_WORSENING} pct points")
-    gate("validation:sample", int(valid_all["cohort_positions"]) >= MIN_COMBINED,
-         valid_all["cohort_positions"], f">={MIN_COMBINED}")
-    gate("validation:pf", float(valid_all["cohort_profit_factor"]) <= MAX_PF,
-         valid_all["cohort_profit_factor"], f"<={MAX_PF}")
-    gate("validation:benefit", float(valid_all["counterfactual_benefit_pct"]) >= MIN_VALIDATION_BENEFIT_PCT,
-         valid_all["counterfactual_benefit_pct"], f">={MIN_VALIDATION_BENEFIT_PCT}%")
+        gate(
+            f"{row['label']}:sample",
+            int(row["cohort_trades"]) >= MIN_HALF,
+            row["cohort_trades"],
+            f">={MIN_HALF}",
+        )
+        gate(
+            f"{row['label']}:non_profitable",
+            float(row["cohort_net_profit"]) <= 0,
+            row["cohort_net_profit"],
+            "<=0",
+        )
+        gate(
+            f"{row['label']}:dd",
+            float(row["closed_balance_dd_delta_pct_points"]) <= MAX_DD_WORSENING,
+            row["closed_balance_dd_delta_pct_points"],
+            f"<={MAX_DD_WORSENING} pct points",
+        )
+    gate(
+        "validation:sample",
+        int(valid_all["cohort_trades"]) >= MIN_COMBINED,
+        valid_all["cohort_trades"],
+        f">={MIN_COMBINED}",
+    )
+    gate(
+        "validation:pf",
+        float(valid_all["cohort_profit_factor"]) <= MAX_PF,
+        valid_all["cohort_profit_factor"],
+        f"<={MAX_PF}",
+    )
+    gate(
+        "validation:benefit",
+        float(valid_all["counterfactual_benefit_pct"]) >= MIN_VALIDATION_BENEFIT_PCT,
+        valid_all["counterfactual_benefit_pct"],
+        f">={MIN_VALIDATION_BENEFIT_PCT}%",
+    )
     return train_all, valid_all, gates, all(bool(row["passed"]) for row in gates)
 
 
@@ -234,8 +327,9 @@ def main() -> int:
     write_csv(prefix.with_suffix(".csv"), rows)
     write_csv(prefix.with_name(prefix.name + ".gates.csv"), gates)
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "accounting_basis": "one record per closing deal; opening deal costs folded into next close",
         "frozen_cohort": {"setup": SETUP, "direction": DIRECTION, "hour": HOUR},
         "result": "PASS_SHADOW_IMPLEMENTATION_ONLY" if passed else "FALSIFIED",
         "rows": [{k: v for k, v in row.items() if not k.startswith("_")} for row in rows],
